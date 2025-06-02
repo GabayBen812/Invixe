@@ -1,58 +1,109 @@
 export interface LessonStep {
   id: string;
   message: string;
-  image: any;
-  choices: { text: string; nextStep: string; style?: 'primary' | 'secondary' | 'danger' }[];
+  backgroundColor: string;
+  choices?: {
+    text: string;
+    nextStep: string;
+    style?: "primary" | "secondary" | "danger";
+  }[];
+  inventory?: {
+    logs?: number;
+    bread?: number;
+    wine?: number;
+    oranges?: number;
+  };
+  showInventory?: boolean;
 }
 
 export const lesson1Steps: LessonStep[] = [
   {
-    id: 'start',
-    message: 'בוא נשחק משחק וזה יבהיר לך הכל',
-    image: require('../assets/lesson1_bg1.png'),
+    id: "intro",
+    message: "יש ברשותך ארבעה בקבוקי\nיין עליך להחליף כך\nשתשיג את זה:",
+    backgroundColor: "#8E4A00",
+    choices: [{ text: "קדימה!", nextStep: "start", style: "primary" }],
+  },
+  {
+    id: "start",
+    message: "בוא נעשה משהו\nוזה יבהיר\nלך הכל",
+    backgroundColor: "#436B1C",
     choices: [
-      { text: 'יאללה, מתחילים!', nextStep: 'barter_intro', style: 'primary' },
+      { text: "יאללה, מתחילים!", nextStep: "why_money", style: "primary" },
     ],
   },
   {
-    id: 'barter_intro',
-    message: 'אז מה עשו לפני שהיה כסף?',
-    image: require('../assets/lesson1_bg2.png'),
+    id: "why_money",
+    message: "אז למה נוצר\nכסף בכלל?",
+    backgroundColor: "#8E4A00",
     choices: [
-      { text: 'בוא נתחיל', nextStep: 'barter_offer', style: 'primary' },
+      { text: "בוא נתחיל", nextStep: "grandma_intro", style: "primary" },
     ],
   },
   {
-    id: 'barter_offer',
-    message: 'סבתא תראי מה יש לי להציע לך! גזע עץ ובקבוק יין תמורת התפוזים',
-    image: require('../assets/lesson1_bg4.png'),
+    id: "grandma_intro",
+    message: "אני מוכנה לתת\nלך 4 תפוזים\nתמורת 2 בקבוקים",
+    backgroundColor: "#436B1C",
     choices: [
-      { text: 'קדימה!', nextStep: 'barter_success', style: 'primary' },
-      { text: 'סירוב', nextStep: 'barter_fail', style: 'danger' },
+      { text: "סרב", nextStep: "refuse_trade", style: "danger" },
+      { text: "החלף", nextStep: "accept_trade", style: "primary" },
+    ],
+    inventory: {
+      wine: 4,
+    },
+    showInventory: true,
+  },
+  {
+    id: "refuse_trade",
+    message: "מה לעשות אתה\nהולך לי אשפיר\nלהחליף ממך",
+    backgroundColor: "#436B1C",
+    choices: [{ text: "נסה שוב", nextStep: "grandma_intro", style: "primary" }],
+  },
+  {
+    id: "accept_trade",
+    message: "יש נשאר ברשותך\n2 בקבוקים\nאני נותן לך\nתמורת בקבוק יין",
+    backgroundColor: "#8E4A00",
+    inventory: {
+      wine: 2,
+      oranges: 4,
+    },
+    showInventory: true,
+    choices: [
+      { text: "סרב", nextStep: "refuse_trade2", style: "danger" },
+      { text: "החלף", nextStep: "accept_trade2", style: "primary" },
     ],
   },
   {
-    id: 'barter_success',
-    message: 'פיקסלה בסוף אתה תמיד משיג מה ששמח אותך בסחר אני מסכים!',
-    image: require('../assets/lesson1_bg4.png'),
+    id: "refuse_trade2",
+    message: "מה לעשות אתה\nהולך לי אשפיר\nלהחליף ממך",
+    backgroundColor: "#436B1C",
+    choices: [{ text: "נסה שוב", nextStep: "accept_trade", style: "primary" }],
+  },
+  {
+    id: "accept_trade2",
+    message: "תודה רבה לך\nפיקסלה!",
+    backgroundColor: "#436B1C",
+    inventory: {
+      wine: 1,
+      oranges: 4,
+      bread: 1,
+    },
+    showInventory: true,
+    choices: [{ text: "המשך", nextStep: "success", style: "primary" }],
+  },
+  {
+    id: "success",
+    message: "לא נורא נכשלת\nהיית צריך לשמוע\nאת כל ההצעות\nלפני שקיבלת\nהחלטה",
+    backgroundColor: "#8E4A00",
     choices: [
-      { text: 'לשיעור הבא!', nextStep: 'end', style: 'primary' },
+      { text: "נסה שוב", nextStep: "intro", style: "primary" },
+      { text: "דלג", nextStep: "summary", style: "secondary" },
     ],
   },
   {
-    id: 'barter_fail',
-    message: 'שדון קטן תחזור אם יהיה לך מה להציע לי',
-    image: require('../assets/lesson1_bg4.png'),
-    choices: [
-      { text: 'נסה שוב', nextStep: 'barter_offer', style: 'primary' },
-    ],
+    id: "summary",
+    message:
+      "אז מה למדנו?\n\n1. מסובך - בעולם המלא כיסף\n2. תמיד תשמע את כל האפשרויות\nלפני שאתה סוגר\n3. קבלת החלטות\nמהירה חשובה במסחר",
+    backgroundColor: "#8E4A00",
+    choices: [{ text: "לשיעור הבא!", nextStep: "map", style: "primary" }],
   },
-  {
-    id: 'end',
-    message: 'סיימת את השיעור הראשון! כל הכבוד 🎉',
-    image: require('../assets/lesson1_bg1.png'),
-    choices: [
-      { text: 'למפה', nextStep: 'map', style: 'primary' },
-    ],
-  },
-]; 
+];
