@@ -8,6 +8,7 @@ app.use(express.json());
 
 app.use('/api/register', require('./routes/register'));
 app.use('/api/login', require('./routes/login'));
+app.use('/api/user', require('./routes/user'));
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Invixe backend is running!' });
