@@ -9,6 +9,7 @@ import Button from "../components/ui/Button";
 import Inventory from "../components/lesson/Inventory";
 import SpeechBubble from "../components/lesson/SpeechBubble";
 import PageBackground from "../components/ui/PageBackground";
+import { useUser } from '../context/UserContext';
 
 const characterImg = require("../assets/character.png");
 const backgroundImages = {
@@ -37,6 +38,7 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [stepId, setStepId] = useState("intro");
   const [fadeAnim] = useState(new Animated.Value(1));
   const lessonId = route.params?.lessonId || 1;
+  const { completedLessons, setCompletedLessons } = useUser();
 
   useEffect(() => {
     if (route.params?.lessonId) {
@@ -54,9 +56,12 @@ export default function LessonScreen({ navigation, route }: Props) {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
-    }).start(() => {
+    }).start(async () => {
       if (nextStep === "map") {
-        // TODO: Save progress before navigating
+        // Save progress before navigating
+        if (!completedLessons.includes(lessonId)) {
+          await setCompletedLessons([...completedLessons, lessonId]);
+        }
         navigation.navigate("Map");
       } else {
         setStepId(nextStep);
