@@ -2,6 +2,7 @@ export interface LessonMetadata {
   id: number;
   title: string;
   description: string;
+  lessonType: 'memorize' | 'info' | 'test' | 'practice';
   unlockRequirements?: {
     completedLessons?: number[];
     minimumPoints?: number;

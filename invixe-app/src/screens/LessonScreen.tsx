@@ -60,9 +60,14 @@ export default function LessonScreen({ navigation, route }: Props) {
       if (nextStep === "map") {
         // Save progress before navigating
         if (!completedLessons.includes(lessonId)) {
-          await setCompletedLessons([...completedLessons, lessonId]);
+          try {
+            await setCompletedLessons([...completedLessons, lessonId]);
+          } catch (error) {
+            console.error("Failed to save progress:", error);
+            // Continue with navigation even if progress save fails
+          }
         }
-        navigation.navigate("Map");
+        navigation.navigate("LessonComplete", { lessonId });
       } else {
         setStepId(nextStep);
         fadeAnim.setValue(1);
