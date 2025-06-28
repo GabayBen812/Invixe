@@ -5,12 +5,14 @@ export const lessonsRegistry: LessonMetadata[] = [
     id: 1,
     title: "מבוא לשוק ההון",
     description: "למד את היסודות של שוק ההון והמושגים הבסיסיים",
+    lessonType: "info",
     unlockRequirements: {}, // First lesson is always unlocked
   },
   {
     id: 2,
     title: "מהי מניה?",
     description: "הבנת המושג מניה וכיצד היא עובדת",
+    lessonType: "memorize",
     unlockRequirements: {
       completedLessons: [1],
     },
@@ -19,6 +21,7 @@ export const lessonsRegistry: LessonMetadata[] = [
     id: 3,
     title: "איך קונים מניה?",
     description: "צעדים מעשיים לרכישת המניה הראשונה שלך",
+    lessonType: "practice",
     unlockRequirements: {
       completedLessons: [1, 2],
     },
@@ -27,6 +30,7 @@ export const lessonsRegistry: LessonMetadata[] = [
     id: 4,
     title: "סיכונים והזדמנויות",
     description: "הבנת הסיכונים וההזדמנויות בהשקעה במניות",
+    lessonType: "test",
     unlockRequirements: {
       completedLessons: [1, 2, 3],
     },

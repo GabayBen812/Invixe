@@ -6,6 +6,7 @@ import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
 import PageBackground from "../components/ui/PageBackground";
 import { lessonsRegistry, isLessonUnlocked } from "../modules/lessons/registry";
 import TopBar from "../components/ui/TopBar";
+import BottomNavbar from "../components/ui/BottomNavbar";
 import { AppText } from "../../App";
 import theme from "../theme";
 import Svg, { Path } from 'react-native-svg';
@@ -50,6 +51,25 @@ export default function MapScreen({ navigation }: Props) {
     navigation.navigate("Lesson", { lessonId });
   };
 
+  const handleTabPress = (tab: 'map' | 'settings' | 'shop' | 'graph') => {
+    switch (tab) {
+      case 'map':
+        // Already on map screen, do nothing
+        break;
+      case 'graph':
+        navigation.navigate('Sandbox');
+        break;
+      case 'settings':
+        // TODO: Navigate to settings screen
+        console.log('Settings pressed');
+        break;
+      case 'shop':
+        // TODO: Navigate to shop screen
+        console.log('Shop pressed');
+        break;
+    }
+  };
+
   // Calculate node positions for path
   const nodePositions = lessonsRegistry.map((_, idx) => {
     const y = idx * (CIRCLE_SIZE + 48);
@@ -66,58 +86,65 @@ export default function MapScreen({ navigation }: Props) {
   const lessonStatuses = getLessonStatuses(completedLessons);
 
   return (
-    <PageBackground source={require("../assets/bg.png")}>
-      <TopBar />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <AppText style={styles.title}>המסע שלך בשוק ההון</AppText>
-        <View style={styles.mapContainer}>
-          {/* SVG path behind nodes */}
-          <Svg
-            width={SCREEN_WIDTH}
-            height={nodePositions[nodePositions.length - 1].y + CIRCLE_SIZE}
-            style={StyleSheet.absoluteFill}
-          >
-            <Path
-              d={pathD}
-              stroke={theme.colors.primaryBlue}
-              strokeWidth={8}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={0.25}
-            />
-          </Svg>
-          {lessonsRegistry.map((lesson, idx) => {
-            const { completed, current, unlocked } = lessonStatuses[idx];
-            const position = idx % 2 === 0 ? 'left' : 'right';
-            const nodeStyle = {
-              position: 'absolute' as const,
-              left: nodePositions[idx].x - CIRCLE_SIZE / 2,
-              top: nodePositions[idx].y,
-            };
-            return (
-              <View key={lesson.id} style={nodeStyle}>
-                <LessonNode
-                  title={lesson.title}
-                  unlocked={unlocked}
-                  onStart={() => handleLessonStart(lesson.id)}
-                  showConnector={idx < lessonsRegistry.length - 1}
-                  completed={completed}
-                  current={current}
-                  position={position}
-                />
-              </View>
-            );
-          })}
-          {/* Spacer for scroll */}
-          <View style={{ height: 100 }} />
-        </View>
-      </ScrollView>
-    </PageBackground>
+    <View style={styles.container}>
+      <PageBackground source={require("../assets/bg.png")}>
+        <TopBar />
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <AppText style={styles.title}>המסע שלך בשוק ההון</AppText>
+          <View style={styles.mapContainer}>
+            {/* SVG path behind nodes */}
+            <Svg
+              width={SCREEN_WIDTH}
+              height={nodePositions[nodePositions.length - 1].y + CIRCLE_SIZE}
+              style={StyleSheet.absoluteFill}
+            >
+              <Path
+                d={pathD}
+                stroke={theme.colors.primaryBlue}
+                strokeWidth={8}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.25}
+              />
+            </Svg>
+            {lessonsRegistry.map((lesson, idx) => {
+              const { completed, current, unlocked } = lessonStatuses[idx];
+              const position = idx % 2 === 0 ? 'left' : 'right';
+              const nodeStyle = {
+                position: 'absolute' as const,
+                left: nodePositions[idx].x - CIRCLE_SIZE / 2,
+                top: nodePositions[idx].y,
+              };
+              return (
+                <View key={lesson.id} style={nodeStyle}>
+                  <LessonNode
+                    title={lesson.title}
+                    unlocked={unlocked}
+                    onStart={() => handleLessonStart(lesson.id)}
+                    showConnector={idx < lessonsRegistry.length - 1}
+                    completed={completed}
+                    current={current}
+                    position={position}
+                    lessonType={lesson.lessonType}
+                  />
+                </View>
+              );
+            })}
+            {/* Spacer for scroll */}
+            <View style={{ height: 100 }} />
+          </View>
+        </ScrollView>
+      </PageBackground>
+      <BottomNavbar activeTab="map" onTabPress={handleTabPress} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
   scrollContent: {
     alignItems: "center",
     paddingVertical: theme.spacing.xl,

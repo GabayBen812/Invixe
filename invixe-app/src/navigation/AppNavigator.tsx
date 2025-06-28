@@ -12,6 +12,8 @@ import GoalSelectScreen from "../screens/Unfiltered/GoalSelectScreen";
 import OnboardingFinishScreen from "../screens/Unfiltered/OnboardingFinishScreen";
 import MapScreen from "../screens/MapScreen";
 import LessonScreen from "../screens/LessonScreen";
+import LessonCompleteScreen from "../screens/LessonCompleteScreen";
+import SandboxScreen from "../screens/SandboxScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -25,6 +27,8 @@ export type RootStackParamList = {
   OnboardingFinish: undefined;
   Map: undefined;
   Lesson: { lessonId: number };
+  LessonComplete: { lessonId: number };
+  Sandbox: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -53,6 +57,8 @@ export default function AppNavigator() {
         />
         <Stack.Screen name="Map" component={MapScreen} />
         <Stack.Screen name="Lesson" component={LessonScreen} />
+        <Stack.Screen name="LessonComplete" component={LessonCompleteScreen} />
+        <Stack.Screen name="Sandbox" component={SandboxScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

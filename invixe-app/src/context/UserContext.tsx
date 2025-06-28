@@ -20,13 +20,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   // Fetch user data from backend
   const fetchUserData = async () => {
     try {
-      const res = await fetch('http://localhost:4000/api/user/progress');
+      const res = await fetch('http://10.0.0.22:4000/api/user/progress');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch user data: ${res.status}`);
+      }
       const data = await res.json();
       setCompletedLessonsState(data.completedLessons || []);
       setCoinsState(data.coins || 0);
       setLightningsState(data.lightnings || 0);
     } catch (e) {
-      // handle error
+      console.error('Error fetching user data:', e);
+      // Keep default values if fetch fails
     }
   };
 
@@ -36,18 +40,26 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Update progress in backend
   const setCompletedLessons = async (lessons: number[]) => {
-    setCompletedLessonsState(lessons);
-    await fetch('http://localhost:4000/api/user/progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completedLessons: lessons }),
-    });
+    try {
+      setCompletedLessonsState(lessons);
+      const res = await fetch('http://10.0.0.22:4000/api/user/progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completedLessons: lessons }),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to save progress: ${res.status}`);
+      }
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      throw error; // Re-throw so calling code can handle it
+    }
   };
 
   // Update coins in backend
   const setCoins = async (coins: number) => {
     setCoinsState(coins);
-    await fetch('http://localhost:4000/api/user/currency', {
+    await fetch('http://10.0.0.22:4000/api/user/currency', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ coins }),
@@ -57,7 +69,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   // Update lightnings in backend
   const setLightnings = async (lightnings: number) => {
     setLightningsState(lightnings);
-    await fetch('http://localhost:4000/api/user/currency', {
+    await fetch('http://10.0.0.22:4000/api/user/currency', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lightnings }),
