@@ -7,7 +7,7 @@ import Svg, { Path, Circle, Rect } from 'react-native-svg';
 export const CIRCLE_SIZE = 96;
 
 interface LessonNodeProps {
-  title: string;
+  title?: string;
   unlocked: boolean;
   onStart: () => void;
   showConnector?: boolean;
@@ -134,7 +134,9 @@ export default function LessonNode({
         disabled={!unlocked}
       >
         {getLessonIcon(lessonType)}
-        <AppText style={styles.title} numberOfLines={2} ellipsizeMode="tail">{title}</AppText>
+        {title ? (
+          <AppText style={styles.title} numberOfLines={2} ellipsizeMode="tail">{title}</AppText>
+        ) : null}
         {completed && <View style={styles.statusIcon}><Checkmark /></View>}
         {current && !completed && <View style={styles.statusIconGlow} />}
         {!unlocked && !completed && <View style={styles.statusIcon}><LockIcon /></View>}

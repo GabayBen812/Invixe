@@ -1,46 +1,58 @@
 import { LessonMetadata } from "./types";
 
-export const lessonsRegistry: LessonMetadata[] = [
+export interface StepRegistry {
+  step: number;
+  lessons: LessonMetadata[];
+}
+
+export const lessonsRegistry: StepRegistry[] = [
   {
-    id: 1,
-    title: "מבוא לשוק ההון",
-    description: "למד את היסודות של שוק ההון והמושגים הבסיסיים",
-    lessonType: "info",
-    unlockRequirements: {}, // First lesson is always unlocked
+    step: 1,
+    lessons: [
+      {
+        id: 1,
+        title: "מבוא לשוק ההון",
+        description: "למד את היסודות של שוק ההון והמושגים הבסיסיים",
+        lessonType: "info",
+        unlockRequirements: {},
+      },
+      {
+        id: 101,
+        title: "חידון: מבוא לשוק ההון",
+        description: "בדוק את הידע שלך על היסודות של שוק ההון.",
+        lessonType: "test",
+        unlockRequirements: {
+          completedLessons: [1],
+        },
+      },
+    ],
   },
   {
-    id: 2,
-    title: "מהי מניה?",
-    description: "הבנת המושג מניה וכיצד היא עובדת",
-    lessonType: "memorize",
-    unlockRequirements: {
-      completedLessons: [1],
-    },
-  },
-  {
-    id: 3,
-    title: "איך קונים מניה?",
-    description: "צעדים מעשיים לרכישת המניה הראשונה שלך",
-    lessonType: "practice",
-    unlockRequirements: {
-      completedLessons: [1, 2],
-    },
-  },
-  {
-    id: 4,
-    title: "סיכונים והזדמנויות",
-    description: "הבנת הסיכונים וההזדמנויות בהשקעה במניות",
-    lessonType: "test",
-    unlockRequirements: {
-      completedLessons: [1, 2, 3],
-    },
+    step: 2,
+    lessons: [
+      {
+        id: 2,
+        title: "מהי מניה?",
+        description: "הבנת המושג מניה וכיצד היא עובדת",
+        lessonType: "memorize",
+        unlockRequirements: {
+          completedLessons: [1],
+        },
+      },
+    ],
   },
 ];
 
+// Helper to get lesson metadata by id
 export function getLessonMetadata(id: number): LessonMetadata | undefined {
-  return lessonsRegistry.find((lesson) => lesson.id === id);
+  for (const step of lessonsRegistry) {
+    const lesson = step.lessons.find((l) => l.id === id);
+    if (lesson) return lesson;
+  }
+  return undefined;
 }
 
+// Helper to check if a lesson is unlocked
 export function isLessonUnlocked(
   lessonId: number,
   completedLessons: number[]

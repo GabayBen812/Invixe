@@ -28,6 +28,9 @@ export interface LessonStep {
   inventory?: Inventory;
   showInventory?: boolean;
   points?: number; // Points earned for completing this step
+  bubblePosition?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight';
+  characterImg?: string; // Filename or key for the character image
+  visual?: string; // Optional visual key for SVGs or images
 }
 
 export interface Choice {

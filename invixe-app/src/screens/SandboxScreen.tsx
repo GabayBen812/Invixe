@@ -105,7 +105,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const fetchStockData = async (symbol: string, interval: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://10.0.0.22:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
+      const response = await fetch(`http://10.0.0.52:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
@@ -148,7 +148,7 @@ export default function SandboxScreen({ navigation }: Props) {
   // Fetch live price
   const fetchLivePrice = async (symbol: string) => {
     try {
-      const response = await fetch(`http://10.0.0.22:4000/api/stocks/${symbol}/price`);
+      const response = await fetch(`http://10.0.0.52:4000/api/stocks/${symbol}/price`);
       if (!response.ok) return;
       const result = await response.json();
       setLivePrice(result.price);
@@ -171,7 +171,7 @@ export default function SandboxScreen({ navigation }: Props) {
     setSelectedStock(stock);
   };
 
-  const handleTabPress = (tab: 'map' | 'settings' | 'shop' | 'graph') => {
+  const handleTabPress = (tab: 'map' | 'profile' | 'shop' | 'graph') => {
     switch (tab) {
       case 'map':
         navigation.navigate('Map');
@@ -179,9 +179,9 @@ export default function SandboxScreen({ navigation }: Props) {
       case 'graph':
         // Already on graph screen, do nothing
         break;
-      case 'settings':
-        // TODO: Navigate to settings screen
-        console.log('Settings pressed');
+      case 'profile':
+        // TODO: Navigate to profile screen
+        console.log('profile pressed');
         break;
       case 'shop':
         // TODO: Navigate to shop screen
