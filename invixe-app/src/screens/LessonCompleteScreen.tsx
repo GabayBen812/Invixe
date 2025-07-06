@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import PageBackground from "../components/ui/PageBackground";
 import Button from "../components/ui/Button";
 import theme from "../theme";
 import { useUser } from '../context/UserContext';
@@ -30,7 +29,7 @@ const CoinIcon = () => (
 );
 
 const COINS_REWARD = 10;
-const API_URL = "http://10.0.0.22:4000/api/user/add-coins"; // Adjust as needed
+const API_URL = "http://10.0.0.52:4000/api/user/add-coins"; // Adjust as needed
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonComplete">;
 
@@ -69,7 +68,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   };
 
   return (
-    <PageBackground source={require("../assets/bg.png")}> 
+    <View style={{ flex: 1, backgroundColor: '#D3E9FF' }}>
       <View style={styles.container}>
         <Text style={styles.title}>🎉 כל הכבוד!</Text>
         <Text style={styles.subtitle}>סיימת את השיעור בהצלחה</Text>
@@ -85,7 +84,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           <Button text="המשך" onPress={handleContinue} />
         )}
       </View>
-    </PageBackground>
+    </View>
   );
 }
 

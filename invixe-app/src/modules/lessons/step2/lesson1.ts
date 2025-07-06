@@ -1,6 +1,6 @@
 import { LessonStep } from "../types";
 
-export const lesson2Steps: LessonStep[] = [
+export const lessonSteps: LessonStep[] = [
   {
     id: "intro",
     message: "אז מה זו בכלל בורסה?",
@@ -36,7 +36,7 @@ export const lesson2Steps: LessonStep[] = [
   },
   {
     id: "buying_process",
-    message: "במקום לקנות המבורגר מטבריה...",
+    message: "במקום לקנות מבוגר מטבריה...",
     backgroundImage: "bg4",
     choices: [
       {
@@ -59,7 +59,7 @@ export const lesson2Steps: LessonStep[] = [
   {
     id: "how_to_know",
     message:
-      "כשחברה רוצה לגייס כסף, היא צריכה לות מאושרת לפי כללים מסוימים לפני שתוכל להיכנס לבורסה.",
+      "כשחברה רוצה לגייס כסף, היא צריכה להיות מאושרת לפי כללים מסוימים לפני שתוכל להיכנס לבורסה.",
     backgroundImage: "bg6",
     choices: [
       {
@@ -82,7 +82,7 @@ export const lesson2Steps: LessonStep[] = [
   {
     id: "stock_example",
     message:
-      "כשחברה רוצה לגייס כסף, היא צריכה לות מאושרת לפי כללים מסוימים לפני שתוכל להיכנס לבורסה.",
+      "כשחברה רוצה לגייס כסף, היא צריכה להיות מאושרת לפי כללים מסוימים לפני שתוכל להיכנס לבורסה.",
     backgroundImage: "bg8",
     choices: [
       {
@@ -94,12 +94,12 @@ export const lesson2Steps: LessonStep[] = [
   {
     id: "correct_answer",
     message:
-      "מניה היא חלק מהבעלות על חברה. ברגע שאתה קונה מניה של חברה, אתה הופך להיות בעל שותף קטן באותה חברה.",
+      "מניה היא חלק מהבעלות על חברה. ברגע שאתה קונה מניה של חברה, אתה הופך להיות בעלים על שותף קטן באותה חברה.",
     backgroundImage: "bg9",
     points: 10,
     choices: [
       {
-        text: "ואיך אני מרוויח כשיש לי מניות?",
+        text: "איך מניה משתנה?",
         nextStep: "how_to_profit",
       },
     ],
@@ -107,7 +107,7 @@ export const lesson2Steps: LessonStep[] = [
   {
     id: "how_to_profit",
     message:
-      "לדוגמה, שווי מניה אחת של טסלה מגיע ל-300 דולר. לאחר שבוע, המחיר עלה ל-310 דולר. אם תמכור את המניה ברגע שהייתה בעלייה.",
+      "לדוגמה, שווי מניה אחת של טסלה מגיע ל-300 דולר. לאחר שבוע, המחיר עולה ל-310 דולר. אם תמכור את המניה ברגע שהייתה בעלייה.",
     backgroundImage: "bg10",
     choices: [
       {
@@ -118,7 +118,7 @@ export const lesson2Steps: LessonStep[] = [
   },
   {
     id: "why_stock_changes",
-    message: "ממש עוד מעט ותדעו הכל! בשיעור הבא!",
+    message: "ממש עוד מעט ותדע הכל! בשיעור הבא!",
     backgroundImage: "bg11",
     choices: [
       {
@@ -127,4 +127,4 @@ export const lesson2Steps: LessonStep[] = [
       },
     ],
   },
-];
+]; 

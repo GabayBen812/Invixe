@@ -1,19 +1,22 @@
-import React from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
-import theme from '../../theme';
+import React from "react";
+import { View, StyleSheet, TouchableOpacity, Text } from "react-native";
+import Svg, { Path, Circle, Rect } from "react-native-svg";
+import theme from "../../theme";
 
 interface BottomNavbarProps {
-  activeTab?: 'map' | 'settings' | 'shop' | 'graph';
-  onTabPress?: (tab: 'map' | 'settings' | 'shop' | 'graph') => void;
+  activeTab?: "map" | "profile" | "shop" | "graph";
+  onTabPress?: (tab: "map" | "profile" | "shop" | "graph") => void;
 }
 
-export default function BottomNavbar({ activeTab = 'map', onTabPress }: BottomNavbarProps) {
+export default function BottomNavbar({
+  activeTab = "map",
+  onTabPress,
+}: BottomNavbarProps) {
   const tabs = [
-    { id: 'map', label: 'מפה' },
-    { id: 'graph', label: 'גרף' },
-    { id: 'shop', label: 'חנות' },
-    { id: 'settings', label: 'הגדרות' },
+    { id: "map", label: "מפה" },
+    { id: "graph", label: "גרף" },
+    { id: "shop", label: "חנות" },
+    { id: "profile", label: "פרופיל" },
   ] as const;
 
   const renderIcon = (tabId: string, isActive: boolean) => {
@@ -21,90 +24,100 @@ export default function BottomNavbar({ activeTab = 'map', onTabPress }: BottomNa
     const size = 24;
 
     switch (tabId) {
-      case 'map':
+      case "map":
         return (
-          <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Circle
-              cx="12"
-              cy="10"
-              r="3"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
+          <View style={{ alignItems: "center" }}>
+            <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M12 23C14.4477 23 16.3465 22.8672 17.8271 22.5381C19.2964 22.2115 20.2925 21.7056 20.999 20.999C21.7056 20.2925 22.2115 19.2964 22.5381 17.8271C22.8672 16.3465 23 14.4477 23 12C23 9.55232 22.8672 7.65353 22.5381 6.17285C22.2115 4.70364 21.7056 3.70752 20.999 3.00098C20.2925 2.29443 19.2964 1.78846 17.8271 1.46191C16.3465 1.13284 14.4477 1 12 1C9.55232 1 7.65353 1.13284 6.17285 1.46191C4.70364 1.78846 3.70752 2.29443 3.00098 3.00098C2.29443 3.70752 1.78846 4.70364 1.46191 6.17285C1.13284 7.65353 1 9.55232 1 12C1 14.4477 1.13284 16.3465 1.46191 17.8271C1.78846 19.2964 2.29443 20.2925 3.00098 20.999C3.70752 21.7056 4.70364 22.2115 6.17285 22.5381C7.65353 22.8672 9.55232 23 12 23Z"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Path
+                d="M12 7V17M17 11V17M7 13V17"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text>{tabs.find((t) => t.id === tabId)?.label}</Text>
+          </View>
         );
-      case 'settings':
+      case "profile":
         return (
-          <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Path
-              d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
+          <View style={{ alignItems: "center" }}>
+            <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M12 12c2.761 0 5-2.239 5-5s-2.239-5-5-5-5 2.239-5 5 2.239 5 5 5z"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Path
+                d="M4 21v-1a4 4 0 014-4h8a4 4 0 014 4v1"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text>{tabs.find((t) => t.id === tabId)?.label}</Text>
+          </View>
         );
-      case 'shop':
+      case "shop":
         return (
-          <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Path
-              d="M3 6h18"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Path
-              d="M16 10a4 4 0 01-8 0"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
+          <View style={{ alignItems: "center" }}>
+            <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Path
+                d="M3 6h18"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Path
+                d="M16 10a4 4 0 01-8 0"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text>{tabs.find((t) => t.id === tabId)?.label}</Text>
+          </View>
         );
-      case 'graph':
+      case "graph":
         return (
-          <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-            <Path
-              d="M3 3v18h18"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            <Path
-              d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"
-              stroke={color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
+          <View style={{ alignItems: "center" }}>
+            <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M3 3v18h18"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <Path
+                d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"
+                stroke={color}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </Svg>
+            <Text>{tabs.find((t) => t.id === tabId)?.label}</Text>
+          </View>
         );
       default:
         return null;
@@ -132,7 +145,7 @@ export default function BottomNavbar({ activeTab = 'map', onTabPress }: BottomNa
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: "#D3E9FF",
     borderTopWidth: 1,
     borderTopColor: theme.colors.gray,
@@ -149,8 +162,8 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 8,
   },
-}); 
+});
