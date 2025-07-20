@@ -1,157 +1,110 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios');
-require('dotenv').config();
-const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
 
-// Mock stock data generator
-const generateStockData = (symbol, count = 50, interval = '1h') => {
-  const data = [];
-  const basePrice = 100 + Math.random() * 200;
-  const now = Date.now();
-  
-  // Determine ms per point based on interval
-  let msPerPoint = 60000; // default 1 minute
-  switch (interval) {
-    case '1m': msPerPoint = 60000; break;
-    case '5m': msPerPoint = 5 * 60000; break;
-    case '1h': msPerPoint = 60 * 60000; break;
-    case '1d': msPerPoint = 24 * 60 * 60000; break;
-    case '1w': msPerPoint = 7 * 24 * 60 * 60000; break;
-    case '1mo': msPerPoint = 30 * 24 * 60 * 60000; break;
-    default: msPerPoint = 60000;
-  }
-  
-  for (let i = 0; i < count; i++) {
-    const timestamp = now - (count - i) * msPerPoint;
-    const price = basePrice + Math.sin(i * 0.1) * 10 + (Math.random() - 0.5) * 5;
-    data.push({ timestamp, price: parseFloat(price.toFixed(2)) });
-  }
-  
-  return data;
+// Mock stock data for demo
+const mockStockData = {
+  AAPL: { price: 150.25, change: 2.15, changePercent: 1.45 },
+  GOOGL: { price: 2750.80, change: -15.20, changePercent: -0.55 },
+  MSFT: { price: 310.45, change: 5.30, changePercent: 1.74 },
+  AMZN: { price: 3200.15, change: 25.80, changePercent: 0.81 },
+  TSLA: { price: 850.90, change: -12.50, changePercent: -1.45 },
+  META: { price: 320.75, change: 8.25, changePercent: 2.64 },
+  NVDA: { price: 450.60, change: 15.40, changePercent: 3.54 },
+  NFLX: { price: 580.30, change: -8.75, changePercent: -1.49 },
 };
 
-// Get stock data for a specific symbol
+// GET stock data for a specific symbol
 router.get('/:symbol', async (req, res) => {
   try {
     const { symbol } = req.params;
     const { count = 50, interval = '1h' } = req.query;
-    const validSymbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX'];
-    if (!validSymbols.includes(symbol.toUpperCase())) {
-      return res.status(400).json({ error: 'Invalid stock symbol' });
+    
+    // Mock data generation
+    const data = [];
+    const basePrice = mockStockData[symbol]?.price || 100 + Math.random() * 200;
+    const now = Date.now();
+    
+    for (let i = 0; i < parseInt(count); i++) {
+      const timestamp = now - (parseInt(count) - i) * 60000; // 1 minute intervals
+      const price = basePrice + Math.sin(i * 0.1) * 10 + (Math.random() - 0.5) * 5;
+      data.push({ timestamp, price });
     }
-
-    // Map intervals to Alpha Vantage
-    const intervalMap = {
-      '1m': '1min',
-      '5m': '5min',
-      '1h': '60min',
-      '1d': 'daily',
-      '1w': 'weekly',
-      '1mo': 'monthly',
-    };
-    const avInterval = intervalMap[interval] || '60min';
-
-    let url;
-    if (['1m', '5m', '1h'].includes(interval)) {
-      url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&interval=${avInterval}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-    } else if (interval === '1d') {
-      url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-    } else if (interval === '1w') {
-      url = `https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-    } else if (interval === '1mo') {
-      url = `https://www.alphavantage.co/query?function=TIME_SERIES_MONTHLY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}`;
-    }
-
-    let data = [];
-    let ohlc = [];
-    try {
-      const response = await axios.get(url);
-      let timeSeries;
-      if (response.data['Time Series (1min)']) timeSeries = response.data['Time Series (1min)'];
-      if (response.data['Time Series (5min)']) timeSeries = response.data['Time Series (5min)'];
-      if (response.data['Time Series (60min)']) timeSeries = response.data['Time Series (60min)'];
-      if (response.data['Time Series (Daily)']) timeSeries = response.data['Time Series (Daily)'];
-      if (response.data['Weekly Time Series']) timeSeries = response.data['Weekly Time Series'];
-      if (response.data['Monthly Time Series']) timeSeries = response.data['Monthly Time Series'];
-
-      if (timeSeries) {
-        data = Object.entries(timeSeries).map(([timestamp, value]) => ({
-          timestamp: new Date(timestamp).getTime(),
-          price: parseFloat(value['4. close']),
-        })).reverse().slice(-count);
-        ohlc = Object.entries(timeSeries).map(([timestamp, value]) => ({
-          timestamp: new Date(timestamp).getTime(),
-          open: parseFloat(value['1. open']),
-          high: parseFloat(value['2. high']),
-          low: parseFloat(value['3. low']),
-          close: parseFloat(value['4. close']),
-        })).reverse().slice(-count);
-      } else {
-        // If API limit reached or error, fallback to mock
-        data = generateStockData(symbol.toUpperCase(), parseInt(count), interval);
-        ohlc = [];
+    
+    // Generate OHLC data for candlestick charts
+    const ohlc = [];
+    for (let i = 0; i < data.length; i += 5) {
+      const chunk = data.slice(i, i + 5);
+      if (chunk.length > 0) {
+        const prices = chunk.map(d => d.price);
+        ohlc.push({
+          timestamp: chunk[0].timestamp,
+          open: prices[0],
+          high: Math.max(...prices),
+          low: Math.min(...prices),
+          close: prices[prices.length - 1]
+        });
       }
-    } catch (err) {
-      // Fallback to mock data on error
-      data = generateStockData(symbol.toUpperCase(), parseInt(count), interval);
-      ohlc = [];
     }
-
+    
     res.json({
-      symbol: symbol.toUpperCase(),
+      symbol,
       data,
       ohlc,
-      lastUpdated: new Date().toISOString()
+      interval
     });
   } catch (error) {
-    console.error('Error fetching stock data:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to fetch stock data' });
   }
 });
 
-// Get real-time price update (simulated)
-router.get('/:symbol/price', (req, res) => {
+// GET live price for a specific symbol
+router.get('/:symbol/price', async (req, res) => {
   try {
     const { symbol } = req.params;
+    const stockData = mockStockData[symbol];
     
-    const validSymbols = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX'];
-    if (!validSymbols.includes(symbol.toUpperCase())) {
-      return res.status(400).json({ error: 'Invalid stock symbol' });
+    if (!stockData) {
+      return res.status(404).json({ error: 'Stock not found' });
     }
     
-    const basePrice = 100 + Math.random() * 200;
-    const currentPrice = basePrice + (Math.random() - 0.5) * 10;
-    const change = (Math.random() - 0.5) * 5;
-    const changePercent = (change / currentPrice) * 100;
-    
     res.json({
-      symbol: symbol.toUpperCase(),
-      price: parseFloat(currentPrice.toFixed(2)),
-      change: parseFloat(change.toFixed(2)),
-      changePercent: parseFloat(changePercent.toFixed(2)),
-      timestamp: new Date().toISOString()
+      symbol,
+      price: stockData.price,
+      change: stockData.change,
+      changePercent: stockData.changePercent
     });
   } catch (error) {
-    console.error('Error fetching real-time price:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Failed to fetch price' });
   }
 });
 
-// Get available stocks
-router.get('/', (req, res) => {
-  const stocks = [
-    { symbol: 'AAPL', name: 'Apple Inc.' },
-    { symbol: 'GOOGL', name: 'Alphabet Inc.' },
-    { symbol: 'MSFT', name: 'Microsoft Corp.' },
-    { symbol: 'AMZN', name: 'Amazon.com Inc.' },
-    { symbol: 'TSLA', name: 'Tesla Inc.' },
-    { symbol: 'META', name: 'Meta Platforms Inc.' },
-    { symbol: 'NVDA', name: 'NVIDIA Corp.' },
-    { symbol: 'NFLX', name: 'Netflix Inc.' },
-  ];
-  
-  res.json({ stocks });
+// GET multiple stock prices
+router.get('/prices', async (req, res) => {
+  try {
+    const { symbols } = req.query;
+    
+    if (!symbols) {
+      return res.status(400).json({ error: 'Symbols parameter required' });
+    }
+    
+    const symbolList = symbols.split(',');
+    const prices = symbolList.map(symbol => {
+      const stockData = mockStockData[symbol];
+      if (stockData) {
+        return {
+          symbol,
+          price: stockData.price,
+          change: stockData.change,
+          changePercent: stockData.changePercent
+        };
+      }
+      return null;
+    }).filter(Boolean);
+    
+    res.json({ prices });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch prices' });
+  }
 });
 
 module.exports = router; 
