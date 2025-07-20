@@ -156,8 +156,7 @@ export default function ProfileScreen({ navigation }: Props) {
         // Already on profile screen, do nothing
         break;
       case 'shop':
-        // TODO: Navigate to shop screen
-        console.log('Shop pressed');
+        navigation.navigate('Shop');
         break;
     }
   };

@@ -123,8 +123,7 @@ export default function MapScreen({ navigation }: Props) {
         navigation.navigate('Profile');
         break;
       case 'shop':
-        // TODO: Navigate to shop screen
-        console.log('Shop pressed');
+        navigation.navigate('Shop');
         break;
     }
   };
