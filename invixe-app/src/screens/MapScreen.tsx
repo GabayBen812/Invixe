@@ -120,8 +120,7 @@ export default function MapScreen({ navigation }: Props) {
         navigation.navigate('Sandbox');
         break;
       case 'profile':
-        // TODO: Navigate to profile screen
-        console.log('profile pressed');
+        navigation.navigate('Profile');
         break;
       case 'shop':
         // TODO: Navigate to shop screen
@@ -181,8 +180,8 @@ export default function MapScreen({ navigation }: Props) {
           width: '90%',
           alignItems: 'flex-end',
         }}>
-          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>יחידה 1</Text>
-          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, marginTop: 2 }}>שיעור ראשון: מבוא לשוק ההון</Text>
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 18, letterSpacing: 1 }}>יחידה 1: ניתוח טכני</Text>
+          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 22, marginTop: 2 }}>שיעור ראשון: מומחה נרות</Text>
         </View>
         <View style={styles.mapContainer}>
           {/* Footprints between nodes */}

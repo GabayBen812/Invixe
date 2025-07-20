@@ -9,6 +9,9 @@ import {
   PanResponder,
   GestureResponderEvent,
   PanResponderGestureState,
+  Modal,
+  Alert,
+  TextInput,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -16,6 +19,7 @@ import TopBar from '../components/ui/TopBar';
 import BottomNavbar from '../components/ui/BottomNavbar';
 import PageBackground from '../components/ui/PageBackground';
 import theme from '../theme';
+import { useUser } from '../context/UserContext';
 import Svg, { Path, Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -47,6 +51,7 @@ interface DrawingPoint {
 }
 
 export default function SandboxScreen({ navigation }: Props) {
+  const { coins, setCoins } = useUser();
   const [selectedStock, setSelectedStock] = useState(STOCKS[0]);
   const [stockData, setStockData] = useState<StockData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,6 +67,12 @@ export default function SandboxScreen({ navigation }: Props) {
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveChange, setLiveChange] = useState<number | null>(null);
   const [liveChangePercent, setLiveChangePercent] = useState<number | null>(null);
+  
+  // Trading state
+  const [showTradeModal, setShowTradeModal] = useState(false);
+  const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
+  const [tradeShares, setTradeShares] = useState('');
+  const [userHoldings, setUserHoldings] = useState<any[]>([]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -105,7 +116,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const fetchStockData = async (symbol: string, interval: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://10.0.0.52:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
+      const response = await fetch(`http://10.0.0.39:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
@@ -148,7 +159,7 @@ export default function SandboxScreen({ navigation }: Props) {
   // Fetch live price
   const fetchLivePrice = async (symbol: string) => {
     try {
-      const response = await fetch(`http://10.0.0.52:4000/api/stocks/${symbol}/price`);
+      const response = await fetch(`http://10.0.0.39:4000/api/stocks/${symbol}/price`);
       if (!response.ok) return;
       const result = await response.json();
       setLivePrice(result.price);
@@ -167,6 +178,24 @@ export default function SandboxScreen({ navigation }: Props) {
     return () => clearInterval(interval);
   }, [selectedStock]);
 
+  // Fetch user holdings
+  useEffect(() => {
+    fetchUserHoldings();
+  }, []);
+
+  const fetchUserHoldings = async () => {
+    try {
+      const response = await fetch('http://10.0.0.39:4000/api/user/portfolio');
+      if (!response.ok) {
+        throw new Error('Failed to fetch portfolio');
+      }
+      const data = await response.json();
+      setUserHoldings(data.portfolio || []);
+    } catch (error) {
+      console.error('Error fetching portfolio:', error);
+    }
+  };
+
   const handleStockSelect = (stock: typeof STOCKS[0]) => {
     setSelectedStock(stock);
   };
@@ -180,8 +209,7 @@ export default function SandboxScreen({ navigation }: Props) {
         // Already on graph screen, do nothing
         break;
       case 'profile':
-        // TODO: Navigate to profile screen
-        console.log('profile pressed');
+        navigation.navigate('Profile');
         break;
       case 'shop':
         // TODO: Navigate to shop screen
@@ -192,6 +220,82 @@ export default function SandboxScreen({ navigation }: Props) {
 
   const clearDrawing = () => {
     setDrawingPath([]);
+  };
+
+  const getUserHolding = (symbol: string) => {
+    return userHoldings.find(h => h.symbol === symbol);
+  };
+
+  const handleTrade = async () => {
+    const shares = parseFloat(tradeShares);
+    if (!livePrice || !tradeShares || isNaN(shares) || shares <= 0) {
+      Alert.alert('שגיאה', 'אנא הכנס מספר מניות תקין');
+      return;
+    }
+    const totalCost = shares * livePrice;
+
+    if (tradeType === 'buy') {
+      if (coins < totalCost) {
+        Alert.alert('שגיאה', 'אין לך מספיק מטבעות');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://10.0.0.39:4000/api/user/portfolio/buy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: selectedStock.symbol,
+            shares: shares,
+            price: livePrice
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to buy stock');
+        }
+
+        const data = await response.json();
+        setCoins(data.newCoins);
+        fetchUserHoldings();
+        setShowTradeModal(false);
+        setTradeShares('');
+        Alert.alert('הצלחה', `קנית ${shares} מניות של ${selectedStock.symbol}`);
+      } catch (error) {
+        Alert.alert('שגיאה', 'שגיאה בקניית המניות');
+      }
+    } else {
+      const holding = getUserHolding(selectedStock.symbol);
+      if (!holding || holding.shares < shares) {
+        Alert.alert('שגיאה', 'אין לך מספיק מניות למכירה');
+        return;
+      }
+
+      try {
+        const response = await fetch('http://10.0.0.39:4000/api/user/portfolio/sell', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            symbol: selectedStock.symbol,
+            shares: shares,
+            price: livePrice
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to sell stock');
+        }
+
+        const data = await response.json();
+        setCoins(data.newCoins);
+        fetchUserHoldings();
+        setShowTradeModal(false);
+        setTradeShares('');
+        Alert.alert('הצלחה', `מכרת ${shares} מניות של ${selectedStock.symbol}`);
+      } catch (error) {
+        Alert.alert('שגיאה', 'שגיאה במכירת המניות');
+      }
+    }
   };
 
   const renderStockBubbles = () => (
@@ -265,7 +369,7 @@ export default function SandboxScreen({ navigation }: Props) {
         <G>
           {/* Grid lines and Y-axis price labels (reuse from line chart) */}
           {[...Array(5)].map((_, i) => (
-            <>
+            <React.Fragment key={`grid-label-${i}`}>
               <Line
                 key={`grid-${i}`}
                 x1={padding}
@@ -287,7 +391,7 @@ export default function SandboxScreen({ navigation }: Props) {
               >
                 {(maxPrice - (i * priceRange) / 4).toFixed(2)}
               </SvgText>
-            </>
+            </React.Fragment>
           ))}
           {/* X-axis time labels */}
           {[0, 1, 2, 3].map((i) => {
@@ -423,6 +527,50 @@ export default function SandboxScreen({ navigation }: Props) {
       });
     }
 
+    const priceInfoCard = (
+      <View style={styles.priceInfoContainer}>
+        <View style={styles.priceInfoCard}>
+          <Text style={styles.priceSymbol}>{String(selectedStock.symbol)}</Text>
+          <Text style={styles.priceText}>
+            {livePrice !== null ? `$${livePrice.toFixed(2)}` : '...'}
+          </Text>
+          <Text
+            style={[
+              styles.priceChange,
+              (liveChange ?? 0) > 0
+                ? { color: theme.colors.growthGreen }
+                : (liveChange ?? 0) < 0
+                ? { color: theme.colors.optimismOrange }
+                : { color: '#125BA5' }
+            ]}
+          >
+            {liveChange !== null && liveChangePercent !== null
+              ? `${liveChange > 0 ? '+' : ''}${liveChangePercent.toFixed(2)}% (${liveChange > 0 ? '+' : ''}$${liveChange.toFixed(2)})`
+              : ''}
+          </Text>
+        </View>
+      </View>
+    );
+
+    const holdingInfo = (() => {
+      const holding = getUserHolding(selectedStock.symbol);
+      if (holding) {
+        // Format shares to up to 3 decimals, but remove trailing zeros
+        const sharesDisplay = parseFloat(holding.shares.toFixed(3)).toString();
+        return (
+          <View style={[styles.holdingInfo, { marginTop: 8 }]}> 
+            <Text style={styles.holdingText}>
+              יש לך {String(sharesDisplay)} מניות של {String(selectedStock.symbol)}
+            </Text>
+            <Text style={styles.holdingText}>
+              מחיר ממוצע: ${holding.avgPrice.toFixed(2)}
+            </Text>
+          </View>
+        );
+      }
+      return null;
+    })();
+
     return (
       <View 
         style={styles.graphContainer}
@@ -435,7 +583,7 @@ export default function SandboxScreen({ navigation }: Props) {
             >
               {/* Grid lines and Y-axis price labels */}
               {[...Array(ySteps)].map((_, i) => (
-                <>
+                <React.Fragment key={`grid-label-${i}`}>
                   <Line
                     key={`grid-${i}`}
                     x1={padding}
@@ -457,7 +605,7 @@ export default function SandboxScreen({ navigation }: Props) {
                   >
                     {priceLabels[i].price.toFixed(2)}
                   </SvgText>
-                </>
+                </React.Fragment>
               ))}
 
               {/* X-axis time labels */}
@@ -493,7 +641,7 @@ export default function SandboxScreen({ navigation }: Props) {
                 if (!isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y)) {
                   return (
                     <Circle
-                      key={index}
+                      key={`datapoint-${index}`}
                       cx={x}
                       cy={y}
                       r={2}
@@ -554,16 +702,31 @@ export default function SandboxScreen({ navigation }: Props) {
           </TouchableOpacity>
         </View>
         
-        {/* Price info */}
-        <View style={styles.priceInfo}>
-          <Text style={styles.priceText}>
-            {livePrice !== null ? `$${livePrice.toFixed(2)}` : '...'}
-          </Text>
-          <Text style={styles.priceChange}>
-            {liveChange !== null && liveChangePercent !== null
-              ? `${liveChange > 0 ? '+' : ''}${liveChangePercent.toFixed(2)}% (${liveChange > 0 ? '+' : ''}$${liveChange.toFixed(2)})`
-              : ''}
-          </Text>
+        {/* Price info - redesigned as a floating card at the top center */}
+        {priceInfoCard}
+        {/* Holdings info remains at the bottom left */}
+        {holdingInfo}
+
+        {/* Trading buttons */}
+        <View style={styles.tradingButtons}>
+          <TouchableOpacity
+            style={[styles.tradeButton, styles.buyButton]}
+            onPress={() => {
+              setTradeType('buy');
+              setShowTradeModal(true);
+            }}
+          >
+            <Text style={styles.tradeButtonText}>קנה</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tradeButton, styles.sellButton]}
+            onPress={() => {
+              setTradeType('sell');
+              setShowTradeModal(true);
+            }}
+          >
+            <Text style={styles.tradeButtonText}>מכור</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Mode indicator */}
@@ -589,6 +752,80 @@ export default function SandboxScreen({ navigation }: Props) {
         </View>
       </PageBackground>
       <BottomNavbar activeTab="graph" onTabPress={handleTabPress} />
+
+      {/* Trading Modal */}
+      <Modal
+        visible={showTradeModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowTradeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>
+              {tradeType === 'buy' ? 'קנה מניות' : 'מכור מניות'}
+            </Text>
+            <Text style={styles.modalSubtitle}>
+              {selectedStock.symbol} - ${livePrice?.toFixed(2) || '0.00'}
+            </Text>
+            
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>מספר מניות:</Text>
+              <TextInput
+                style={styles.textInput}
+                value={tradeShares}
+                onChangeText={setTradeShares}
+                keyboardType="numeric"
+                placeholder="הכנס מספר מניות"
+                placeholderTextColor="#999"
+              />
+            </View>
+
+            {/* Defensive: Only render cost info if value is a valid number, else render nothing */}
+            {tradeType === 'buy' && livePrice && tradeShares && !isNaN(parseFloat(tradeShares)) && (
+              <View style={styles.costInfo}>
+                <Text style={styles.costLabel}>עלות כוללת:</Text>
+                <Text style={styles.costValue}>
+                  {isNaN(parseFloat(tradeShares) * (livePrice || 0))
+                    ? ''
+                    : `$${(parseFloat(tradeShares) * (livePrice || 0)).toFixed(2)}`}
+                </Text>
+              </View>
+            )}
+
+            {tradeType === 'sell' && livePrice && tradeShares && !isNaN(parseFloat(tradeShares)) && (
+              <View style={styles.costInfo}>
+                <Text style={styles.costLabel}>ערך כולל:</Text>
+                <Text style={styles.costValue}>
+                  {isNaN(parseFloat(tradeShares) * (livePrice || 0))
+                    ? ''
+                    : `$${(parseFloat(tradeShares) * (livePrice || 0)).toFixed(2)}`}
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setShowTradeModal(false);
+                  setTradeShares('');
+                }}
+              >
+                <Text style={styles.cancelButtonText}>ביטול</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleTrade}
+              >
+                <Text style={styles.confirmButtonText}>
+                  {tradeType === 'buy' ? 'קנה' : 'מכור'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -711,9 +948,6 @@ const styles = StyleSheet.create({
     color: '#0D2033',
   },
   priceInfo: {
-    position: 'absolute',
-    bottom: theme.spacing.md,
-    left: theme.spacing.md,
     backgroundColor: '#A0CFFF',
     padding: theme.spacing.sm,
     borderRadius: theme.radius.sm,
@@ -722,16 +956,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 2,
-  },
-  priceText: {
-    fontSize: 18,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-  },
-  priceChange: {
-    fontSize: 12,
-    fontFamily: theme.font.family,
-    color: theme.colors.growthGreen,
+
   },
   modeIndicator: {
     position: 'absolute',
@@ -784,5 +1009,182 @@ const styles = StyleSheet.create({
   },
   selectedTimeRangeText: {
     color: '#fff',
+  },
+  tradingButtons: {
+    position: 'absolute',
+    bottom: theme.spacing.lg,
+    right: theme.spacing.md,
+    flexDirection: 'row',
+  },
+  tradeButton: {
+    borderRadius: theme.radius.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    marginLeft: theme.spacing.sm,
+    shadowColor: '#0D2033',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  buyButton: {
+    backgroundColor: theme.colors.growthGreen,
+  },
+  sellButton: {
+    backgroundColor: theme.colors.optimismOrange,
+  },
+  tradeButtonText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#fff',
+  },
+  holdingInfo: {
+    backgroundColor: '#A0CFFF',
+    padding: theme.spacing.sm,
+    borderRadius: theme.radius.sm,
+    shadowColor: '#0D2033',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  holdingText: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: '#125BA5',
+    textAlign: 'right',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: theme.radius.lg,
+    padding: theme.spacing.lg,
+    margin: theme.spacing.lg,
+    width: '80%',
+    shadowColor: '#0D2033',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: theme.font.bold,
+    color: '#0D2033',
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    fontFamily: theme.font.family,
+    color: '#125BA5',
+    textAlign: 'center',
+    marginBottom: theme.spacing.lg,
+  },
+  inputContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#0D2033',
+    marginBottom: theme.spacing.xs,
+    textAlign: 'right',
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#A0CFFF',
+    borderRadius: theme.radius.sm,
+    padding: theme.spacing.sm,
+    fontSize: 16,
+    fontFamily: theme.font.family,
+    color: '#0D2033',
+    textAlign: 'center',
+  },
+  costInfo: {
+    backgroundColor: '#A0CFFF',
+    borderRadius: theme.radius.sm,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    alignItems: 'center',
+  },
+  costLabel: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: '#125BA5',
+    marginBottom: theme.spacing.xs,
+  },
+  costValue: {
+    fontSize: 18,
+    fontFamily: theme.font.bold,
+    color: '#0D2033',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: theme.radius.sm,
+    padding: theme.spacing.sm,
+    marginHorizontal: theme.spacing.xs,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: '#D3E9FF',
+  },
+  confirmButton: {
+    backgroundColor: theme.colors.primaryBlue,
+  },
+  cancelButtonText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#125BA5',
+  },
+  confirmButtonText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#fff',
+  },
+  priceInfoContainer: {
+    position: 'absolute',
+    bottom: 18,
+    left: 18,
+    alignItems: 'flex-start',
+    zIndex: 10,
+  },
+  priceInfoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#0D2033',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+    elevation: 4,
+    minWidth: 120,
+  },
+  priceSymbol: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#125BA5',
+    marginBottom: 2,
+  },
+  priceText: {
+    fontSize: 22,
+    fontFamily: theme.font.bold,
+    color: '#0D2033',
+  },
+  priceChange: {
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    marginTop: 2,
   },
 }); 

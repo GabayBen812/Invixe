@@ -15,6 +15,7 @@ import LessonScreen from "../screens/LessonScreen";
 import LessonCompleteScreen from "../screens/LessonCompleteScreen";
 import SandboxScreen from "../screens/SandboxScreen";
 import LessonFailScreen from "../screens/LessonFailScreen";
+import ProfileScreen from "../screens/ProfileScreen";
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -31,6 +32,7 @@ export type RootStackParamList = {
   LessonComplete: { lessonId: number };
   Sandbox: undefined;
   LessonFail: undefined;
+  Profile: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -62,6 +64,7 @@ export default function AppNavigator() {
         <Stack.Screen name="LessonComplete" component={LessonCompleteScreen} />
         <Stack.Screen name="LessonFail" component={LessonFailScreen} />
         <Stack.Screen name="Sandbox" component={SandboxScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
