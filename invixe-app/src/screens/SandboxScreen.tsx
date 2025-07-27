@@ -62,7 +62,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const [isDrawing, setIsDrawing] = useState(false);
   const lastOffset = useRef({ x: 0, y: 0 });
   const [selectedRange, setSelectedRange] = useState('1h');
-  const [displayMode, setDisplayMode] = useState<'line' | 'candles'>('line');
+  const [displayMode, setDisplayMode] = useState<'line' | 'candles'>('candles');
   const [ohlcData, setOhlcData] = useState<any[]>([]);
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveChange, setLiveChange] = useState<number | null>(null);
@@ -136,6 +136,10 @@ export default function SandboxScreen({ navigation }: Props) {
       } else {
         setOhlcData([]);
       }
+      // Reset view to default position
+      setOffset({ x: 0, y: 0 });
+      setScale(1);
+      lastOffset.current = { x: 0, y: 0 };
     } catch (error) {
       console.error('Error fetching stock data:', error);
       // Fallback to mock data if API fails
@@ -151,6 +155,10 @@ export default function SandboxScreen({ navigation }: Props) {
       
       setStockData(mockData);
       setOhlcData([]);
+      // Reset view to default position for mock data too
+      setOffset({ x: 0, y: 0 });
+      setScale(1);
+      lastOffset.current = { x: 0, y: 0 };
     } finally {
       setIsLoading(false);
     }
@@ -365,7 +373,9 @@ export default function SandboxScreen({ navigation }: Props) {
 
     return (
       <Svg width={width} height={height + 2 * padding}>
-        <G>
+        <G
+          transform={`translate(${offset.x}, ${offset.y}) scale(${scale})`}
+        >
           {/* Grid lines and Y-axis price labels (reuse from line chart) */}
           {[...Array(5)].map((_, i) => (
             <React.Fragment key={`grid-label-${i}`}>
