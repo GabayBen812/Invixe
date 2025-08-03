@@ -116,7 +116,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const fetchStockData = async (symbol: string, interval: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://10.0.0.39:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
+      const response = await fetch(`http://10.0.0.15:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
@@ -167,7 +167,7 @@ export default function SandboxScreen({ navigation }: Props) {
   // Fetch live price
   const fetchLivePrice = async (symbol: string) => {
     try {
-      const response = await fetch(`http://10.0.0.39:4000/api/stocks/${symbol}/price`);
+      const response = await fetch(`http://10.0.0.15:4000/api/stocks/${symbol}/price`);
       if (!response.ok) return;
       const result = await response.json();
       setLivePrice(result.price);
@@ -193,7 +193,7 @@ export default function SandboxScreen({ navigation }: Props) {
 
   const fetchUserHoldings = async () => {
     try {
-      const response = await fetch('http://10.0.0.39:4000/api/user/portfolio');
+      const response = await fetch('http://10.0.0.15:4000/api/user/portfolio');
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -248,7 +248,7 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch('http://10.0.0.39:4000/api/user/portfolio/buy', {
+        const response = await fetch('http://10.0.0.15:4000/api/user/portfolio/buy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -279,7 +279,7 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch('http://10.0.0.39:4000/api/user/portfolio/sell', {
+        const response = await fetch('http://10.0.0.15:4000/api/user/portfolio/sell', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

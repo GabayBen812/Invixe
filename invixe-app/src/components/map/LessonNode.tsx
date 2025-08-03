@@ -1,10 +1,10 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity } from "react-native";
+import { View, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { AppText } from "../../../App";
 import theme from "../../theme";
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 
-export const CIRCLE_SIZE = 96;
+export const CIRCLE_SIZE = 80;
 
 interface LessonNodeProps {
   title?: string;
@@ -17,61 +17,102 @@ interface LessonNodeProps {
   lessonType?: 'memorize' | 'info' | 'test' | 'practice';
 }
 
-// Info lesson icon (book)
-const InfoIcon = () => (
-  <View style={[styles.iconCircle, styles.infoIcon]}>
-    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-      <Path d="M4 19.5A2.5 2.5 0 016.5 17H20" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  </View>
+// Stock Chart Analysis icon
+const InfoIcon = ({ size = 28 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Defs>
+      <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <Stop offset="0%" stopColor="#FFFFFF" />
+        <Stop offset="100%" stopColor="#E5E7EB" />
+      </LinearGradient>
+    </Defs>
+    {/* Stock chart lines */}
+    <Path d="M3 17L9 11L13 15L21 7" stroke="url(#chartGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+    <Path d="M21 7h-4v4" stroke="url(#chartGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+    {/* Chart area */}
+    <Rect x="2" y="3" width="20" height="18" rx="2" stroke="url(#chartGradient)" strokeWidth={1.5} fill="none"/>
+    {/* Data points */}
+    <Circle cx="9" cy="11" r="2" fill="url(#chartGradient)"/>
+    <Circle cx="13" cy="15" r="2" fill="url(#chartGradient)"/>
+  </Svg>
 );
 
-// Memorize lesson icon (brain)
-const MemorizeIcon = () => (
-  <View style={[styles.iconCircle, styles.memorizeIcon]}>
-    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-      <Path d="M9.5 2A2.5 2.5 0 0112 4.5v15a2.5 2.5 0 01-5 0v-15A2.5 2.5 0 019.5 2z" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M20 4.5A2.5 2.5 0 0017.5 2h-3a2.5 2.5 0 00-2.5 2.5v15a2.5 2.5 0 002.5 2.5h3A2.5 2.5 0 0020 19.5v-15z" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  </View>
+// Trading Patterns & Indicators icon
+const MemorizeIcon = ({ size = 28 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Defs>
+      <LinearGradient id="patternGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <Stop offset="0%" stopColor="#FFFFFF" />
+        <Stop offset="100%" stopColor="#F3F4F6" />
+      </LinearGradient>
+    </Defs>
+    {/* Candlestick patterns */}
+    <Rect x="4" y="8" width="3" height="8" fill="url(#patternGradient)" rx="1"/>
+    <Rect x="8.5" y="6" width="3" height="10" fill="url(#patternGradient)" rx="1"/>
+    <Rect x="13" y="9" width="3" height="6" fill="url(#patternGradient)" rx="1"/>
+    <Rect x="17.5" y="5" width="3" height="12" fill="url(#patternGradient)" rx="1"/>
+    {/* Trend lines */}
+    <Path d="M2 20L6 16L11 12L16 8L22 4" stroke="url(#patternGradient)" strokeWidth={2} strokeLinecap="round" strokeDasharray="3 2"/>
+  </Svg>
 );
 
-// Practice lesson icon (target)
-const PracticeIcon = () => (
-  <View style={[styles.iconCircle, styles.practiceIcon]}>
-    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="10" stroke="#FFFFFF" strokeWidth={2}/>
-      <Circle cx="12" cy="12" r="6" stroke="#FFFFFF" strokeWidth={2}/>
-      <Circle cx="12" cy="12" r="2" fill="#FFFFFF"/>
-    </Svg>
-  </View>
+// Portfolio Management & Trading Practice icon
+const PracticeIcon = ({ size = 28 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Defs>
+      <LinearGradient id="portfolioGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <Stop offset="0%" stopColor="#FFFFFF" />
+        <Stop offset="100%" stopColor="#F9FAFB" />
+      </LinearGradient>
+    </Defs>
+    {/* Portfolio pie chart */}
+    <Circle cx="12" cy="12" r="8" stroke="url(#portfolioGradient)" strokeWidth={2} fill="none"/>
+    <Path d="M12 4 A8 8 0 0 1 17.66 8" stroke="url(#portfolioGradient)" strokeWidth={3} strokeLinecap="round"/>
+    <Path d="M17.66 8 A8 8 0 0 1 17.66 16" stroke="url(#portfolioGradient)" strokeWidth={2} strokeLinecap="round"/>
+    <Path d="M17.66 16 A8 8 0 0 1 12 20" stroke="url(#portfolioGradient)" strokeWidth={2} strokeLinecap="round"/>
+    {/* Dollar sign in center */}
+    <SvgText x="12" y="16" textAnchor="middle" fontSize="8" fontWeight="bold" fill="url(#portfolioGradient)">$</SvgText>
+  </Svg>
 );
 
-// Test lesson icon (checkmark in circle)
-const TestIcon = () => (
-  <View style={[styles.iconCircle, styles.testIcon]}>
-    <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-      <Circle cx="12" cy="12" r="10" stroke="#FFFFFF" strokeWidth={2}/>
-      <Path d="M9 12l2 2 4-4" stroke="#FFFFFF" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
-  </View>
+// Market Assessment & Trading Test icon
+const TestIcon = ({ size = 28 }: { size?: number }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Defs>
+      <LinearGradient id="assessmentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <Stop offset="0%" stopColor="#FFFFFF" />
+        <Stop offset="100%" stopColor="#F0FDF4" />
+      </LinearGradient>
+    </Defs>
+    {/* Trading screen/monitor */}
+    <Rect x="3" y="4" width="18" height="13" rx="2" stroke="url(#assessmentGradient)" strokeWidth={2} fill="none"/>
+    {/* Profit line */}
+    <Path d="M6 12L9 9L13 11L18 6" stroke="url(#assessmentGradient)" strokeWidth={2.5} strokeLinecap="round"/>
+    {/* Success checkmark */}
+    <Path d="M8 20l2 2 4-4" stroke="url(#assessmentGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+    {/* Performance indicators */}
+    <Circle cx="15" cy="9" r="1.5" fill="url(#assessmentGradient)"/>
+    <Circle cx="9" cy="11" r="1.5" fill="url(#assessmentGradient)"/>
+  </Svg>
 );
 
-// Checkmark icon
+// Checkmark icon with glow effect
 const Checkmark = () => (
-  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
-    <Path d="M5 13l4 4L19 7" stroke="#5EDB5E" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round"/>
-  </Svg>
+  <View style={styles.checkmarkContainer}>
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path d="M5 13l4 4L19 7" stroke="#FFFFFF" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"/>
+    </Svg>
+  </View>
 );
 
-// Lock icon
+// Lock icon with modern styling
 const LockIcon = () => (
-  <Svg width={28} height={28} viewBox="0 0 24 24" fill="none">
-    <Path d="M6 11V8a6 6 0 1112 0v3" stroke="#B0BEC5" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"/>
-    <Path d="M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z" stroke="#B0BEC5" strokeWidth={2}/>
-    <Path d="M12 16v2" stroke="#B0BEC5" strokeWidth={2} strokeLinecap="round"/>
-  </Svg>
+  <View style={styles.lockContainer}>
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path d="M6 11V8a6 6 0 1112 0v3" stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
+      <Path d="M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z" stroke="#FFFFFF" strokeWidth={2.5}/>
+    </Svg>
+  </View>
 );
 
 const getLessonIcon = (lessonType: 'memorize' | 'info' | 'test' | 'practice') => {
@@ -114,34 +155,126 @@ export default function LessonNode({
   position = 'left',
   lessonType = 'info',
 }: LessonNodeProps) {
+  const [scaleAnim] = React.useState(new Animated.Value(1));
+  const [fadeAnim] = React.useState(new Animated.Value(0));
+  const [slideAnim] = React.useState(new Animated.Value(50));
+  
   // Offset for zig-zag
   const offsetStyle = position === 'left' ? styles.left : styles.right;
   const lessonStyle = getLessonStyle(lessonType);
   
+  // Entrance animation on mount
+  React.useEffect(() => {
+    Animated.sequence([
+      Animated.delay(Math.random() * 500), // Random stagger
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  }, []);
+  
+  const handlePressIn = () => {
+    if (unlocked) {
+      Animated.spring(scaleAnim, {
+        toValue: 0.95,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 10,
+      }).start();
+    }
+  };
+
+  const handlePressOut = () => {
+    if (unlocked) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 300,
+        friction: 10,
+      }).start();
+    }
+  };
+  
   return (
     <View style={[styles.container, offsetStyle]}>
-      <View style={styles.pathLine} />
-      <TouchableOpacity
-        style={[
-          styles.circle, 
-          lessonStyle,
-          completed && styles.completed, 
-          current && styles.current, 
-          !unlocked && styles.locked
-        ]}
-        activeOpacity={unlocked ? 0.7 : 1}
-        onPress={unlocked ? onStart : undefined}
-        disabled={!unlocked}
-      >
-        {getLessonIcon(lessonType)}
-        {title ? (
-          <AppText style={styles.title} numberOfLines={2} ellipsizeMode="tail">{title}</AppText>
-        ) : null}
-        {completed && <View style={styles.statusIcon}><Checkmark /></View>}
-        {current && !completed && <View style={styles.statusIconGlow} />}
-        {!unlocked && !completed && <View style={styles.statusIcon}><LockIcon /></View>}
-      </TouchableOpacity>
-      {showConnector && <View style={styles.connector} />}
+      <Animated.View style={[{ 
+        transform: [
+          { scale: scaleAnim },
+          { translateY: slideAnim }
+        ],
+        opacity: fadeAnim 
+      }]}>
+        <TouchableOpacity
+          style={[
+            styles.circle, 
+            lessonStyle,
+            completed && styles.completed, 
+            current && styles.current, 
+            !unlocked && styles.locked
+          ]}
+          activeOpacity={1}
+          onPress={unlocked ? onStart : undefined}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={!unlocked}
+        >
+          {/* Stock Market Background Pattern */}
+          <Svg style={styles.backgroundPattern} width={CIRCLE_SIZE} height={CIRCLE_SIZE} viewBox="0 0 80 80">
+            <Defs>
+              <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <Stop offset="0%" stopColor={completed ? "#059669" : current ? "#F59E0B" : !unlocked ? "#64748B" : "#3B82F6"} stopOpacity="0.1" />
+                <Stop offset="100%" stopColor={completed ? "#047857" : current ? "#D97706" : !unlocked ? "#475569" : "#1D4ED8"} stopOpacity="0.05" />
+              </LinearGradient>
+            </Defs>
+            {/* Subtle grid pattern like trading charts */}
+            <Path d="M0 20H80M0 40H80M0 60H80M20 0V80M40 0V80M60 0V80" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
+            {/* Mini chart pattern */}
+            <Path d="M10 50L20 45L30 55L40 35L50 40L60 30L70 35" stroke="rgba(255,255,255,0.15)" strokeWidth="1" fill="none"/>
+            <Rect width="80" height="80" fill="url(#bgGradient)" rx="40"/>
+          </Svg>
+
+          {/* Glassmorphism overlay with stock market theme */}
+          <View style={[
+            styles.glassOverlay, 
+            completed && styles.completedGlass, 
+            current && styles.currentGlass,
+            !unlocked && styles.lockedGlass
+          ]} />
+          
+          {/* Outer glow for current node - enhanced */}
+          {current && <View style={styles.outerGlow} />}
+          
+          {/* Stock market performance indicator */}
+          {completed && (
+            <View style={styles.performanceIndicator}>
+              <Svg width={12} height={12} viewBox="0 0 12 12">
+                <Path d="M2 8L4 6L6 7L10 3" stroke="#00C896" strokeWidth={1.5} strokeLinecap="round"/>
+                <Circle cx="10" cy="3" r="1" fill="#00C896"/>
+              </Svg>
+            </View>
+          )}
+          
+          {/* Icon container with enhanced styling */}
+          <View style={styles.iconContainer}>
+            {getLessonIcon(lessonType)}
+          </View>
+          
+          {/* Status indicators */}
+          {completed && <Checkmark />}
+          {current && !completed && <View style={styles.currentIndicator} />}
+          {!unlocked && !completed && <LockIcon />}
+        </TouchableOpacity>
+      </Animated.View>
     </View>
   );
 }
@@ -161,112 +294,185 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     marginRight: 0,
   },
-  pathLine: {
-    position: "absolute",
-    top: 0,
-    left: CIRCLE_SIZE / 2 - 2,
-    width: 4,
-    height: theme.spacing.xl,
-    backgroundColor: theme.colors.primaryBlue,
-    zIndex: 0,
-  },
   circle: {
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
-    backgroundColor: theme.colors.white,
     alignItems: "center",
     justifyContent: "center",
-    elevation: 6,
-    shadowColor: theme.colors.trustBlueDark,
-    shadowOffset: { width: 0, height: 4 },
+    position: 'relative',
+    overflow: 'hidden',
+    elevation: 12,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
-    shadowRadius: 8,
-    borderWidth: 3,
-    marginBottom: 0,
+    shadowRadius: 24,
     zIndex: 1,
-    padding: 0,
   },
-  // Lesson type specific styles
-  infoLesson: {
-    borderColor: '#4A90E2',
-    backgroundColor: '#F0F8FF',
+  
+  // Stock market background pattern
+  backgroundPattern: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
   },
-  memorizeLesson: {
-    borderColor: '#7B68EE',
-    backgroundColor: '#F8F4FF',
+  
+  // Enhanced glassmorphism overlay
+  glassOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: CIRCLE_SIZE / 2,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
   },
-  practiceLesson: {
-    borderColor: '#FF6B6B',
-    backgroundColor: '#FFF5F5',
+  
+  completedGlass: {
+    backgroundColor: 'rgba(0, 200, 150, 0.15)',
+    borderColor: 'rgba(0, 200, 150, 0.4)',
+    shadowColor: '#00C896',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
   },
-  testLesson: {
-    borderColor: '#50C878',
-    backgroundColor: '#F0FFF0',
-  },
-  completed: {
-    borderColor: theme.colors.growthGreen,
-    backgroundColor: theme.colors.growthGreenLight,
-  },
-  current: {
-    shadowColor: theme.colors.primaryBlue,
+  
+  currentGlass: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderColor: 'rgba(245, 158, 11, 0.5)',
+    shadowColor: '#F59E0B',
+    shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
   },
+  
+  lockedGlass: {
+    backgroundColor: 'rgba(148, 163, 184, 0.15)',
+    borderColor: 'rgba(148, 163, 184, 0.3)',
+  },
+  
+  // Enhanced stock market themed lesson styles with better contrast
+  infoLesson: {
+    backgroundColor: '#1E40AF', // Deeper market analysis blue for better contrast
+  },
+  memorizeLesson: {
+    backgroundColor: '#C2410C', // Changed to vibrant orange for better visibility  
+  },
+  practiceLesson: {
+    backgroundColor: '#DC2626', // Changed to strong red for practice lessons
+  },
+  testLesson: {
+    backgroundColor: '#059669', // Deeper profit green
+  },
+  
+  completed: {
+    backgroundColor: '#047857', // Strong bullish green
+  },
+  
+  current: {
+    shadowColor: '#F59E0B',
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    elevation: 20,
+  },
+  
   locked: {
-    borderColor: "#B0BEC5",
-    backgroundColor: theme.colors.gray,
-    opacity: 0.7,
+    backgroundColor: '#475569', // Darker neutral gray for better contrast
   },
-  iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 4,
+  
+  // Outer glow for current node
+  outerGlow: {
+    position: 'absolute',
+    top: -8,
+    left: -8,
+    right: -8,
+    bottom: -8,
+    borderRadius: (CIRCLE_SIZE + 16) / 2,
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    zIndex: -1,
   },
-  infoIcon: {
-    backgroundColor: '#4A90E2',
+  
+  iconContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
   },
-  memorizeIcon: {
-    backgroundColor: '#7B68EE',
-  },
-  practiceIcon: {
-    backgroundColor: '#FF6B6B',
-  },
-  testIcon: {
-    backgroundColor: '#50C878',
-  },
-  title: {
-    fontSize: 16,
-    fontFamily: theme.font.bold,
-    color: theme.colors.trustBlue,
-    textAlign: "center",
-    marginTop: 2,
-    maxWidth: 72,
-  },
-  statusIcon: {
-    position: "absolute",
-    bottom: 8,
+  
+  // Stock market performance indicator
+  performanceIndicator: {
+    position: 'absolute',
+    top: 8,
     right: 8,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0, 200, 150, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#00C896',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
-  statusIconGlow: {
-    position: "absolute",
-    bottom: 8,
-    right: 8,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: theme.colors.primaryBlue,
-    opacity: 0.2,
+  
+  // Status indicator styles
+  checkmarkContainer: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#10B981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  connector: {
-    width: 4,
-    height: theme.spacing.xl,
-    backgroundColor: theme.colors.primaryBlue,
-    marginTop: 0,
-    zIndex: 0,
-    alignSelf: 'center',
+  
+  lockContainer: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#64748B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  
+  currentIndicator: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#3B82F6',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });
