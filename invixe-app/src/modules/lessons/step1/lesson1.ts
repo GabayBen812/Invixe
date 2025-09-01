@@ -1,98 +1,65 @@
 import { LessonStep } from "../types";
 
 export const lessonSteps: LessonStep[] = [
+  // Intro and basic concepts
   {
     id: "intro",
     message:
-      "ברוכים הבאים לשיעור על נרות יפניים! נלמד מהו נר, איך לקרוא אותו, ומה המשמעות של סוגי נרות שונים.",
+      "ברוכים הבאים לקורס ניתוח טכני — שיעור 1: נרות יפניים. נבין מהו נר, איך קוראים אותו, ונתאמן בזיהוי דפוסים בסיסיים.",
     backgroundImage: "bg1",
     choices: [
-      {
-        text: "בואו נתחיל!",
-        nextStep: "what_is_candle",
-      },
+      { text: "בואו נתחיל!", nextStep: "what_is_candle" },
     ],
     characterImg: "character_orange_yellow.png",
     bubblePosition: "bottomLeft",
   },
+  // Removed generic candle intro to match Figma: we jump from hero to the selection activity
   {
-    id: "what_is_candle",
-    message:
-      "נר יפני הוא דרך להציג את תנועת המחיר של מניה בפרק זמן מסוים. כל נר מראה את המחיר הפתיחה, הסגירה, הגבוה והנמוך.",
+    id: "activity_select_hammer",
+    message: "סמן את כל הנרות שעומדות בעקרונות של פטיש",
     backgroundImage: "bg2",
+    activity: 'selectCandles',
+    activityConfig: { target: 'hammer', sampleSize: 4 },
     choices: [
-      {
-        text: "הצג דוגמה לנר",
-        nextStep: "candle_example",
-      },
-    ],
-    characterImg: "character_blue_yellow.png",
-    bubblePosition: "bottomLeft",
-  },
-  {
-    id: "candle_example",
-    message: `דוגמה לנר:
-מחיר פתיחה: 100
-מחיר סגירה: 110
-גבוה: 115
-נמוך: 95
-(🔲⬆️⬇️)
-אם המחיר סגר גבוה מהפתיחה, הנר ירוק. אם סגר נמוך, הנר אדום.`,
-    backgroundImage: "bg4",
-    visual: "hammer",
-    choices: [
-      {
-        text: "סוגי נרות נפוצים",
-        nextStep: "bullish_candle",
-      },
+      { text: "המשך", nextStep: "hammer_trend_question" },
     ],
     characterImg: "character_green_yellow.png",
-    bubblePosition: "bottomRight",
+    bubblePosition: "topRight",
+  },
+  // Hammer context question (after decline)
+  {
+    id: 'hammer_trend_question',
+    message: 'האם הנר מצביע על שינוי מגמה לאחר ירידה לדעתך?',
+    backgroundImage: 'bg2',
+    visual: 'trendDownHammer',
+    choices: [
+      { text: 'כן', nextStep: 'hammer_trend_explain' },
+      { text: 'לא', nextStep: 'wrong1', style: 'danger' },
+    ],
+    characterImg: 'character_blue_yellow.png',
+    bubblePosition: 'topRight',
   },
   {
-    id: "bullish_candle",
-    message:
-      "נר שורי (Bullish):\nהמחיר סגר גבוה מהפתיחה. מסמן מגמת עלייה.\n(🟩)",
-    backgroundImage: "bg2",
-    visual: "bullish",
+    id: 'hammer_trend_explain',
+    message: 'מעולה! הוא מצביע שעשוי להיות שינוי מגמה לאחר ירידה – 60% מהפעמים.',
+    backgroundImage: 'bg2',
+    visual: 'vRecovery',
     choices: [
-      {
-        text: "המשך",
-        nextStep: "bearish_candle",
-      },
+      { text: 'לסיכום', nextStep: 'hammer_summary' },
     ],
-    characterImg: "character_blue_yellow.png",
-    bubblePosition: "topLeft",
+    characterImg: 'character_green_yellow.png',
+    bubblePosition: 'topRight',
   },
   {
-    id: "bearish_candle",
-    message:
-      "נר דובי (Bearish):\nהמחיר סגר נמוך מהפתיחה. מסמן מגמת ירידה.\n(🟥)",
-    backgroundImage: "bg2",
-    visual: "bearish",
+    id: 'hammer_summary',
+    message: 'סיכום הנר: נר פטיש',
+    backgroundImage: 'bg1',
+    visual: 'summaryHammer',
     choices: [
-      {
-        text: "המשך",
-        nextStep: "doji_candle",
-      },
+      { text: 'שמור במילון', nextStep: 'map' },
     ],
-    characterImg: "character_orange_yellow.png",
-    bubblePosition: "bottomLeft",
-  },
-  {
-    id: "doji_candle",
-    message:
-      "נר דוג'י (Doji):\nמחיר הפתיחה והסגירה כמעט זהים. מסמן חוסר החלטיות בשוק.\n(➖)",
-    backgroundImage: "bg2",
-    visual: "doji",
-    choices: [
-      {
-        text: "סיימתי את השיעור",
-        nextStep: "map",
-      },
-    ],
-    characterImg: "character_green_yellow.png",
-    bubblePosition: "bottomRight",
+    characterImg: 'character_green_yellow.png',
+    bubblePosition: 'topRight',
     points: 10,
   },
-]; 
+];

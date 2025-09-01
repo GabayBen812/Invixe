@@ -21,6 +21,7 @@ import PageBackground from '../components/ui/PageBackground';
 import theme from '../theme';
 import { useUser } from '../context/UserContext';
 import Svg, { Path, Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
+import { WebView } from 'react-native-webview';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -63,6 +64,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const lastOffset = useRef({ x: 0, y: 0 });
   const [selectedRange, setSelectedRange] = useState('1h');
   const [displayMode, setDisplayMode] = useState<'line' | 'candles'>('candles');
+  const webViewRef = useRef<any>(null);
   const [ohlcData, setOhlcData] = useState<any[]>([]);
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveChange, setLiveChange] = useState<number | null>(null);
@@ -113,10 +115,25 @@ export default function SandboxScreen({ navigation }: Props) {
     fetchStockData(selectedStock.symbol, selectedRange);
   }, [selectedStock, selectedRange]);
 
+  // Send updates to TradingView WebView when symbol/range changes
+  useEffect(() => {
+    const interval = mapRangeToTv(selectedRange);
+    try {
+      webViewRef.current?.postMessage(JSON.stringify({ type: 'setSymbol', symbol: selectedStock.symbol, interval }));
+    } catch {}
+  }, [selectedStock]);
+
+  useEffect(() => {
+    const interval = mapRangeToTv(selectedRange);
+    try {
+      webViewRef.current?.postMessage(JSON.stringify({ type: 'setInterval', interval }));
+    } catch {}
+  }, [selectedRange]);
+
   const fetchStockData = async (symbol: string, interval: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://10.0.0.15:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
+      const response = await fetch(`http://10.0.0.16:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
@@ -167,7 +184,7 @@ export default function SandboxScreen({ navigation }: Props) {
   // Fetch live price
   const fetchLivePrice = async (symbol: string) => {
     try {
-      const response = await fetch(`http://10.0.0.15:4000/api/stocks/${symbol}/price`);
+      const response = await fetch(`http://10.0.0.16:4000/api/stocks/${symbol}/price`);
       if (!response.ok) return;
       const result = await response.json();
       setLivePrice(result.price);
@@ -193,7 +210,7 @@ export default function SandboxScreen({ navigation }: Props) {
 
   const fetchUserHoldings = async () => {
     try {
-      const response = await fetch('http://10.0.0.15:4000/api/user/portfolio');
+      const response = await fetch('http://10.0.0.16:4000/api/user/portfolio');
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -206,6 +223,29 @@ export default function SandboxScreen({ navigation }: Props) {
 
   const handleStockSelect = (stock: typeof STOCKS[0]) => {
     setSelectedStock(stock);
+  };
+
+  const mapRangeToTv = (range: string) => {
+    switch (range) {
+      case '1m': return '1';
+      case '5m': return '5';
+      case '1h': return '60';
+      case '1d': return 'D';
+      case '1w': return 'W';
+      case '1mo': return 'M';
+      default: return '60';
+    }
+  };
+
+  const mapTvToRange = (resolution: string) => {
+    const r = String(resolution).toUpperCase();
+    if (r === '1') return '1m';
+    if (r === '5') return '5m';
+    if (r === '60' || r === '1H') return '1h';
+    if (r === 'D' || r === '1D') return '1d';
+    if (r === 'W' || r === '1W') return '1w';
+    if (r === 'M' || r === '1M') return '1mo';
+    return '1h';
   };
 
   const handleTabPress = (tab: 'map' | 'profile' | 'shop' | 'graph') => {
@@ -248,7 +288,7 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch('http://10.0.0.15:4000/api/user/portfolio/buy', {
+        const response = await fetch('http://10.0.0.16:4000/api/user/portfolio/buy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -279,7 +319,7 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch('http://10.0.0.15:4000/api/user/portfolio/sell', {
+        const response = await fetch('http://10.0.0.16:4000/api/user/portfolio/sell', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -468,254 +508,89 @@ export default function SandboxScreen({ navigation }: Props) {
   };
 
   const renderGraph = () => {
-    if (isLoading || stockData.length === 0) {
-      return (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading {selectedStock.symbol} data...</Text>
-        </View>
-      );
-    }
-
-    const width = SCREEN_WIDTH;
-    const height = SCREEN_HEIGHT - 200; // Account for title, bubbles, and navbar
-    const padding = 40; // Increased for y-axis labels
-
-    const minPrice = Math.min(...stockData.map(d => d.price));
-    const maxPrice = Math.max(...stockData.map(d => d.price));
-    const priceRange = maxPrice - minPrice || 1; // Prevent division by zero
-
-    const minTime = Math.min(...stockData.map(d => d.timestamp));
-    const maxTime = Math.max(...stockData.map(d => d.timestamp));
-    const timeRange = maxTime - minTime || 1; // Prevent division by zero
-
-    // Y-axis price labels (5 steps)
-    const ySteps = 5;
-    const priceLabels = Array.from({ length: ySteps }, (_, i) => {
-      const price = maxPrice - (i * priceRange) / (ySteps - 1);
-      return {
-        price: price,
-        y: padding + (i * height) / (ySteps - 1),
-      };
-    });
-
-    // X-axis time labels (4 steps)
-    const xSteps = 4;
-    const timeLabels = Array.from({ length: xSteps }, (_, i) => {
-      const timestamp = minTime + (i * timeRange) / (xSteps - 1);
-      return {
-        timestamp,
-        x: padding + (i * (width - 2 * padding)) / (xSteps - 1),
-      };
-    });
-
-    // Generate path for stock line with validation
-    let pathData = '';
-    stockData.forEach((data, index) => {
-      const x = padding + (data.timestamp - minTime) / timeRange * (width - 2 * padding);
-      const y = padding + height - ((data.price - minPrice) / priceRange * height);
-      if (!isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y)) {
-        if (index === 0) {
-          pathData += `M ${x.toFixed(2)} ${y.toFixed(2)}`;
-        } else {
-          pathData += ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
-        }
-      }
-    });
-
-    // Generate drawing path with validation
-    let drawingPathData = '';
-    if (drawingPath.length > 0) {
-      drawingPath.forEach((point, index) => {
-        if (!isNaN(point.x) && !isNaN(point.y) && isFinite(point.x) && isFinite(point.y)) {
-          if (index === 0) {
-            drawingPathData += `M ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-          } else {
-            drawingPathData += ` L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`;
-          }
-        }
-      });
-    }
-
-    const priceInfoCard = (
-      <View style={styles.priceInfoContainer}>
-        <View style={styles.priceInfoCard}>
-          <Text style={styles.priceSymbol}>{String(selectedStock.symbol)}</Text>
-          <Text style={styles.priceText}>
-            {livePrice !== null ? `$${livePrice.toFixed(2)}` : '...'}
-          </Text>
-          <Text
-            style={[
-              styles.priceChange,
-              (liveChange ?? 0) > 0
-                ? { color: theme.colors.growthGreen }
-                : (liveChange ?? 0) < 0
-                ? { color: theme.colors.optimismOrange }
-                : { color: '#125BA5' }
-            ]}
-          >
-            {liveChange !== null && liveChangePercent !== null
-              ? `${liveChange > 0 ? '+' : ''}${liveChangePercent.toFixed(2)}% (${liveChange > 0 ? '+' : ''}$${liveChange.toFixed(2)})`
-              : ''}
-          </Text>
-        </View>
-      </View>
-    );
-
-    const holdingInfo = (() => {
-      const holding = getUserHolding(selectedStock.symbol);
-      if (holding) {
-        // Format shares to up to 3 decimals, but remove trailing zeros
-        const sharesDisplay = parseFloat(holding.shares.toFixed(3)).toString();
-        return (
-          <View style={[styles.holdingInfo, { marginTop: 8 }]}> 
-            <Text style={styles.holdingText}>
-              יש לך {String(sharesDisplay)} מניות של {String(selectedStock.symbol)}
-            </Text>
-            <Text style={styles.holdingText}>
-              מחיר ממוצע: ${holding.avgPrice.toFixed(2)}
-            </Text>
-          </View>
-        );
-      }
-      return null;
-    })();
+    const tvHtml = `
+      <!DOCTYPE html>
+      <html lang="he">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+        <style> html,body,#container{margin:0;padding:0;height:100%;width:100%;background:#ffffff;} </style>
+        <script src="https://s3.tradingview.com/tv.js"></script>
+      </head>
+      <body>
+        <div id="container"></div>
+        <script>
+          let chartApi;
+          const widget = new TradingView.widget({
+            autosize: true,
+            symbol: '${selectedStock.symbol}',
+            interval: '${mapRangeToTv(selectedRange)}',
+            container_id: 'container',
+            datafeed: undefined,
+            locale: 'he',
+            theme: 'light',
+            timezone: 'Etc/UTC',
+            hide_side_toolbar: false,
+            allow_symbol_change: true,
+            enable_publishing: false,
+            studies: [],
+          });
+          widget.onChartReady(() => {
+            chartApi = widget.chart();
+            // Notify RN about initial state
+            try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' })); } catch(e){}
+            // Symbol change listener
+            chartApi.onSymbolChanged((symbolInfo) => {
+              try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'symbolChanged', symbol: (symbolInfo && (symbolInfo.ticker || symbolInfo.name)) || '' })); } catch(e){}
+            });
+            // Interval / resolution change listener
+            if (chartApi.onIntervalChanged) {
+              chartApi.onIntervalChanged((interval, timeframeObj) => {
+                try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'intervalChanged', interval: interval })); } catch(e){}
+              });
+            } else if (chartApi.onResolutionChanged) {
+              chartApi.onResolutionChanged((resolution) => {
+                try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'intervalChanged', interval: resolution })); } catch(e){}
+              });
+            }
+          });
+          // Receive messages from React Native
+          window.addEventListener('message', (event) => {
+            try {
+              const data = JSON.parse(event.data || '{}');
+              if (!chartApi) return;
+              if (data.type === 'setSymbol' && data.symbol) {
+                chartApi.setSymbol(data.symbol, data.interval || '${mapRangeToTv(selectedRange)}');
+              } else if (data.type === 'setInterval' && data.interval) {
+                chartApi.setResolution(String(data.interval));
+              }
+            } catch (e) {}
+          });
+        </script>
+      </body>
+      </html>`;
 
     return (
-      <View 
-        style={styles.graphContainer}
-        {...panResponder.panHandlers}
-      >
-        {displayMode === 'candles' ? renderCandles() : (
-          <Svg width={width} height={height + 2 * padding}>
-            <G
-              transform={`translate(${offset.x}, ${offset.y}) scale(${scale})`}
-            >
-              {/* Grid lines and Y-axis price labels */}
-              {[...Array(ySteps)].map((_, i) => (
-                <React.Fragment key={`grid-label-${i}`}>
-                  <Line
-                    key={`grid-${i}`}
-                    x1={padding}
-                    y1={padding + (i * height) / (ySteps - 1)}
-                    x2={padding + width - 2 * padding}
-                    y2={padding + (i * height) / (ySteps - 1)}
-                    stroke={theme.colors.gray}
-                    strokeWidth={1}
-                    opacity={0.3}
-                  />
-                  <SvgText
-                    key={`price-label-${i}`}
-                    x={8}
-                    y={padding + (i * height) / (ySteps - 1) + 4}
-                    fontSize={12}
-                    fill={'#125BA5'}
-                    fontFamily={theme.font.bold}
-                    textAnchor="start"
-                  >
-                    {priceLabels[i].price.toFixed(2)}
-                  </SvgText>
-                </React.Fragment>
-              ))}
-
-              {/* X-axis time labels */}
-              {timeLabels.map((label, i) => (
-                <SvgText
-                  key={`time-label-${i}`}
-                  x={label.x}
-                  y={padding + height + 18}
-                  fontSize={12}
-                  fill={'#125BA5'}
-                  fontFamily={theme.font.bold}
-                  textAnchor="middle"
-                >
-                  {formatTime(label.timestamp, selectedRange)}
-                </SvgText>
-              ))}
-
-              {/* Stock price line */}
-              {pathData && (
-                <Path
-                  d={pathData}
-                  stroke={theme.colors.primaryBlue}
-                  strokeWidth={3}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-              {/* Data points */}
-              {stockData.map((data, index) => {
-                const x = padding + (data.timestamp - minTime) / timeRange * (width - 2 * padding);
-                const y = padding + height - ((data.price - minPrice) / priceRange * height);
-                if (!isNaN(x) && !isNaN(y) && isFinite(x) && isFinite(y)) {
-                  return (
-                    <Circle
-                      key={`datapoint-${index}`}
-                      cx={x}
-                      cy={y}
-                      r={2}
-                      fill={theme.colors.primaryBlue}
-                    />
-                  );
-                }
-                return null;
-              })}
-              {/* Drawing path */}
-              {drawingPathData && (
-                <Path
-                  d={drawingPathData}
-                  stroke={theme.colors.optimismOrange}
-                  strokeWidth={2}
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              )}
-            </G>
-          </Svg>
-        )}
-        
-        {/* Graph controls */}
-        <View style={styles.graphControls}>
-          <TouchableOpacity
-            style={[styles.controlButton, drawingMode && styles.activeControlButton]}
-            onPress={() => setDrawingMode(!drawingMode)}
-          >
-            <Text style={styles.controlButtonText}>✏️</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={() => setScale(scale * 1.2)}
-          >
-            <Text style={styles.controlButtonText}>🔍+</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={() => setScale(Math.max(0.5, scale * 0.8))}
-          >
-            <Text style={styles.controlButtonText}>🔍-</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={clearDrawing}
-          >
-            <Text style={styles.controlButtonText}>🗑️</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.controlButton}
-            onPress={() => setDisplayMode(displayMode === 'line' ? 'candles' : 'line')}
-          >
-            <Text style={styles.controlButtonText}>
-              {displayMode === 'line' ? '📊' : '📈'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        
-        {/* Price info - redesigned as a floating card at the top center */}
-        {priceInfoCard}
-        {/* Holdings info remains at the bottom left */}
-        {holdingInfo}
-
+      <View style={styles.graphContainer}>
+        <WebView
+          ref={webViewRef}
+          originWhitelist={["*"]}
+          source={{ html: tvHtml }}
+          javaScriptEnabled
+          domStorageEnabled
+          style={{ flex: 1, backgroundColor: '#fff' }}
+          allowsInlineMediaPlayback
+          onMessage={(e) => {
+            try {
+              const data = JSON.parse(e.nativeEvent.data || '{}');
+              if (data.type === 'symbolChanged' && data.symbol) {
+                setSelectedStock({ symbol: data.symbol, name: data.symbol });
+              } else if (data.type === 'intervalChanged' && data.interval) {
+                setSelectedRange(mapTvToRange(String(data.interval)));
+              }
+            } catch {}
+          }}
+        />
         {/* Trading buttons */}
         <View style={styles.tradingButtons}>
           <TouchableOpacity
@@ -737,13 +612,6 @@ export default function SandboxScreen({ navigation }: Props) {
             <Text style={styles.tradeButtonText}>מכור</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Mode indicator */}
-        {drawingMode && (
-          <View style={styles.modeIndicator}>
-            <Text style={styles.modeText}>Drawing Mode</Text>
-          </View>
-        )}
       </View>
     );
   };
@@ -754,9 +622,10 @@ export default function SandboxScreen({ navigation }: Props) {
         <TopBar />
         <View style={styles.content}>
           {/* <Text style={styles.title}>Sandbox - {selectedStock.symbol}</Text> */}
-          {renderStockBubbles()}
-          {renderTimeRangeSelector()}
-          <View style={styles.hr} />
+          {/* Remove app-level stock/time selectors to avoid duplication with TradingView */}
+          {/* {renderStockBubbles()} */}
+          {/* {renderTimeRangeSelector()} */}
+          {/* <View style={styles.hr} /> */}
           {renderGraph()}
         </View>
       </PageBackground>

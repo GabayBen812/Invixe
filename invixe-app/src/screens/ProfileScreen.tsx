@@ -77,7 +77,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const fetchPortfolio = async () => {
     try {
-      const response = await fetch('http://10.0.0.15:4000/api/user/portfolio');
+      const response = await fetch('http://10.0.0.16:4000/api/user/portfolio');
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -93,7 +93,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const fetchStockPrices = async () => {
     try {
       const symbols = portfolio.map(h => h.symbol).join(',');
-      const response = await fetch(`http://10.0.0.15:4000/api/stocks/prices?symbols=${symbols}`);
+      const response = await fetch(`http://10.0.0.16:4000/api/stocks/prices?symbols=${symbols}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock prices');
       }

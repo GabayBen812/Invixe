@@ -2,81 +2,80 @@ import { LessonStep } from "../types";
 
 export const lessonSteps: LessonStep[] = [
   {
-    id: "quiz_intro",
-    message: "הגיע הזמן לבדוק את הידע שלך! ענה על השאלות הבאות על שוק ההון.",
-    backgroundImage: "bg2",
+    id: "intro",
+    message: "הנר הזה הוא:",
+    backgroundImage: "bg1",
     choices: [
-      {
-        text: "התחל חידון",
-        nextStep: "q1",
-      },
-    ],
-    characterImg: "character_blue_yellow.png",
-    bubblePosition: "topLeft",
-  },
-  {
-    id: "q1",
-    message: "איך לדעתך נוצרות מניות?",
-    backgroundImage: "bg2",
-    choices: [
-      {
-        text: "כשפותחים חשבון השקעות בבנק",
-        nextStep: "wrong1",
-      },
-      {
-        text: "כשהבורסה יוצרת מניות חדשות",
-        nextStep: "correct1",
-      },
-      {
-        text: "כשחברה מחלקת את עצמה לגיוס כסף",
-        nextStep: "wrong1",
-      },
-      {
-        text: "כשמישהו קונה מניה ממישהו אחר",
-        nextStep: "wrong1",
-      },
+      { text: "נר שפירית", nextStep: "dragonfly_definition" },
     ],
     characterImg: "character_green_yellow.png",
-    bubblePosition: "topRight",
-  },
-  {
-    id: "correct1",
-    message: "תשובה נכונה! זכית ב-2 נקודות.",
-    backgroundImage: "bg2",
-    points: 2,
-    choices: [
-      {
-        text: "שאלה הבאה",
-        nextStep: "end",
-      },
-    ],
-    characterImg: "character_orange_yellow.png",
     bubblePosition: "bottomLeft",
+    visual: "dragonflyCandle",
   },
   {
-    id: "wrong1",
-    message: "תשובה לא נכונה. נסה שוב בשיעור הבא!",
+    id: "dragonfly_definition",
+    message: "נר שפירית הוא נר עם גוף קטן מאוד בחלק העליון ופתיל ארוך מתחת. [צבע הגוף פחות חשוב]",
     backgroundImage: "bg2",
+    visual: "dragonflyCandle",
     choices: [
-      {
-        text: "סיים חידון",
-        nextStep: "end",
-      },
-    ],
-    characterImg: "character_orange_yellow.png",
-    bubblePosition: "bottomLeft",
-  },
-  {
-    id: "end",
-    message: "סיימת את החידון! כל הכבוד.",
-    backgroundImage: "bg2",
-    choices: [
-      {
-        text: "חזור למפה",
-        nextStep: "map",
-      },
+      { text: "המשך", nextStep: "dragonfly_characteristics" },
     ],
     characterImg: "character_blue_yellow.png",
+    bubblePosition: "bottomRight",
+  },
+  {
+    id: "dragonfly_characteristics",
+    message: "פתיל כלפי מטה",
+    backgroundImage: "bg2",
+    visual: "dragonflyCandle",
+    choices: [
+      { text: "גוף צר", nextStep: "dragonfly_rule" },
+    ],
+    characterImg: "character_green_yellow.png",
     bubblePosition: "topLeft",
+  },
+  {
+    id: "dragonfly_rule",
+    message: "הפתיל צריך להיות ארוך פי 2 לפחות מגודל הגוף",
+    backgroundImage: "bg4",
+    visual: "dragonflyCandle",
+    choices: [
+      { text: "מתי הוא מופיע?", nextStep: "dragonfly_timing" },
+    ],
+    characterImg: "character_orange_yellow.png",
+    bubblePosition: "bottomLeft",
+  },
+  {
+    id: "dragonfly_timing",
+    message: "נר שפירית משמעותי כשהוא מופיע אחרי מגמת ירידה",
+    backgroundImage: "bg1",
+    visual: "dragonflyTrend",
+    choices: [
+      { text: "מה הוא אומר?", nextStep: "dragonfly_signal" },
+    ],
+    characterImg: "character_blue_yellow.png",
+    bubblePosition: "bottomRight",
+  },
+  {
+    id: "dragonfly_signal",
+    message: "ומה הוא אומר? שעומד להיות שינוי מגמה ב-60-65% מהמקרים.",
+    backgroundImage: "bg4",
+    visual: "dragonflyReversal",
+    choices: [
+      { text: "שינוי מגמה", nextStep: "dragonfly_summary" },
+    ],
+    characterImg: "character_green_yellow.png",
+    bubblePosition: "bottomRight",
+  },
+  {
+    id: "dragonfly_summary",
+    message: "סיכום הנר: נר שפירית - צבע הנר: שחור אדום!!! - מופיע מתי? אחרי מגמת ירידה - שיעור היפוך ממוצע: 60%-65%",
+    backgroundImage: "bg1",
+    visual: "dragonflyCandle",
+    choices: [
+      { text: "שמור במילון", nextStep: "map" },
+    ],
+    characterImg: "character_blue_yellow.png",
+    bubblePosition: "bottomLeft",
   },
 ]; 

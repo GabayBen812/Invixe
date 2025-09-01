@@ -7,6 +7,18 @@ export interface LessonMetadata {
     completedLessons?: number[];
     minimumPoints?: number;
   };
+  sublessons?: Sublesson[];
+}
+
+export interface Sublesson {
+  id: number;
+  title: string;
+  description: string;
+  lessonType: 'memorize' | 'info' | 'test' | 'practice';
+  unlockRequirements?: {
+    completedLessons?: number[];
+    minimumPoints?: number;
+  };
 }
 
 export interface LessonStep {
@@ -28,9 +40,15 @@ export interface LessonStep {
   inventory?: Inventory;
   showInventory?: boolean;
   points?: number; // Points earned for completing this step
-  bubblePosition?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight';
+  bubblePosition?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight' | 'center';
   characterImg?: string; // Filename or key for the character image
   visual?: string; // Optional visual key for SVGs or images
+  // Optional interactive activity configuration
+  activity?: 'selectCandles';
+  activityConfig?: {
+    target?: 'hammer';
+    sampleSize?: number; // default 4
+  };
 }
 
 export interface Choice {

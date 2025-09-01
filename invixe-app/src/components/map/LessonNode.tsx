@@ -4,7 +4,7 @@ import { AppText } from "../../../App";
 import theme from "../../theme";
 import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 
-export const CIRCLE_SIZE = 80;
+export const CIRCLE_SIZE = 72; // Slightly smaller for more premium look
 
 interface LessonNodeProps {
   title?: string;
@@ -17,23 +17,24 @@ interface LessonNodeProps {
   lessonType?: 'memorize' | 'info' | 'test' | 'practice';
 }
 
-// Stock Chart Analysis icon
+// Premium Stock Chart Analysis icon
 const InfoIcon = ({ size = 28 }: { size?: number }) => (
   <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
     <Defs>
       <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
         <Stop offset="0%" stopColor="#FFFFFF" />
-        <Stop offset="100%" stopColor="#E5E7EB" />
+        <Stop offset="100%" stopColor="#F8FAFC" />
       </LinearGradient>
     </Defs>
-    {/* Stock chart lines */}
+    {/* Premium chart design */}
     <Path d="M3 17L9 11L13 15L21 7" stroke="url(#chartGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
     <Path d="M21 7h-4v4" stroke="url(#chartGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-    {/* Chart area */}
+    {/* Chart area with premium styling */}
     <Rect x="2" y="3" width="20" height="18" rx="2" stroke="url(#chartGradient)" strokeWidth={1.5} fill="none"/>
-    {/* Data points */}
+    {/* Enhanced data points */}
     <Circle cx="9" cy="11" r="2" fill="url(#chartGradient)"/>
     <Circle cx="13" cy="15" r="2" fill="url(#chartGradient)"/>
+    <Circle cx="21" cy="7" r="2" fill="url(#chartGradient)"/>
   </Svg>
 );
 
@@ -228,22 +229,22 @@ export default function LessonNode({
           onPressOut={handlePressOut}
           disabled={!unlocked}
         >
-          {/* Stock Market Background Pattern */}
-          <Svg style={styles.backgroundPattern} width={CIRCLE_SIZE} height={CIRCLE_SIZE} viewBox="0 0 80 80">
+          {/* Premium Background Pattern */}
+          <Svg style={styles.backgroundPattern} width={CIRCLE_SIZE} height={CIRCLE_SIZE} viewBox="0 0 72 72">
             <Defs>
               <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={completed ? "#059669" : current ? "#F59E0B" : !unlocked ? "#64748B" : "#3B82F6"} stopOpacity="0.1" />
-                <Stop offset="100%" stopColor={completed ? "#047857" : current ? "#D97706" : !unlocked ? "#475569" : "#1D4ED8"} stopOpacity="0.05" />
+                <Stop offset="0%" stopColor={completed ? "#10B981" : current ? "#F59E0B" : !unlocked ? "#64748B" : "#3B82F6"} stopOpacity="0.08" />
+                <Stop offset="100%" stopColor={completed ? "#047857" : current ? "#D97706" : !unlocked ? "#475569" : "#1D4ED8"} stopOpacity="0.04" />
               </LinearGradient>
             </Defs>
-            {/* Subtle grid pattern like trading charts */}
-            <Path d="M0 20H80M0 40H80M0 60H80M20 0V80M40 0V80M60 0V80" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5"/>
-            {/* Mini chart pattern */}
-            <Path d="M10 50L20 45L30 55L40 35L50 40L60 30L70 35" stroke="rgba(255,255,255,0.15)" strokeWidth="1" fill="none"/>
-            <Rect width="80" height="80" fill="url(#bgGradient)" rx="40"/>
+            {/* Premium grid pattern */}
+            <Path d="M0 18H72M0 36H72M0 54H72M18 0V72M36 0V72M54 0V72" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5"/>
+            {/* Premium chart pattern */}
+            <Path d="M9 45L18 40L27 50L36 32L45 36L54 27L63 32" stroke="rgba(255,255,255,0.12)" strokeWidth="1" fill="none"/>
+            <Rect width="72" height="72" fill="url(#bgGradient)" rx="36"/>
           </Svg>
 
-          {/* Glassmorphism overlay with stock market theme */}
+          {/* Premium Glassmorphism overlay */}
           <View style={[
             styles.glassOverlay, 
             completed && styles.completedGlass, 
@@ -251,25 +252,25 @@ export default function LessonNode({
             !unlocked && styles.lockedGlass
           ]} />
           
-          {/* Outer glow for current node - enhanced */}
+          {/* Premium outer glow for current node */}
           {current && <View style={styles.outerGlow} />}
           
-          {/* Stock market performance indicator */}
+          {/* Premium performance indicator */}
           {completed && (
             <View style={styles.performanceIndicator}>
-              <Svg width={12} height={12} viewBox="0 0 12 12">
-                <Path d="M2 8L4 6L6 7L10 3" stroke="#00C896" strokeWidth={1.5} strokeLinecap="round"/>
-                <Circle cx="10" cy="3" r="1" fill="#00C896"/>
+              <Svg width={10} height={10} viewBox="0 0 12 12">
+                <Path d="M2 8L4 6L6 7L10 3" stroke="#10B981" strokeWidth={1.5} strokeLinecap="round"/>
+                <Circle cx="10" cy="3" r="1" fill="#10B981"/>
               </Svg>
             </View>
           )}
           
-          {/* Icon container with enhanced styling */}
+          {/* Premium icon container */}
           <View style={styles.iconContainer}>
             {getLessonIcon(lessonType)}
           </View>
           
-          {/* Status indicators */}
+          {/* Premium status indicators */}
           {completed && <Checkmark />}
           {current && !completed && <View style={styles.currentIndicator} />}
           {!unlocked && !completed && <LockIcon />}
@@ -302,11 +303,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     position: 'relative',
     overflow: 'hidden',
-    elevation: 12,
+    elevation: 16,
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.12,
+    shadowRadius: 32,
     zIndex: 1,
   },
   
@@ -317,80 +318,80 @@ const styles = StyleSheet.create({
     left: 0,
   },
   
-  // Enhanced glassmorphism overlay
+  // Premium glassmorphism overlay
   glassOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: CIRCLE_SIZE / 2,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.6)',
   },
   
   completedGlass: {
-    backgroundColor: 'rgba(0, 200, 150, 0.15)',
-    borderColor: 'rgba(0, 200, 150, 0.4)',
-    shadowColor: '#00C896',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 12,
   },
   
   currentGlass: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderColor: 'rgba(245, 158, 11, 0.5)',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.4)',
     shadowColor: '#F59E0B',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 16,
   },
   
   lockedGlass: {
-    backgroundColor: 'rgba(148, 163, 184, 0.15)',
-    borderColor: 'rgba(148, 163, 184, 0.3)',
+    backgroundColor: 'rgba(148, 163, 184, 0.12)',
+    borderColor: 'rgba(148, 163, 184, 0.25)',
   },
   
-  // Enhanced stock market themed lesson styles with better contrast
+  // Premium lesson styles with sophisticated colors
   infoLesson: {
-    backgroundColor: '#1E40AF', // Deeper market analysis blue for better contrast
+    backgroundColor: '#1E40AF', // Premium market analysis blue
   },
   memorizeLesson: {
-    backgroundColor: '#C2410C', // Changed to vibrant orange for better visibility  
+    backgroundColor: '#C2410C', // Premium vibrant orange
   },
   practiceLesson: {
-    backgroundColor: '#DC2626', // Changed to strong red for practice lessons
+    backgroundColor: '#DC2626', // Premium strong red
   },
   testLesson: {
-    backgroundColor: '#059669', // Deeper profit green
+    backgroundColor: '#059669', // Premium profit green
   },
   
   completed: {
-    backgroundColor: '#047857', // Strong bullish green
+    backgroundColor: '#047857', // Premium completed green
   },
   
   current: {
     shadowColor: '#F59E0B',
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 20,
+    shadowOpacity: 0.4,
+    shadowRadius: 28,
+    elevation: 24,
   },
   
   locked: {
-    backgroundColor: '#475569', // Darker neutral gray for better contrast
+    backgroundColor: '#475569', // Premium neutral gray
   },
   
-  // Outer glow for current node
+  // Premium outer glow for current node
   outerGlow: {
     position: 'absolute',
-    top: -8,
-    left: -8,
-    right: -8,
-    bottom: -8,
-    borderRadius: (CIRCLE_SIZE + 16) / 2,
-    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    top: -12,
+    left: -12,
+    right: -12,
+    bottom: -12,
+    borderRadius: (CIRCLE_SIZE + 24) / 2,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
     zIndex: -1,
   },
   
@@ -400,79 +401,79 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   
-  // Stock market performance indicator
+  // Premium performance indicator
   performanceIndicator: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: 'rgba(0, 200, 150, 0.9)',
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(16, 185, 129, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
+    borderWidth: 1.5,
     borderColor: '#FFFFFF',
-    shadowColor: '#00C896',
+    shadowColor: '#10B981',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 4,
   },
   
-  // Status indicator styles
+  // Premium status indicator styles
   checkmarkContainer: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: -3,
+    right: -3,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#10B981',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: '#FFFFFF',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 6,
   },
   
   lockContainer: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: -3,
+    right: -3,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#64748B',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: '#FFFFFF',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 6,
   },
   
   currentIndicator: {
     position: 'absolute',
-    bottom: -2,
-    right: -2,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    bottom: -3,
+    right: -3,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     backgroundColor: '#3B82F6',
-    borderWidth: 3,
+    borderWidth: 2.5,
     borderColor: '#FFFFFF',
     shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
 });

@@ -146,9 +146,9 @@ export default function BottomNavbar({
 const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    backgroundColor: "#D3E9FF",
+    backgroundColor: theme.colors.white,
     borderTopWidth: 1,
-    borderTopColor: theme.colors.gray,
+    borderTopColor: '#E2E8F0',
     paddingBottom: 20,
     paddingTop: 12,
     shadowColor: theme.colors.black,
