@@ -1,8 +1,8 @@
 import React from 'react'
 
-type AnyProps = React.SVGProps<SVGElement> & { children?: React.ReactNode }
+type AnyProps = React.SVGProps<SVGSVGElement> & { children?: React.ReactNode }
 
-const pass = (Tag: any) => (props: AnyProps) => <Tag {...props} />
+const pass = (Tag: any) => (props: any) => <Tag {...props} />
 
 const Svg = (props: AnyProps) => <svg {...props} />
 export default Svg

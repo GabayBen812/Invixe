@@ -1,4 +1,5 @@
-import { ReactNode, useState } from 'react'
+import type { ReactNode } from 'react'
+import { useState } from 'react'
 
 export function Accordion({ children, className = '' }: { children: ReactNode; className?: string }) {
   return <div className={`space-y-2 ${className}`}>{children}</div>

@@ -272,7 +272,7 @@ function SequenceBuildEditor({ local, onChange, setLocal }: any) {
               setField('correctSequence', arr)
             }}>
               <option value="">Select option…</option>
-              {optionIdChoices.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+              {optionIdChoices.map((o: { id: string; label: string }) => <option key={o.id} value={o.id}>{o.label}</option>)}
             </Select>
           ))}
         </div>

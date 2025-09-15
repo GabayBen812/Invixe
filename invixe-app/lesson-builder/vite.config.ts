@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -109,8 +109,8 @@ function updateLessonScreenMap(rootDir: string, step: number, lessonId: number) 
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react()],
+const baseConfig = defineConfig({
+  plugins: [react() as any],
   server: {
     middlewareMode: false,
     fs: {
@@ -125,10 +125,8 @@ export default defineConfig({
   resolve: {
     alias: (() => {
       let rnWeb = ''
-      let rnCodegen = ''
       try {
         rnWeb = require.resolve('react-native-web')
-        rnCodegen = require.resolve('react-native-web/dist/modules/codegenNativeComponent')
       } catch {}
       const aliasArray = [] as any[]
       aliasArray.push({ find: 'react-native/Libraries/Utilities/codegenNativeComponent', replacement: path.resolve(__dirname, 'src/shims/codegenNativeComponent.ts') })
@@ -138,75 +136,85 @@ export default defineConfig({
       return aliasArray
     })(),
   },
-  configureServer(server) {
-    // Export lesson
-    server.middlewares.use('/api/exportLesson', async (req, res) => {
-      try {
-        if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return }
-        if (req.method !== 'POST') { res.statusCode = 405; res.end('Method Not Allowed'); return }
-        const chunks: any[] = []
-        req.on('data', (c) => chunks.push(c))
-        req.on('end', () => {
-          const raw = Buffer.concat(chunks).toString('utf8')
-          const body = JSON.parse(raw)
-          const { step, lessonId, title, steps } = body
-          if (!step || !lessonId || !Array.isArray(steps)) { res.statusCode = 400; res.end('Invalid body'); return }
-          const rootDir = process.cwd()
-          writeLessonFile(rootDir, Number(step), Number(lessonId), steps)
-          updateRegistry(rootDir, Number(step), Number(lessonId), title || 'New Lesson')
-          updateLessonScreenMap(rootDir, Number(step), Number(lessonId))
-          res.statusCode = 200
-          res.setHeader('Content-Type', 'application/json')
-          res.end(JSON.stringify({ ok: true }))
-        })
-      } catch (e: any) {
-        res.statusCode = 500
-        res.end(String(e?.message || e))
-      }
-    })
-
-    // List existing lessons by scanning files
-    server.middlewares.use('/api/lessons', (req, res) => {
-      try {
-        const rootDir = process.cwd()
-        const base = path.resolve(rootDir, '../src/modules/lessons')
-        const steps = fs.readdirSync(base).filter(d => d.startsWith('step'))
-        const results: any[] = []
-        for (const stepDir of steps) {
-          const full = path.join(base, stepDir)
-          const files = fs.readdirSync(full).filter(f => f.startsWith('lesson') && f.endsWith('.ts'))
-          for (const f of files) {
-            const match = f.match(/lesson(\d+)\.ts$/)
-            const id = match ? Number(match[1]) : undefined
-            if (id) results.push({ step: Number(stepDir.replace('step','')), id, file: path.join('src/modules/lessons', stepDir, f) })
-          }
-        }
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ lessons: results }))
-      } catch (e: any) {
-        res.statusCode = 500; res.end(String(e?.message || e))
-      }
-    })
-
-    // Read a lesson file and return JSON of lessonSteps array
-    server.middlewares.use('/api/lesson', (req, res) => {
-      try {
-        const url = new URL(req.url!, 'http://localhost')
-        const step = url.searchParams.get('step')
-        const id = url.searchParams.get('id')
-        if (!step || !id) { res.statusCode = 400; res.end('Missing step/id'); return }
-        const rootDir = process.cwd()
-        const file = path.resolve(rootDir, `../src/modules/lessons/step${step}/lesson${id}.ts`)
-        if (!fs.existsSync(file)) { res.statusCode = 404; res.end('Not found'); return }
-        const src = fs.readFileSync(file, 'utf8')
-        const match = src.match(/export const lessonSteps: LessonStep\[] = ([\s\S]*?);\s*$/)
-        if (!match) { res.statusCode = 500; res.end('Unable to parse'); return }
-        const json = match[1]
-        res.setHeader('Content-Type', 'application/json')
-        res.end(JSON.stringify({ steps: JSON.parse(json) }))
-      } catch (e: any) {
-        res.statusCode = 500; res.end(String(e?.message || e))
-      }
-    })
-  }
 })
+
+// Inject a dev-only plugin to provide local endpoints
+;(baseConfig as any).plugins.push(
+  {
+    name: 'builder-dev-api',
+    apply: 'serve',
+    configureServer(server: any) {
+      // Export lesson
+      server.middlewares.use('/api/exportLesson', async (req: any, res: any) => {
+        try {
+          if (req.method === 'OPTIONS') { res.statusCode = 204; res.end(); return }
+          if (req.method !== 'POST') { res.statusCode = 405; res.end('Method Not Allowed'); return }
+          const chunks: any[] = []
+          req.on('data', (c: any) => chunks.push(c))
+          req.on('end', () => {
+            const raw = Buffer.concat(chunks).toString('utf8')
+            const body = JSON.parse(raw)
+            const { step, lessonId, title, steps } = body
+            if (!step || !lessonId || !Array.isArray(steps)) { res.statusCode = 400; res.end('Invalid body'); return }
+            const rootDir = process.cwd()
+            writeLessonFile(rootDir, Number(step), Number(lessonId), steps)
+            updateRegistry(rootDir, Number(step), Number(lessonId), title || 'New Lesson')
+            updateLessonScreenMap(rootDir, Number(step), Number(lessonId))
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json')
+            res.end(JSON.stringify({ ok: true }))
+          })
+        } catch (e: any) {
+          res.statusCode = 500
+          res.end(String(e?.message || e))
+        }
+      })
+
+      // List existing lessons by scanning files
+      server.middlewares.use('/api/lessons', (_req: any, res: any) => {
+        try {
+          const rootDir = process.cwd()
+          const base = path.resolve(rootDir, '../src/modules/lessons')
+          const steps = fs.readdirSync(base).filter(d => d.startsWith('step'))
+          const results: any[] = []
+          for (const stepDir of steps) {
+            const full = path.join(base, stepDir)
+            const files = fs.readdirSync(full).filter(f => f.startsWith('lesson') && f.endsWith('.ts'))
+            for (const f of files) {
+              const match = f.match(/lesson(\d+)\.ts$/)
+              const id = match ? Number(match[1]) : undefined
+              if (id) results.push({ step: Number(stepDir.replace('step','')), id, file: path.join('src/modules/lessons', stepDir, f) })
+            }
+          }
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ lessons: results }))
+        } catch (e: any) {
+          res.statusCode = 500; res.end(String(e?.message || e))
+        }
+      })
+
+      // Read a lesson file and return JSON of lessonSteps array
+      server.middlewares.use('/api/lesson', (req: any, res: any) => {
+        try {
+          const url = new URL(req.url!, 'http://localhost')
+          const step = url.searchParams.get('step')
+          const id = url.searchParams.get('id')
+          if (!step || !id) { res.statusCode = 400; res.end('Missing step/id'); return }
+          const rootDir = process.cwd()
+          const file = path.resolve(rootDir, `../src/modules/lessons/step${step}/lesson${id}.ts`)
+          if (!fs.existsSync(file)) { res.statusCode = 404; res.end('Not found'); return }
+          const src = fs.readFileSync(file, 'utf8')
+          const match = src.match(/export const lessonSteps: LessonStep\[] = ([\s\S]*?);\s*$/)
+          if (!match) { res.statusCode = 500; res.end('Unable to parse'); return }
+          const json = match[1]
+          res.setHeader('Content-Type', 'application/json')
+          res.end(JSON.stringify({ steps: JSON.parse(json) }))
+        } catch (e: any) {
+          res.statusCode = 500; res.end(String(e?.message || e))
+        }
+      })
+    }
+  } as Plugin
+)
+
+export default baseConfig
