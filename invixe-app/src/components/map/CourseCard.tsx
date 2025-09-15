@@ -31,25 +31,13 @@ export default function CourseCard({ title, subtitle, Icon, levelChip, durationC
       <Text style={styles.subtitle} numberOfLines={2}>{subtitle}</Text>
       <View style={styles.chipsRow}>
         {durationChip ? (
-          <View style={[styles.chip, styles.chipLight]}>
+          <View style={styles.chip}>
             <Text style={styles.chipText}>{durationChip}</Text>
           </View>
         ) : null}
         {levelChip ? (
-          <View
-            style={[
-              styles.chip,
-              levelEmphasis === 'filled' ? styles.chipPrimary : styles.chipLight,
-            ]}
-          >
-            <Text
-              style={[
-                styles.chipText,
-                levelEmphasis === 'filled' ? styles.chipPrimaryText : undefined,
-              ]}
-            >
-              {levelChip}
-            </Text>
+          <View style={styles.chip}>
+            <Text style={styles.chipText}>{levelChip}</Text>
           </View>
         ) : null}
       </View>
@@ -142,29 +130,19 @@ const styles = StyleSheet.create({
   chip: {
     minHeight: 32,
     paddingHorizontal: 14,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 20,
+    borderWidth: 0,
+    backgroundColor: '#E5E9EF',
     marginLeft: 8,
     display: 'flex',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  chipLight: {
-    backgroundColor: '#F8FAFC',
-    borderColor: '#E2E8F0',
-  },
-  chipPrimary: {
-    backgroundColor: '#0EA5E9',
-    borderColor: '#0EA5E9',
-  },
   chipText: {
     fontSize: 12,
-    fontFamily: theme.font.bold,
-    color: '#475569',
-  },
-  chipPrimaryText: {
-    color: '#FFFFFF',
+    fontFamily: theme.font.family,
+    color: '#314152',
   },
 });
 

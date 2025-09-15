@@ -4,144 +4,31 @@ import {
   ScrollView,
   View,
   Dimensions,
-  Modal,
-  TouchableWithoutFeedback,
   Text,
   Pressable,
   Animated,
+  TouchableWithoutFeedback,
+  Modal,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
-import CourseCard from "../components/map/CourseCard";
-import {
-  lessonsRegistry,
-  isLessonUnlocked,
-  StepRegistry,
-} from "../modules/lessons/registry";
+import { lessonsRegistry, isLessonUnlocked } from "../modules/lessons/registry";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
-import { AppText } from "../../App";
 import theme from "../theme";
-import Svg, {
-  Path,
-  Circle,
-  Rect,
-  Defs,
-  LinearGradient,
-  Stop,
-  Text as SvgText,
-  G,
-  Ellipse,
-  ClipPath,
-  Mask,
-} from "react-native-svg";
+import Svg, { Path, G, Ellipse, Rect, Mask, Circle } from "react-native-svg";
+import StickyHeader from "../components/map/StickyHeader";
+import UnitSelector from "../components/map/UnitSelector";
+import LessonModal from "../components/map/LessonModal";
+import ProgressBar from "../components/map/ProgressBar";
 import { useUser } from "../context/UserContext";
+import { InfoIcon, MemorizeIcon, PracticeIcon, TestIcon, XPStarSVG } from "../components/map/MapAssets";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const NODE_OFFSET = 60;
 
-// Icon components for modal
-const InfoIcon = ({ size = 24 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="infoGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#3B82F6" />
-        <Stop offset="100%" stopColor="#1D4ED8" />
-      </LinearGradient>
-    </Defs>
-    <Path
-      d="M4 19.5A2.5 2.5 0 016.5 17H20"
-      stroke="url(#infoGradient)"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"
-      stroke="url(#infoGradient)"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-const MemorizeIcon = ({ size = 24 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="memorizeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#8B5CF6" />
-        <Stop offset="100%" stopColor="#6D28D9" />
-      </LinearGradient>
-    </Defs>
-    <Path
-      d="M12 2C8.5 2 6 4.5 6 8c0 1.5 0.5 3 1.5 4L12 17.5L16.5 12c1-1 1.5-2.5 1.5-4 0-3.5-2.5-6-6-6z"
-      stroke="url(#memorizeGradient)"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Circle
-      cx="12"
-      cy="8"
-      r="2"
-      stroke="url(#memorizeGradient)"
-      strokeWidth={2.5}
-    />
-  </Svg>
-);
-
-const PracticeIcon = ({ size = 24 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="practiceGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#F59E0B" />
-        <Stop offset="100%" stopColor="#D97706" />
-      </LinearGradient>
-    </Defs>
-    <Circle
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="url(#practiceGradient)"
-      strokeWidth={2.5}
-    />
-    <Circle
-      cx="12"
-      cy="12"
-      r="6"
-      stroke="url(#practiceGradient)"
-      strokeWidth={2.5}
-    />
-    <Circle cx="12" cy="12" r="2" fill="url(#practiceGradient)" />
-  </Svg>
-);
-
-const TestIcon = ({ size = 24 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="testGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#10B981" />
-        <Stop offset="100%" stopColor="#059669" />
-      </LinearGradient>
-    </Defs>
-    <Circle
-      cx="12"
-      cy="12"
-      r="10"
-      stroke="url(#testGradient)"
-      strokeWidth={2.5}
-    />
-    <Path
-      d="M9 12l2 2 4-4"
-      stroke="url(#testGradient)"
-      strokeWidth={2.5}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+// inline icons and art moved to components
 const NODE_X_CENTER = SCREEN_WIDTH / 2;
 const NODE_X_OFFSET = 80; // how far from center to offset left/right nodes
 
@@ -187,72 +74,9 @@ function getLessonStatuses(completedLessons: number[]) {
   return statuses;
 }
 
-// Enhanced SVG Components with Gradients and Animations
+// ProgressBarSVG replaced with reusable ProgressBar component
 
-// Professional Progress Bar SVG - Premium iOS Design
-const ProgressBarSVG = ({
-  progress,
-  width = 200,
-}: {
-  progress: number;
-  width?: number;
-}) => (
-  <Svg width={width} height={6} viewBox={`0 0 ${width} 6`}>
-    <Defs>
-      <LinearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-        <Stop offset="0%" stopColor="#0EA5E9" />
-        <Stop offset="100%" stopColor="#3B82F6" />
-      </LinearGradient>
-    </Defs>
-    <Rect x="0" y="0" width={width} height="6" rx="3" fill="#F1F5F9" />
-    <Rect
-      x="0"
-      y="0"
-      width={width * progress}
-      height="6"
-      rx="3"
-      fill="url(#progressGradient)"
-    />
-  </Svg>
-);
-
-// Streak Fire SVG
-const StreakFireSVG = ({ size = 24 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path d="M12 2s3 7.5 3 11a3 3 0 01-6 0c0-3.5 3-11 3-11z" fill="#FF6B35" />
-    <Path d="M12 6s2 5 2 7.5a2 2 0 01-4 0c0-2.5 2-7.5 2-7.5z" fill="#FFD23F" />
-  </Svg>
-);
-
-// XP Star SVG
-const XPStarSVG = ({ size = 20 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-      fill="#FFD700"
-      stroke="#F4B400"
-      strokeWidth={1}
-    />
-  </Svg>
-);
-
-// Compact Coin SVG
-const CoinSVG = ({ animated = false }: { animated?: boolean }) => (
-  <Svg width={20} height={20} viewBox="0 0 20 20" fill="none">
-    <Circle cx="10" cy="10" r="10" fill="#FFB800" />
-    <Circle cx="10" cy="10" r="7" fill="#FFC83D" />
-    <SvgText
-      x="10"
-      y="14"
-      textAnchor="middle"
-      fontSize="10"
-      fontWeight="bold"
-      fill="#B8860B"
-    >
-      $
-    </SvgText>
-  </Svg>
-);
+// small icons moved to components
 
 // App Character SVG - Simplified without mask
 const AppCharacterSVG = ({ size = 48 }: { size?: number }) => (
@@ -539,7 +363,6 @@ export default function MapScreen({ navigation }: Props) {
   const { completedLessons, lessonAttempts, coins, markLessonAttempted } =
     useUser();
   const [modalVisible, setModalVisible] = React.useState(false);
-  const [selectedLesson, setSelectedLesson] = React.useState<any>(null);
   const [selectedMainLesson, setSelectedMainLesson] = React.useState<any>(null);
   // New: selected unit (step) index. When null → show unit selector
   const [selectedUnitIdx, setSelectedUnitIdx] = React.useState<number | null>(
@@ -810,147 +633,12 @@ export default function MapScreen({ navigation }: Props) {
     </Svg>
   );
 
-  // Helper: render enhanced unit selector (initial screen)
-  const renderUnitSelector = () => {
-    // Calculate progress per unit
-    const unitProgress = lessonsRegistry.map((step) => {
-      const total = step.lessons.length;
-      const done = step.lessons.filter((l) =>
-        completedLessons.includes(l.id)
-      ).length;
-      return { total, done, pct: total > 0 ? done / total : 0 };
-    });
-
-    // Calculate overall progress
-    const totalLessons = lessonsRegistry.flatMap((s) => s.lessons).length;
-    const totalCompleted = lessonsRegistry
-      .flatMap((s) => s.lessons)
-      .filter((l) => completedLessons.includes(l.id)).length;
-    const overallProgress =
-      totalLessons > 0 ? totalCompleted / totalLessons : 0;
-
-    return (
-      <View style={{ flex: 1 }}>
-        <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            paddingTop: 12,
-            paddingBottom: 110,
-          }}
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Hero Section (Figma copy) */}
-          <View style={styles.unitSelectorHero}>
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-              }}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.heroTitle}>ברוך הבא יונתן!</Text>
-                <Text style={styles.heroSubtitle}>
-                  בחר קורס להתחיל או להמשיך
-                </Text>
-              </View>
-              <View style={styles.heroIconContainer}>
-                <CourseCardArtSVG width={118} height={106} />
-              </View>
-            </View>
-            <View style={styles.overallProgressContainer}>
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                }}
-              >
-                <Text style={styles.overallProgressText}>התקדמות כללית</Text>
-                <Text style={styles.overallProgressPercentage}>
-                  {Math.round(overallProgress * 100)}%
-                </Text>
-              </View>
-              <View style={styles.overallProgressBar}>
-                <ProgressBarSVG
-                  progress={overallProgress}
-                  width={SCREEN_WIDTH - 64}
-                />
-              </View>
-              <Text style={styles.overallProgressDetails}>
-                {totalCompleted} מתוך {totalLessons} שיעורים הושלמו
-              </Text>
-            </View>
-          </View>
-
-          {/* Unit Cards (2 columns grid) */}
-          <View
-            style={[
-              styles.unitCardsContainer,
-              {
-                flexDirection: "row",
-                flexWrap: "wrap",
-                justifyContent: "space-between",
-                paddingHorizontal: 2,
-              },
-            ]}
-          >
-            {lessonsRegistry.map((step, idx) => {
-              const isCompleted = unitProgress[idx].pct === 1;
-              const isInProgress =
-                unitProgress[idx].pct > 0 && unitProgress[idx].pct < 1;
-              const title =
-                step.step === 1
-                  ? "ניתוח טכני"
-                  : step.step === 2
-                  ? "מבוא לשוק ההון"
-                  : "קורס";
-              const subtitle =
-                step.step === 1
-                  ? "קריאת גרפים, מגמות ואיתותים"
-                  : "איך שוק עובד, סוגי פקודות וסיכונים";
-              const badge = idx === 0 ? undefined : "מומלץ להתחלה";
-              const level = idx === 0 ? "מתקדם" : "בסיסי";
-              const duration = idx === 0 ? "כ-60 דק׳" : "כ-45 דק׳";
-              const IconComp = idx === 0 ? TechnicalAnalysisIcon : TradingIcon;
-              return (
-                <CourseCard
-                  key={`unit-${idx}`}
-                  title={title}
-                  subtitle={subtitle}
-                  Icon={IconComp}
-                  badgeText={badge}
-                  levelChip={level}
-                  durationChip={duration}
-                  levelEmphasis={"filled"}
-                  onPress={() => setSelectedUnitIdx(idx)}
-                />
-              );
-            })}
-          </View>
-
-          <View style={styles.bottomInfo}>
-            <View style={styles.infoIcon}>
-              <Text style={styles.infoIconText}>💡</Text>
-            </View>
-            <Text style={styles.bottomInfoText}>
-              כל קורס זמין לך — בחר מה שמעניין אותך
-            </Text>
-            {/* אופציונלי: כפתור סגירה
-  <Pressable hitSlop={8} onPress={onClose}><Text style={styles.close}>×</Text></Pressable>
-  */}
-          </View>
-        </ScrollView>
-      </View>
-    );
-  };
+  // Unit selector moved to UnitSelector component
 
   return (
     <View style={styles.container}>
       <TopBar />
 
-      {/* Sticky Minimal Header */}
       {selectedUnitIdx !== null && (
         <Animated.View
           style={[
@@ -969,34 +657,25 @@ export default function MapScreen({ navigation }: Props) {
             },
           ]}
         >
-          <View style={styles.stickyHeaderContent}>
-            <View style={styles.stickyHeaderLeft}>
-              <View style={styles.stickyBadge}>
-                <Text style={styles.stickyBadgeText}>📈</Text>
-              </View>
-              <Text style={styles.stickyTitle}>
-                {activeStep?.step === 1
-                  ? "ניתוח טכני"
-                  : activeStep?.step === 2
-                  ? "מניות ומסחר"
-                  : "שוק ההון"}
-              </Text>
-            </View>
-            <View style={styles.stickyHeaderRight}>
-              <Text style={styles.stickyProgress}>
-                {Math.round(progressPercentage * 100)}%
-              </Text>
-              <View style={styles.miniProgressBar}>
-                <ProgressBarSVG progress={progressPercentage} width={60} />
-              </View>
-            </View>
-          </View>
+          <StickyHeader
+            title={
+              activeStep?.step === 1
+                ? "ניתוח טכני"
+                : activeStep?.step === 2
+                ? "מניות ומסחר"
+                : "שוק ההון"
+            }
+            progress={progressPercentage}
+          />
         </Animated.View>
       )}
 
       {/* If no unit selected, render the unit chooser */}
       {selectedUnitIdx === null ? (
-        renderUnitSelector()
+        <UnitSelector
+          completedLessons={completedLessons}
+          onSelectUnit={setSelectedUnitIdx}
+        />
       ) : (
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -1056,10 +735,7 @@ export default function MapScreen({ navigation }: Props) {
                 </Text>
               </View>
               <View style={styles.progressBar}>
-                <ProgressBarSVG
-                  progress={progressPercentage}
-                  width={SCREEN_WIDTH - 60}
-                />
+                <ProgressBar progress={progressPercentage} width={SCREEN_WIDTH - 60} />
               </View>
             </View>
           </Animated.View>
@@ -1150,7 +826,6 @@ export default function MapScreen({ navigation }: Props) {
                       title={lesson.title}
                       unlocked={unlocked}
                       onStart={() => {
-                        setSelectedLesson(activeStep);
                         setSelectedMainLesson(lesson);
                         setModalVisible(true);
                       }}
@@ -1164,300 +839,14 @@ export default function MapScreen({ navigation }: Props) {
                 </React.Fragment>
               );
             })}
-            {/* Beautiful Enhanced Modal */}
-            <Modal
+            <LessonModal
               visible={modalVisible}
-              transparent
-              animationType="none"
-              onRequestClose={() => setModalVisible(false)}
-            >
-              <TouchableWithoutFeedback onPress={() => setModalVisible(false)}>
-                <View style={styles.modalOverlay}>
-                  <TouchableWithoutFeedback>
-                    <View style={styles.modalContent}>
-                      {/* Elegant Modal Header with Icon */}
-                      <View style={styles.modalHeader}>
-                        <View style={styles.modalIconContainer}>
-                          <View style={styles.modalIconCircle}>
-                            {selectedMainLesson?.lessonType === "info" && (
-                              <InfoIcon size={24} />
-                            )}
-                            {selectedMainLesson?.lessonType === "memorize" && (
-                              <MemorizeIcon size={24} />
-                            )}
-                            {selectedMainLesson?.lessonType === "practice" && (
-                              <PracticeIcon size={24} />
-                            )}
-                            {selectedMainLesson?.lessonType === "test" && (
-                              <TestIcon size={24} />
-                            )}
-                          </View>
-                        </View>
-                        <View style={styles.modalHeaderText}>
-                          <Text style={styles.modalTitle}>
-                            {selectedMainLesson?.title}
-                          </Text>
-                          <Text style={styles.modalSubtitle}>
-                            {selectedMainLesson?.sublessons
-                              ? `${selectedMainLesson.sublessons.length} שיעורים משניים`
-                              : "שיעור יחיד"}{" "}
-                            • {selectedMainLesson?.description}
-                          </Text>
-                        </View>
-                        <TouchableWithoutFeedback
-                          onPress={() => setModalVisible(false)}
-                        >
-                          <View style={styles.modalCloseButton}>
-                            <Svg
-                              width={20}
-                              height={20}
-                              viewBox="0 0 24 24"
-                              fill="none"
-                            >
-                              <Path
-                                d="M18 6L6 18M6 6l12 12"
-                                stroke="#64748B"
-                                strokeWidth={2}
-                                strokeLinecap="round"
-                              />
-                            </Svg>
-                          </View>
-                        </TouchableWithoutFeedback>
-                      </View>
-
-                      {/* Compact Progress */}
-                      <View style={styles.modalProgress}>
-                        <ProgressBarSVG
-                          progress={
-                            selectedMainLesson?.sublessons
-                              ? selectedMainLesson.sublessons.filter((l: any) =>
-                                  completedLessons.includes(l.id)
-                                ).length / selectedMainLesson.sublessons.length
-                              : completedLessons.includes(
-                                  selectedMainLesson?.id
-                                )
-                              ? 1
-                              : 0
-                          }
-                          width={280}
-                        />
-                      </View>
-
-                      {/* Sublessons List or Direct Lesson */}
-                      {selectedMainLesson?.sublessons ? (
-                        <ScrollView
-                          style={styles.modalLessonsScrollContainer}
-                          showsVerticalScrollIndicator={true}
-                          contentContainerStyle={
-                            styles.modalLessonsScrollContent
-                          }
-                        >
-                          {selectedMainLesson.sublessons.map(
-                            (sublesson: any, idx: number) => {
-                              const isCompleted = completedLessons.includes(
-                                sublesson.id
-                              );
-                              const isCurrent =
-                                !isCompleted &&
-                                selectedMainLesson.sublessons
-                                  .slice(0, idx)
-                                  .every((l: any) =>
-                                    completedLessons.includes(l.id)
-                                  );
-                              const lessonAttempt = lessonAttempts.find(
-                                (a) => a.lessonId === sublesson.id
-                              );
-                              const attempts = lessonAttempt?.attempts || 0;
-
-                              return (
-                                <Pressable
-                                  key={sublesson.id}
-                                  onPress={() =>
-                                    handleLessonStart(sublesson.id)
-                                  }
-                                  style={[
-                                    styles.modalLessonItem,
-                                    isCompleted && styles.modalLessonCompleted,
-                                    isCurrent && styles.modalLessonCurrent,
-                                  ]}
-                                >
-                                  <View style={styles.modalLessonIcon}>
-                                    {isCompleted ? (
-                                      <Text style={styles.checkmark}>✓</Text>
-                                    ) : isCurrent ? (
-                                      <Text style={styles.currentDot}>●</Text>
-                                    ) : (
-                                      <Text style={styles.lockedDot}>○</Text>
-                                    )}
-                                  </View>
-                                  <View style={styles.modalLessonTextContainer}>
-                                    <Text
-                                      style={[
-                                        styles.modalLessonText,
-                                        isCompleted &&
-                                          styles.modalLessonTextCompleted,
-                                        isCurrent &&
-                                          styles.modalLessonTextCurrent,
-                                      ]}
-                                    >
-                                      {idx + 1}. {sublesson.title}
-                                    </Text>
-                                    <Text style={styles.modalLessonDescription}>
-                                      {sublesson.description}
-                                    </Text>
-                                    {attempts > 0 && (
-                                      <Text style={styles.modalLessonAttempts}>
-                                        {attempts} ניסיון
-                                        {attempts > 1 ? "ים" : ""}
-                                      </Text>
-                                    )}
-                                  </View>
-                                  {isCompleted && <XPStarSVG size={16} />}
-                                </Pressable>
-                              );
-                            }
-                          )}
-                        </ScrollView>
-                      ) : (
-                        <View style={styles.modalLessonsList}>
-                          <View
-                            style={[
-                              styles.modalLessonItem,
-                              completedLessons.includes(
-                                selectedMainLesson?.id
-                              ) && styles.modalLessonCompleted,
-                            ]}
-                          >
-                            <View style={styles.modalLessonIcon}>
-                              {completedLessons.includes(
-                                selectedMainLesson?.id
-                              ) ? (
-                                <Text style={styles.checkmark}>✓</Text>
-                              ) : (
-                                <Text style={styles.currentDot}>●</Text>
-                              )}
-                            </View>
-                            <View style={styles.modalLessonTextContainer}>
-                              <Text
-                                style={[
-                                  styles.modalLessonText,
-                                  completedLessons.includes(
-                                    selectedMainLesson?.id
-                                  ) && styles.modalLessonTextCompleted,
-                                ]}
-                              >
-                                {selectedMainLesson?.title}
-                              </Text>
-                              <Text style={styles.modalLessonDescription}>
-                                {selectedMainLesson?.description}
-                              </Text>
-                            </View>
-                            {completedLessons.includes(
-                              selectedMainLesson?.id
-                            ) && <XPStarSVG size={16} />}
-                          </View>
-                        </View>
-                      )}
-
-                      {/* Action Button */}
-                      {(() => {
-                        if (selectedMainLesson?.sublessons) {
-                          // Handle sublessons
-                          const nextSublesson =
-                            selectedMainLesson.sublessons.find(
-                              (l: any) => !completedLessons.includes(l.id)
-                            );
-                          if (!nextSublesson) {
-                            // All sublessons completed, show option to re-take any sublesson
-                            return (
-                              <View style={styles.modalCompletedContainer}>
-                                <View style={styles.modalCompletedButton}>
-                                  <Text style={styles.modalCompletedText}>
-                                    🎉 שיעור הושלם!
-                                  </Text>
-                                </View>
-                                <Text style={styles.modalCompletedSubtext}>
-                                  תוכל לחזור על כל שיעור משני מתי שתרצה
-                                </Text>
-                                <Pressable
-                                  style={styles.modalRetakeButton}
-                                  onPress={() =>
-                                    handleLessonStart(
-                                      selectedMainLesson.sublessons[0].id
-                                    )
-                                  }
-                                >
-                                  <Text style={styles.modalRetakeText}>
-                                    חזור על שיעור ראשון
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            );
-                          }
-                          const sublessonIndex =
-                            selectedMainLesson.sublessons.findIndex(
-                              (l: any) => l.id === nextSublesson.id
-                            );
-                          return (
-                            <Pressable
-                              style={styles.modalActionButton}
-                              onPress={() =>
-                                handleLessonStart(nextSublesson.id)
-                              }
-                            >
-                              <Text style={styles.modalActionText}>
-                                התחל שיעור {sublessonIndex + 1}
-                              </Text>
-                            </Pressable>
-                          );
-                        } else {
-                          // Handle direct lesson
-                          const isCompleted = completedLessons.includes(
-                            selectedMainLesson?.id
-                          );
-                          if (isCompleted) {
-                            return (
-                              <View style={styles.modalCompletedContainer}>
-                                <View style={styles.modalCompletedButton}>
-                                  <Text style={styles.modalCompletedText}>
-                                    🎉 שיעור הושלם!
-                                  </Text>
-                                </View>
-                                <Text style={styles.modalCompletedSubtext}>
-                                  תוכל לחזור על השיעור מתי שתרצה
-                                </Text>
-                                <Pressable
-                                  style={styles.modalRetakeButton}
-                                  onPress={() =>
-                                    handleLessonStart(selectedMainLesson.id)
-                                  }
-                                >
-                                  <Text style={styles.modalRetakeText}>
-                                    חזור על השיעור
-                                  </Text>
-                                </Pressable>
-                              </View>
-                            );
-                          }
-                          return (
-                            <Pressable
-                              style={styles.modalActionButton}
-                              onPress={() =>
-                                handleLessonStart(selectedMainLesson.id)
-                              }
-                            >
-                              <Text style={styles.modalActionText}>
-                                התחל שיעור
-                              </Text>
-                            </Pressable>
-                          );
-                        }
-                      })()}
-                    </View>
-                  </TouchableWithoutFeedback>
-                </View>
-              </TouchableWithoutFeedback>
-            </Modal>
+              onClose={() => setModalVisible(false)}
+              selectedMainLesson={selectedMainLesson}
+              completedLessons={completedLessons}
+              lessonAttempts={lessonAttempts}
+              onStart={handleLessonStart}
+            />
             {/* Spacer for scroll */}
             <View style={{ height: 200 }} />
           </View>

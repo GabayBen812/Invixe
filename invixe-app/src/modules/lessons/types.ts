@@ -44,10 +44,72 @@ export interface LessonStep {
   characterImg?: string; // Filename or key for the character image
   visual?: string; // Optional visual key for SVGs or images
   // Optional interactive activity configuration
-  activity?: 'selectCandles';
+  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild';
   activityConfig?: {
-    target?: 'hammer';
-    sampleSize?: number; // default 4
+    // Generic multi-select options
+    options?: Array<{
+      id: string;
+      label?: string;
+      imageKey?: string;
+      correct: boolean;
+    }>;
+    submitText?: string;
+    layout?: 'grid' | 'list';
+    // Carousel select (single correct) config
+    carousel?: {
+      items: Array<{
+        id: string;
+        imageKey?: string;
+        label?: string;
+      }>;
+      correctId: string;
+      explanationOnWrong?: string; // one-line reason
+      submitText?: string;
+    };
+    // Drag and drop match words to drawings
+    dragMatch?: {
+      slots: Array<{
+        id: string;
+        drawKey?: 'hammer' | 'invertedHammerNew' | 'doji' | 'dragonflyDoji' | 'regularDoji' | 'shootingStar';
+        imageKey?: string; // optional image instead of drawKey
+        labelBelow?: string;
+      }>;
+      tokens: Array<{
+        id: string;
+        label: string;
+        targetSlotId: string; // correct slot id
+      }>;
+      submitText?: string;
+    };
+    // Build a candle pattern by placing X candles in order
+    sequenceBuild?: {
+      slotsCount: number; // number of positions to fill (X)
+      options: Array<{
+        id: string;
+        candleKey: 'bullish' | 'bearish' | 'doji' | 'hammer' | 'invertedHammerNew' | 'dragonflyDoji' | 'regularDoji' | 'bullishEngulfing' | 'bearishEngulfing' | 'shootingStar';
+      }>;
+      correctSequence: string[]; // array of option ids in correct order
+      submitText?: string;
+    };
+    // Candle selection config (supports all candle keys used in the app)
+    target?:
+      | 'bullish'
+      | 'bearish'
+      | 'doji'
+      | 'hammer'
+      | 'invertedHammerNew'
+      | 'dragonflyDoji'
+      | 'regularDoji'
+      | 'bullishEngulfing'
+      | 'bearishEngulfing'
+      | 'bullishHarami'
+      | 'bearishHarami'
+      | 'shootingStar'
+      | 'threeInsideUp'
+      | 'threeInsideDown'
+      | 'shootingStarEvening'
+      | 'shootingStarDay';
+    sampleSize?: number; // default 4-6 depending on layout
   };
 }
 

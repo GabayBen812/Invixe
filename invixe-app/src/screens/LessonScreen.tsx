@@ -2,10 +2,17 @@ import React, { useState, useEffect } from "react";
 import { View, Image, Animated, StyleSheet, Text, Pressable } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { lessonSteps as lesson1Steps } from "../modules/lessons/step1/lesson1";
-import { lessonSteps as lesson2Steps } from "../modules/lessons/step2/lesson1";
 import { lessonSteps as lesson101Steps } from "../modules/lessons/step1/lesson101";
-import { lessonSteps as lesson11Steps } from "../modules/lessons/step1/lesson11";
+import { lessonSteps as lesson301Steps } from "../modules/lessons/step1/lesson301";
+import { lessonSteps as lesson302Steps } from "../modules/lessons/step1/lesson302";
+import { lessonSteps as lesson303Steps } from "../modules/lessons/step1/lesson303";
+import { lessonSteps as lesson304Steps } from "../modules/lessons/step1/lesson304";
+import { lessonSteps as lesson305Steps } from "../modules/lessons/step1/lesson305";
+import { lessonSteps as lesson306Steps } from "../modules/lessons/step1/lesson306";
+import { lessonSteps as lesson307Steps } from "../modules/lessons/step1/lesson307";
+import { lessonSteps as lesson308Steps } from "../modules/lessons/step1/lesson308";
+import { lessonSteps as lesson309Steps } from "../modules/lessons/step1/lesson309";
+import { lessonSteps as lesson310Steps } from "../modules/lessons/step1/lesson310";
 import { lessonSteps as lesson201Steps } from "../modules/lessons/step1/lesson201";
 import { lessonSteps as lesson202Steps } from "../modules/lessons/step1/lesson202";
 import { lessonSteps as lesson203Steps } from "../modules/lessons/step1/lesson203";
@@ -15,15 +22,7 @@ import { lessonSteps as lesson401Steps } from "../modules/lessons/step1/lesson40
 import { lessonSteps as lesson402Steps } from "../modules/lessons/step1/lesson402";
 import { lessonSteps as lesson403Steps } from "../modules/lessons/step1/lesson403";
 import { lessonSteps as lesson404Steps } from "../modules/lessons/step1/lesson404";
-import { lessonSteps as lesson102Steps } from "../modules/lessons/step1/lesson102";
-import { lessonSteps as lesson103Steps } from "../modules/lessons/step1/lesson103";
-import { lessonSteps as lesson104Steps } from "../modules/lessons/step1/lesson104";
-import { lessonSteps as lesson105Steps } from "../modules/lessons/step1/lesson105";
-import { lessonSteps as lesson106Steps } from "../modules/lessons/step1/lesson106";
-import { lessonSteps as lesson107Steps } from "../modules/lessons/step1/lesson107";
-import { lessonSteps as lesson108Steps } from "../modules/lessons/step1/lesson108";
-import { lessonSteps as lesson109Steps } from "../modules/lessons/step1/lesson109";
-import { lessonSteps as lesson110Steps } from "../modules/lessons/step1/lesson110";
+import { lessonSteps as lesson405Steps } from "../modules/lessons/step1/lesson405";
 import { LessonStep } from "../modules/lessons/types";
 import Button from "../components/ui/Button";
 import Inventory from "../components/lesson/Inventory";
@@ -46,6 +45,10 @@ import {
   InvertedHammerNew
 } from '../assets/Candels';
 import DojiLessonVisuals from '../components/lesson/DojiLessonVisuals';
+import MultiSelectDrill from '../components/lesson/MultiSelectDrill';
+import CarouselSelectDrill from '../components/lesson/CarouselSelectDrill';
+import DragMatchDrill from '../components/lesson/DragMatchDrill';
+import SequenceBuildDrill from '../components/lesson/SequenceBuildDrill';
 
 const characterImg = require("../assets/character.png");
 const backgroundImages = {
@@ -84,29 +87,27 @@ const characterImages: { [key: string]: any } = {
 type Props = NativeStackScreenProps<RootStackParamList, "Lesson">;
 
 const lessonSteps: Record<number, LessonStep[]> = {
-  1: lesson1Steps,
-  11: lesson11Steps,
-  2: lesson2Steps,
   101: lesson101Steps,
-  102: lesson102Steps,
-  103: lesson103Steps,
-  104: lesson104Steps,
-  105: lesson105Steps,
-  106: lesson106Steps,
-  107: lesson107Steps,
-  108: lesson108Steps,
-  109: lesson109Steps,
-  110: lesson110Steps,
+  301: lesson301Steps,
   201: lesson201Steps,
   202: lesson202Steps,
   203: lesson203Steps,
   204: lesson204Steps,
   205: lesson205Steps,
+  302: lesson302Steps,
+  303: lesson303Steps,
+  304: lesson304Steps,
+  305: lesson305Steps,
+  306: lesson306Steps,
+  307: lesson307Steps,
+  308: lesson308Steps,
+  309: lesson309Steps,
+  310: lesson310Steps,
   401: lesson401Steps,
   402: lesson402Steps,
   403: lesson403Steps,
   404: lesson404Steps,
-  // Add other lessons as they are created
+  405: lesson405Steps,
 };
 
 // Character image resolver
@@ -121,11 +122,12 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [stepId, setStepId] = useState("intro");
   const [fadeAnim] = useState(new Animated.Value(1));
   const lessonId = route.params?.lessonId || 1;
-  const { completedLessons, markLessonCompleted, setCompletedLessons } = useUser();
+  const { completedLessons, markLessonCompleted, setCompletedLessons, lightnings, setLightnings } = useUser();
   const [showCorrectOverlay, setShowCorrectOverlay] = useState(false);
   const [pendingNextStep, setPendingNextStep] = useState<string | null>(null);
   const [selectedChoiceIdx, setSelectedChoiceIdx] = useState<number | null>(null);
   const [answerMode, setAnswerMode] = useState<'none' | 'correct'>('none');
+  const [drillRewards, setDrillRewards] = useState<number>(0);
 
   useEffect(() => {
     if (route.params?.lessonId) {
@@ -133,7 +135,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
   }, [route.params?.lessonId]);
 
-  const currentLessonSteps = lessonSteps[lessonId] || lesson1Steps;
+  const currentLessonSteps = lessonSteps[lessonId] || [];
   const step: LessonStep =
     currentLessonSteps.find((s: LessonStep) => s.id === stepId) ||
     currentLessonSteps[0];
@@ -144,13 +146,25 @@ export default function LessonScreen({ navigation, route }: Props) {
       navigation.navigate('LessonFail');
       return;
     }
-    // Show Figma-like correct overlay for TA intro first question
-    if (lessonId === 11 && stepId === 'intro' && nextStep === 'correct_def') {
-      // Show overlay AND advance to the next step behind it
+    
+    // Check if this step has points (correct answer) and should show bottom sheet
+    const nextStepData = currentLessonSteps.find(s => s.id === nextStep);
+    if (nextStepData && nextStepData.points && nextStepData.points > 0) {
+      // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
       setShowCorrectOverlay(true);
-      setPendingNextStep(null);
+      setPendingNextStep(nextStep);
       setAnswerMode('correct');
-      setStepId(nextStep);
+      setDrillRewards(nextStepData.points);
+      return;
+    }
+    
+    // Show Figma-like correct overlay for TA intro first question (legacy support)
+    if (lessonId === 11 && stepId === 'intro' && nextStep === 'correct_def') {
+      // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
+      setShowCorrectOverlay(true);
+      setPendingNextStep(nextStep);
+      setAnswerMode('correct');
+      setDrillRewards(2); // Default reward for this specific case
       return;
     }
     Animated.timing(fadeAnim, {
@@ -210,12 +224,12 @@ export default function LessonScreen({ navigation, route }: Props) {
         )}
         <View style={styles.bubbleWrapper}>
           <SpeechBubble 
-            message={answerMode === 'correct' ? 'מעולה! ניתוח טכני = קריאת שפת הגרף.' : step.message} 
+            message={step.message} 
             characterImg={getCharacterImg(step.characterImg)} 
             position={step.bubblePosition || 'bottomLeft'}
             align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-            buttonText={choices && choices.length === 1 ? choices[0].text : undefined}
-            onButtonPress={choices && choices.length === 1 ? () => handleChoice(choices[0].nextStep) : undefined}
+            buttonText={choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined}
+            onButtonPress={choices && choices.length === 1 && step.id !== 'simple_text_step' ? () => handleChoice(choices[0].nextStep) : undefined}
           />
           {/* Render candlestick SVG if visual is set */}
           {step.visual === 'hammer' && (
@@ -315,6 +329,91 @@ export default function LessonScreen({ navigation, route }: Props) {
               <DojiLessonVisuals type="summary" width={300} height={200} />
             </View>
           )}
+          {/* MultiSelect drill */}
+          {step.activity === 'multiSelect' && step.activityConfig?.options && (
+            <MultiSelectDrill
+              options={step.activityConfig.options.map(o => ({
+                id: o.id,
+                label: o.label,
+                imageSource: o.imageKey ? characterImages[o.imageKey] : undefined,
+                correct: o.correct,
+              }))}
+              layout={step.activityConfig.layout || 'grid'}
+              submitText={step.activityConfig.submitText || 'בדוק'}
+              onSubmit={async ({ numCorrectSelections }) => {
+                const reward = numCorrectSelections; // 1 lightning per correct selection
+                if (reward > 0) {
+                  try {
+                    await setLightnings(lightnings + reward);
+                  } catch (e) {
+                    console.error('Failed updating lightnings', e);
+                  }
+                }
+                setDrillRewards(reward);
+                setShowCorrectOverlay(true);
+              }}
+            />
+          )}
+
+          {/* Carousel select drill */}
+          {step.activity === 'carouselSelect' && step.activityConfig?.carousel && (
+            <CarouselSelectDrill
+              items={step.activityConfig.carousel.items.map(i => ({
+                id: i.id,
+                imageSource: i.imageKey ? characterImages[i.imageKey] : undefined,
+                label: i.label,
+              }))}
+              correctId={step.activityConfig.carousel.correctId}
+              explanationOnWrong={step.activityConfig.carousel.explanationOnWrong}
+              submitText={step.activityConfig.carousel.submitText || 'אישור'}
+              onSubmit={async ({ correct }) => {
+                const reward = correct ? 3 : 0;
+                if (reward > 0) {
+                  try { await setLightnings(lightnings + reward); } catch (e) { console.error(e); }
+                }
+                setDrillRewards(reward);
+                setShowCorrectOverlay(true);
+              }}
+            />
+          )}
+
+          {/* Drag-match drill */}
+          {step.activity === 'dragMatch' && step.activityConfig?.dragMatch && (
+            <DragMatchDrill
+              slots={step.activityConfig.dragMatch.slots.map(s => ({
+                id: s.id,
+                drawKey: s.drawKey as any,
+                imageSource: s.imageKey ? characterImages[s.imageKey] : undefined,
+                labelBelow: s.labelBelow,
+              }))}
+              tokens={step.activityConfig.dragMatch.tokens}
+              submitText={step.activityConfig.dragMatch.submitText || 'אישור'}
+              onSubmit={async ({ numCorrect, total }) => {
+                const reward = numCorrect; // 1 per correct match
+                if (reward > 0) {
+                  try { await setLightnings(lightnings + reward); } catch (e) { console.error(e); }
+                }
+                setDrillRewards(reward);
+                setShowCorrectOverlay(true);
+              }}
+            />
+          )}
+
+          {/* Sequence build drill */}
+          {step.activity === 'sequenceBuild' && step.activityConfig?.sequenceBuild && (
+            <SequenceBuildDrill
+              slotsCount={step.activityConfig.sequenceBuild.slotsCount}
+              options={step.activityConfig.sequenceBuild.options}
+              correctSequence={step.activityConfig.sequenceBuild.correctSequence}
+              submitText={step.activityConfig.sequenceBuild.submitText || 'אישור'}
+              onSubmit={async ({ correct }) => {
+                const reward = correct ? 4 : 0; // For patterns, default reward 4
+                if (reward > 0) { try { await setLightnings(lightnings + reward); } catch (e) { console.error(e); } }
+                setDrillRewards(reward);
+                setShowCorrectOverlay(true);
+              }}
+            />
+          )}
         </View>
         <View style={styles.choices}>
           {choices && choices.length > 1
@@ -349,22 +448,38 @@ export default function LessonScreen({ navigation, route }: Props) {
               <Text style={styles.confirmButtonText}>אישור</Text>
             </Pressable>
           )}
+          {step.id === 'simple_text_step' && choices && choices.length === 1 && (
+            <Pressable
+              style={styles.simpleTextButton}
+              onPress={() => {
+                handleChoice(choices[0].nextStep);
+              }}
+            >
+              <Text style={styles.confirmButtonText}>אישור</Text>
+            </Pressable>
+          )}
         </View>
       </Animated.View>
       {showCorrectOverlay && (
         <View style={styles.correctOverlayContainer}>
           <View style={styles.correctSheet}>
-            <Text style={styles.correctTitle}>תשובה נכונה!</Text>
+            <Text style={styles.correctTitle}>
+              {step.activity ? 'בדיקה הושלמה' : 'תשובה נכונה!'}
+            </Text>
             <View style={styles.rewardPill}>
-              <Text style={styles.rewardPillText}>⚡ X 2 - זכית ב־</Text>
+              <Text style={styles.rewardPillText}>{`⚡ X ${drillRewards} - זכית ב־`}</Text>
             </View>
             <Pressable
               style={styles.nextButton}
               onPress={() => {
                 setShowCorrectOverlay(false);
-                const next = pendingNextStep || 'correct_def';
-                setPendingNextStep(null);
-                setStepId(next);
+                if (pendingNextStep) {
+                  const next = pendingNextStep;
+                  setPendingNextStep(null);
+                  setStepId(next);
+                } else {
+                  setPendingNextStep(null);
+                }
               }}
             >
               <Text style={styles.nextButtonText}>שאלה הבאה</Text>
@@ -460,6 +575,14 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 28,
     position: 'absolute'
+  },
+  simpleTextButton: {
+    marginTop: 20,
+    backgroundColor: '#3F9FFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    alignSelf: 'center'
   },
   confirmButtonText: {
     color: '#FFFFFF',
