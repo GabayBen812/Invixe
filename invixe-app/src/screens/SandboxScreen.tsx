@@ -71,40 +71,6 @@ export default function SandboxScreen({ navigation }: Props) {
   const [tradeShares, setTradeShares] = useState('');
   const [userHoldings, setUserHoldings] = useState<any[]>([]);
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: (evt, gestureState) => drawingMode ? true : true,
-      onMoveShouldSetPanResponder: (evt, gestureState) => drawingMode ? true : true,
-      onPanResponderGrant: (evt: GestureResponderEvent) => {
-        if (drawingMode) {
-          setIsDrawing(true);
-          const { locationX, locationY } = evt.nativeEvent;
-          setDrawingPath([{ x: locationX, y: locationY }]);
-        }
-      },
-      onPanResponderMove: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
-        if (drawingMode && isDrawing) {
-          const { locationX, locationY } = evt.nativeEvent;
-          setDrawingPath(prev => [...prev, { x: locationX, y: locationY }]);
-        } else if (!drawingMode) {
-          setOffset({
-            x: lastOffset.current.x + gestureState.dx,
-            y: lastOffset.current.y + gestureState.dy,
-          });
-        }
-      },
-      onPanResponderRelease: (evt: GestureResponderEvent, gestureState: PanResponderGestureState) => {
-        if (!drawingMode) {
-          lastOffset.current = {
-            x: lastOffset.current.x + gestureState.dx,
-            y: lastOffset.current.y + gestureState.dy,
-          };
-        }
-        setIsDrawing(false);
-      },
-    })
-  ).current;
-
   // Fetch stock data
   useEffect(() => {
     fetchStockData(selectedStock.symbol, selectedRange);
