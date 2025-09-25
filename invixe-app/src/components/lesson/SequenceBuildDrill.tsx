@@ -55,6 +55,7 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
     return PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
+        // @ts-ignore
         panValues[option.id].setOffset({ x: panValues[option.id].x._value, y: panValues[option.id].y._value });
         panValues[option.id].setValue({ x: 0, y: 0 });
       },

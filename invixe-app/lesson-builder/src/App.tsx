@@ -78,7 +78,25 @@ function App() {
   }
 
   const exportToApp = async () => {
-    if (!courseStep || !lessonId || steps.length === 0) { alert('Please fill lesson settings and add at least one step.'); return }
+    if (!courseStep || !lessonId || steps.length === 0) { 
+      alert('Please fill lesson settings and add at least one step.'); 
+      return 
+    }
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to export this lesson to the app?\n\n` +
+      `Lesson: ${title || 'New Lesson'}\n` +
+      `Course Step: ${courseStep}\n` +
+      `Lesson ID: ${lessonId}\n` +
+      `Steps: ${steps.length}\n\n` +
+      `This will overwrite any existing lesson with the same ID.`
+    )
+    
+    if (!confirmed) {
+      return
+    }
+    
     try {
       const API_BASE = (import.meta as any).env?.VITE_BUILDER_API_URL || window.location.origin
       const url = `${String(API_BASE).replace(/\/$/, '')}/api/exportLesson`
@@ -127,10 +145,10 @@ function App() {
             <div>
               <Label className="mb-1 block">{t('courseStep')}</Label>
               <Select value={courseStep} onChange={e=>setCourseStep(e.target.value)} aria-label="Course Step">
-                <option value="1">Step 1</option>
-                <option value="2">Step 2</option>
-                <option value="3">Step 3</option>
-                <option value="4">Step 4</option>
+                <option value="1">ניתוח טכני</option>
+                <option value="2">מבוא לשוק ההון</option>
+                <option value="3">השקעות לטווח ארוך</option>
+                <option value="4">ניתוח פנדמנטלי</option>
               </Select>
             </div>
             <div>
@@ -167,10 +185,10 @@ function App() {
                     <div>
                       <Label className="mb-1 block">{t('courseStep')}</Label>
                       <Select value={courseStep} onChange={e=>setCourseStep(e.target.value)} aria-label="Course Step">
-                        <option value="1">Step 1</option>
-                        <option value="2">Step 2</option>
-                        <option value="3">Step 3</option>
-                        <option value="4">Step 4</option>
+                        <option value="1">ניתוח טכני</option>
+                        <option value="2">מבוא לשוק ההון</option>
+                        <option value="3">השקעות לטווח ארוך</option>
+                        <option value="4">ניתוח פנדמנטלי</option>
                       </Select>
                     </div>
                     <div>

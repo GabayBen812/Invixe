@@ -129,6 +129,8 @@ const baseConfig = defineConfig({
         rnWeb = require.resolve('react-native-web')
       } catch {}
       const aliasArray = [] as any[]
+      // Allow importing app code directly via @app/* path
+      aliasArray.push({ find: '@app', replacement: path.resolve(__dirname, '../src') })
       aliasArray.push({ find: 'react-native/Libraries/Utilities/codegenNativeComponent', replacement: path.resolve(__dirname, 'src/shims/codegenNativeComponent.ts') })
       aliasArray.push({ find: 'react-native', replacement: rnWeb || 'react-native-web' })
       // Shim react-native-svg to DOM SVG for web preview

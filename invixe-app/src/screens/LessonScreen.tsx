@@ -23,6 +23,7 @@ import { lessonSteps as lesson402Steps } from "../modules/lessons/step1/lesson40
 import { lessonSteps as lesson403Steps } from "../modules/lessons/step1/lesson403";
 import { lessonSteps as lesson404Steps } from "../modules/lessons/step1/lesson404";
 import { lessonSteps as lesson405Steps } from "../modules/lessons/step1/lesson405";
+import { lessonSteps as lesson102Steps } from "../modules/lessons/step1/lesson102";
 import { LessonStep } from "../modules/lessons/types";
 import Button from "../components/ui/Button";
 import Inventory from "../components/lesson/Inventory";
@@ -52,6 +53,7 @@ import SequenceBuildDrill from '../components/lesson/SequenceBuildDrill';
 
 const characterImg = require("../assets/character.png");
 const backgroundImages = {
+  defaultBackground: require("../assets/DefaultBlankBackground.png"),
   bg1: require("../assets/Lessons/1/lesson1_bg1.png"),
   bg2: require("../assets/Lessons/1/lesson1_bg2.png"),
   bg4: require("../assets/Lessons/1/lesson1_bg4.png"),
@@ -66,6 +68,7 @@ const backgroundImages = {
 };
 
 const characterImages: { [key: string]: any } = {
+  
   "character_orange_yellow.png": require("../assets/Characters/character_orange_yellow.png"),
   "character_blue_yellow.png": require("../assets/Characters/character_blue_yellow.png"),
   "character_green_yellow.png": require("../assets/Characters/character_green_yellow.png"),
@@ -108,6 +111,8 @@ const lessonSteps: Record<number, LessonStep[]> = {
   403: lesson403Steps,
   404: lesson404Steps,
   405: lesson405Steps,
+
+  102: lesson102Steps,
 };
 
 // Character image resolver
