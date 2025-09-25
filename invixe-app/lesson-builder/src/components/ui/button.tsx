@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react'
+import React, { ButtonHTMLAttributes } from 'react'
 
 type Variant = 'default' | 'secondary' | 'destructive' | 'ghost'
 

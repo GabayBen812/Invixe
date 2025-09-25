@@ -1,3 +1,4 @@
+import React from "react";
 import { ImageBackground, StyleSheet, type ImageSourcePropType } from "react-native";
 
 export default function PageBackground({ source, children }: { source: ImageSourcePropType; children?: React.ReactNode }) {

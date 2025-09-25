@@ -8,10 +8,9 @@ import {
   Pressable,
   Animated,
   TouchableWithoutFeedback,
-  Modal,
 } from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../navigation/AppNavigator";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
 import { lessonsRegistry, isLessonUnlocked } from "../modules/lessons/registry";
 import TopBar from "../components/ui/TopBar";
@@ -23,10 +22,8 @@ import UnitSelector from "../components/map/UnitSelector";
 import LessonModal from "../components/map/LessonModal";
 import ProgressBar from "../components/map/ProgressBar";
 import { useUser } from "../context/UserContext";
-import { InfoIcon, MemorizeIcon, PracticeIcon, TestIcon, XPStarSVG } from "../components/map/MapAssets";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
-const NODE_OFFSET = 60;
 
 // inline icons and art moved to components
 const NODE_X_CENTER = SCREEN_WIDTH / 2;

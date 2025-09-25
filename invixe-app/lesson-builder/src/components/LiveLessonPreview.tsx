@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Modal } from './ui/modal'
 import { View } from 'react-native'
 // Use app components directly to mirror exact UI
@@ -13,9 +13,9 @@ import { DragonflyDoji, InvertedHammerNew, RegularDoji, ShootingStar, Hammer, Bu
 import MockDialog from './mocks/MockDialog'
 import MockDragMatchDrill from './mocks/MockDragMatchDrill'
 import MockQuestionWithImage from './mocks/MockQuestionWithImage'
-import MockTopBar from './mocks/MockTopBar.tsx'
-import MockBottomNavbar from './mocks/MockBottomNavbar.tsx'
-import MockProgressBar from './mocks/MockProgressBar.tsx'
+import MockTopBar from './mocks/MockTopBar'
+import MockBottomNavbar from './mocks/MockBottomNavbar'
+import MockProgressBar from './mocks/MockProgressBar'
 
 interface Step { id: string; message: string; choices?: { text: string; nextStep: string }[]; activity?: string; activityConfig?: any }
 

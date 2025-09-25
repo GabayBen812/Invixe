@@ -1,16 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
-import TemplateGallery from './components/TemplateGallery.tsx'
-import LessonBuilder from './components/LessonBuilder.tsx'
+import React, { useEffect, useMemo, useState } from 'react'
+import TemplateGallery from './components/TemplateGallery'
+import LessonBuilder from './components/LessonBuilder'
 import { Button } from './components/ui/button'
 import { Download, Upload, Eye, Save } from 'lucide-react'
-import { useI18n } from './context/i18n.tsx'
+import { useI18n } from './context/i18n'
 import { Input } from './components/ui/input'
 import { Label } from './components/ui/label'
 import { Select } from './components/ui/select'
 import { BottomToolbar } from './components/ui/toolbar'
 import { Modal } from './components/ui/modal'
-import ExistingLessonsBrowser from './components/ExistingLessonsBrowser.tsx'
-import LiveLessonPreview from './components/LiveLessonPreview.tsx'
+import ExistingLessonsBrowser from './components/ExistingLessonsBrowser'
+import LiveLessonPreview from './components/LiveLessonPreview'
 
 function App() {
   const [steps, setSteps] = useState<any[]>([])
@@ -197,7 +197,7 @@ function App() {
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="secondary" onClick={saveDraft}><Save size={16}/> {t('saveDraft')}</Button>
+                    <Button variant="secondary" onClick={saveDraft}><Save size={16} /> {t('saveDraft')}</Button>
                     <Button onClick={() => { setStarted(true); saveDraft() }}>{t('startBuilding')}</Button>
                   </div>
                 </div>
@@ -211,9 +211,9 @@ function App() {
 
       {/* Bottom actions */}
       <BottomToolbar>
-        <Button variant="secondary" onClick={saveDraft} aria-label={t('saveDraft')}><Save size={16}/> {t('saveDraft')}</Button>
-        <Button variant="secondary" onClick={() => setShowLivePreview(true)} aria-label="Preview Lesson"><Eye size={16}/> Preview Lesson</Button>
-        <Button variant="secondary" onClick={() => setShowPreview(true)} aria-label={t('previewJson')}><Eye size={16}/> {t('previewJson')}</Button>
+        <Button variant="secondary" onClick={saveDraft} aria-label={t('saveDraft')}><Save size={16} /> {t('saveDraft')}</Button>
+        <Button variant="secondary" onClick={() => setShowLivePreview(true)} aria-label="Preview Lesson"><Eye size={16} /> Preview Lesson</Button>
+        <Button variant="secondary" onClick={() => setShowPreview(true)} aria-label={t('previewJson')}><Eye size={16} /> {t('previewJson')}</Button>
         <Button onClick={exportJSON} aria-label={t('exportJson')}><Download size={16} /> {t('exportJson')}</Button>
         <Button onClick={exportToApp} aria-label={t('exportToApp')}><Upload size={16} /> {t('exportToApp')}</Button>
       </BottomToolbar>

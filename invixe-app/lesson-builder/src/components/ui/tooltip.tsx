@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react'
-import { useState } from 'react'
+import React, { ReactNode, useState } from 'react'
 
 export function Tooltip({ content, children }: { content: ReactNode; children: ReactNode }) {
   const [show, setShow] = useState(false)

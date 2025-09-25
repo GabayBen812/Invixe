@@ -1,4 +1,3 @@
-import React from "react";
 import {
   View,
   Text,
@@ -7,8 +6,8 @@ import {
   Image,
   TouchableOpacity,
 } from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../navigation/AppNavigator";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 
 type Props = NativeStackScreenProps<RootStackParamList, "OnboardingIntro">;
 

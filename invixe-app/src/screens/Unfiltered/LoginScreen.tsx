@@ -1,17 +1,16 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   ActivityIndicator,
-  Image,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
 } from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../navigation/AppNavigator";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 import PageBackground from "../../components/ui/PageBackground";
 import Button from "../../components/ui/Button";
 import theme from "../../theme";

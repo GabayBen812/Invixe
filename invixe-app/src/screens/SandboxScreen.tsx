@@ -1,30 +1,25 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
   PanResponder,
-  GestureResponderEvent,
-  PanResponderGestureState,
   Modal,
   Alert,
   TextInput,
 } from 'react-native';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { RootStackParamList } from '../navigation/AppNavigator';
+import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/AppNavigator';
 import TopBar from '../components/ui/TopBar';
 import BottomNavbar from '../components/ui/BottomNavbar';
 import PageBackground from '../components/ui/PageBackground';
 import theme from '../theme';
 import { useUser } from '../context/UserContext';
-import Svg, { Path, Line, Circle, G, Text as SvgText, Rect } from 'react-native-svg';
 import { WebView } from 'react-native-webview';
 
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 const STOCKS = [
   { symbol: 'AAPL', name: 'Apple Inc.' },
@@ -397,105 +392,6 @@ export default function SandboxScreen({ navigation }: Props) {
       ))}
     </View>
   );
-
-  const renderCandles = () => {
-    if (!ohlcData.length) return null;
-    const width = SCREEN_WIDTH;
-    const height = SCREEN_HEIGHT - 200;
-    const padding = 40;
-    const minPrice = Math.min(...ohlcData.map(d => d.low));
-    const maxPrice = Math.max(...ohlcData.map(d => d.high));
-    const priceRange = maxPrice - minPrice || 1;
-    const minTime = Math.min(...ohlcData.map(d => d.timestamp));
-    const maxTime = Math.max(...ohlcData.map(d => d.timestamp));
-    const timeRange = maxTime - minTime || 1;
-    const candleWidth = Math.max(4, (width - 2 * padding) / ohlcData.length - 2);
-
-    return (
-      <Svg width={width} height={height + 2 * padding}>
-        <G
-          transform={`translate(${offset.x}, ${offset.y}) scale(${scale})`}
-        >
-          {/* Grid lines and Y-axis price labels (reuse from line chart) */}
-          {[...Array(5)].map((_, i) => (
-            <React.Fragment key={`grid-label-${i}`}>
-              <Line
-                key={`grid-${i}`}
-                x1={padding}
-                y1={padding + (i * height) / 4}
-                x2={padding + width - 2 * padding}
-                y2={padding + (i * height) / 4}
-                stroke={theme.colors.gray}
-                strokeWidth={1}
-                opacity={0.3}
-              />
-              <SvgText
-                key={`price-label-${i}`}
-                x={8}
-                y={padding + (i * height) / 4 + 4}
-                fontSize={12}
-                fill={'#125BA5'}
-                fontFamily={theme.font.bold}
-                textAnchor="start"
-              >
-                {(maxPrice - (i * priceRange) / 4).toFixed(2)}
-              </SvgText>
-            </React.Fragment>
-          ))}
-          {/* X-axis time labels */}
-          {[0, 1, 2, 3].map((i) => {
-            const idx = Math.floor(i * (ohlcData.length - 1) / 3);
-            const d = ohlcData[idx];
-            const x = padding + (d.timestamp - minTime) / timeRange * (width - 2 * padding);
-            return (
-              <SvgText
-                key={`time-label-${i}`}
-                x={x}
-                y={padding + height + 18}
-                fontSize={12}
-                fill={'#125BA5'}
-                fontFamily={theme.font.bold}
-                textAnchor="middle"
-              >
-                {formatTime(d.timestamp, selectedRange)}
-              </SvgText>
-            );
-          })}
-          {/* Candles */}
-          {ohlcData.map((d, i) => {
-            const x = padding + (d.timestamp - minTime) / timeRange * (width - 2 * padding);
-            const yOpen = padding + height - ((d.open - minPrice) / priceRange * height);
-            const yClose = padding + height - ((d.close - minPrice) / priceRange * height);
-            const yHigh = padding + height - ((d.high - minPrice) / priceRange * height);
-            const yLow = padding + height - ((d.low - minPrice) / priceRange * height);
-            const isUp = d.close >= d.open;
-            return (
-              <G key={i}>
-                {/* Wick */}
-                <Line
-                  x1={x}
-                  x2={x}
-                  y1={yHigh}
-                  y2={yLow}
-                  stroke={isUp ? theme.colors.growthGreen : theme.colors.optimismOrange}
-                  strokeWidth={2}
-                />
-                {/* Body */}
-                <Rect
-                  x={x - candleWidth / 2}
-                  y={Math.min(yOpen, yClose)}
-                  width={candleWidth}
-                  height={Math.abs(yClose - yOpen) || 2}
-                  fill={isUp ? theme.colors.growthGreen : theme.colors.optimismOrange}
-                  rx={2}
-                />
-              </G>
-            );
-          })}
-        </G>
-      </Svg>
-    );
-  };
 
   const formatTime = (timestamp: number, selectedRange?: string) => {
     const d = new Date(timestamp);

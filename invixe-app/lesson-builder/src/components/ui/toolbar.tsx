@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import React, { ReactNode } from 'react'
 
 export function BottomToolbar({ children }: { children: ReactNode }) {
   return (

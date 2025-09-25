@@ -1,4 +1,3 @@
-import React from "react";
 import {
   View,
   Text,
@@ -7,8 +6,8 @@ import {
   Image,
   TouchableOpacity,
 } from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
-import { RootStackParamList } from "../../navigation/AppNavigator";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
 
 const ageGroups = [
@@ -37,7 +36,7 @@ export default function AgeSelectScreen({ navigation }: Props) {
           style={styles.character}
         />
         <View style={styles.choices}>
-          {ageGroups.map((group, idx) => (
+          {ageGroups.map((group) => (
             <TouchableOpacity
               key={group.label}
               style={styles.choice}

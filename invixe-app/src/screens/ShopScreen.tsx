@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  Dimensions,
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
@@ -14,9 +13,7 @@ import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
 import { useUser } from "../context/UserContext";
 import theme from "../theme";
-import Svg, { Path, Circle, Rect, G, Defs, LinearGradient, Stop } from "react-native-svg";
-
-const SCREEN_WIDTH = Dimensions.get('window').width;
+import Svg, { Path } from "react-native-svg";
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Shop'>;
 

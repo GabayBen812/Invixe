@@ -60,8 +60,8 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
       onStartShouldSetPanResponder: () => true,
       onPanResponderGrant: () => {
         tokenAnimated[token.id].setOffset({
-          x: tokenAnimated[token.id].x._value,
-          y: tokenAnimated[token.id].y._value,
+          x: (tokenAnimated[token.id].x as any)._value,
+          y: (tokenAnimated[token.id].y as any)._value,
         });
         tokenAnimated[token.id].setValue({ x: 0, y: 0 });
       },
@@ -96,7 +96,7 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
     <View style={styles.container}>
       <View style={styles.topRow}>
         {slots.slice(0, 2).map(s => (
-          <View key={s.id} ref={ref => (slotRefs.current[s.id] = ref)}
+          <View key={s.id} ref={(ref: any) => (slotRefs.current[s.id] = ref)}
             onLayout={e => (slotLayouts.current[s.id] = e.nativeEvent.layout)}
             style={styles.slotBox}>
             {getCandleForKey(s.drawKey)}
@@ -106,7 +106,7 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
       </View>
       <View style={styles.topRow}>
         {slots.slice(2, 4).map(s => (
-          <View key={s.id} ref={ref => (slotRefs.current[s.id] = ref)}
+          <View key={s.id} ref={(ref: any) => (slotRefs.current[s.id] = ref)}
             onLayout={e => (slotLayouts.current[s.id] = e.nativeEvent.layout)}
             style={styles.slotBox}>
             {getCandleForKey(s.drawKey)}

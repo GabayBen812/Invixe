@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import React, { ReactNode } from 'react'
 import { Button } from './button'
 
 export function Modal({ open, title, onClose, children }: { open: boolean; title?: string; onClose: () => void; children: ReactNode }) {
