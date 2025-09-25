@@ -4,5 +4,11 @@
     { "path": "./tsconfig.app.json" },
     { "path": "./tsconfig.node.json" }
   ],
-  "exclude": ["src/screens/Unfiltered"]
+  "exclude": [
+    "src/screens/Unfiltered",
+    "src/screens/MapScreen.tsx",
+    "src/screens/ProfileScreen.tsx",
+    "src/screens/SandboxScreen.tsx",
+    "src/screens/ShopScreen.tsx"
+  ]
 }
