@@ -16,6 +16,12 @@ app.use('/api/exportLesson', require('./routes/exportLesson'));
 // Health check routes
 app.use('/api/health', require('./routes/health'));
 
+app.get('/health', (req, res) => {
+  res.status(200).send('OK');
+});
+
+
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
