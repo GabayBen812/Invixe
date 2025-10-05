@@ -4,7 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "nodemon src/index.js",
-    "start": "node src/index.js"
+    "start": "node src/index.js",
+    "prisma:generate": "prisma generate",
+    "db:seed:lessons": "node src/scripts/seed-lessons.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -17,6 +19,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",
     "nodemon": "^2.0.22",
-    "prisma": "^5.12.0"
+    "prisma": "^5.12.0",
+    "typescript": "^5.9.3"
   }
 }

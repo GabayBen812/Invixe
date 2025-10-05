@@ -5,6 +5,7 @@ import AppLoading from 'expo-app-loading';
 import { Text, TextProps } from 'react-native';
 import React from 'react';
 import { UserProvider } from './src/context/UserContext';
+import { LessonsProvider } from './src/context/LessonsContext';
 
 // Custom AppText component to use Rubik font by default
 export function AppText(props: TextProps) {
@@ -24,7 +25,9 @@ export default function App() {
   return (
     <RegistrationProvider>
       <UserProvider>
-        <AppNavigator />
+        <LessonsProvider>
+          <AppNavigator />
+        </LessonsProvider>
       </UserProvider>
     </RegistrationProvider>
   );

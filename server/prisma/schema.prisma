@@ -60,3 +60,53 @@ model Portfolio {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 } 
+
+// -----------------
+// Lesson content (Mongo-backed) to replace code-based registry/steps
+// We keep existing models above untouched to avoid breaking current routes
+
+enum LessonType {
+  info
+  memorize
+  test
+  practice
+}
+
+model Step {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  stepNumber Int    @unique
+  lessons    LessonMeta[]
+}
+
+model LessonMeta {
+  id              String     @id @default(auto()) @map("_id") @db.ObjectId
+  numericId       Int        @unique
+  title           String
+  description     String     @default("")
+  lessonType      LessonType
+  unlockMinPoints Int?
+  prerequisites   Int[]      @default([])
+
+  step            Step?      @relation(fields: [stepId], references: [id])
+  stepId          String?    @db.ObjectId
+
+  sublessons      Sublesson[]
+}
+
+model Sublesson {
+  id          String     @id @default(auto()) @map("_id") @db.ObjectId
+  numericId   Int        @unique
+  title       String
+  description String     @default("")
+  lessonType  LessonType
+
+  lesson      LessonMeta? @relation(fields: [lessonId], references: [id])
+  lessonId    String?     @db.ObjectId
+}
+
+model LessonSteps {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  lessonNumericId Int      @unique
+  stepsJson      Json
+  updatedAt      DateTime @updatedAt
+}

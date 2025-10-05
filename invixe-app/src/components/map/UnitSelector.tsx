@@ -4,17 +4,17 @@ import theme from "../../theme";
 import ProgressBar from "./ProgressBar";
 import CourseCard from "./CourseCard";
 import { AppCharacterSVG, TechnicalAnalysisIcon, TradingIcon, InvestmentIcon, FundamentalIcon } from "./MapAssets";
-import { lessonsRegistry as defaultRegistry } from "../../modules/lessons/registry";
+import { useLessons } from "../../context/LessonsContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
 type UnitSelectorProps = {
   completedLessons: number[];
   onSelectUnit: (idx: number) => void;
-  lessonsRegistry?: typeof defaultRegistry;
 };
 
-export default function UnitSelector({ completedLessons, onSelectUnit, lessonsRegistry = defaultRegistry }: UnitSelectorProps) {
+export default function UnitSelector({ completedLessons, onSelectUnit }: UnitSelectorProps) {
+  const { lessonsRegistry } = useLessons();
   const unitProgress = React.useMemo(() => {
     return lessonsRegistry.map((step) => {
       const total = step.lessons.length;

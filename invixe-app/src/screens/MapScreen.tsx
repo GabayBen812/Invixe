@@ -12,7 +12,8 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
-import { lessonsRegistry, isLessonUnlocked } from "../modules/lessons/registry";
+import { isLessonUnlocked } from "../modules/lessons/registry";
+import { useLessons } from "../context/LessonsContext";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
 import theme from "../theme";
@@ -378,16 +379,12 @@ export default function MapScreen({ navigation }: Props) {
   }, []);
 
   // Determine active step based on selected unit
-  const activeStep =
-    selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
+  const { lessonsRegistry } = useLessons();
+  const activeStep = selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
 
   // Calculate user progress (overall and per unit)
-  const totalLessons = (
-    activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)
-  ).length;
-  const completedCount = (
-    activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)
-  ).filter((l) => completedLessons.includes(l.id)).length;
+  const totalLessons = (activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)).length;
+  const completedCount = (activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)).filter((l) => completedLessons.includes(l.id)).length;
   const progressPercentage =
     totalLessons > 0 ? completedCount / totalLessons : 0;
   const currentStreak = 7; // TODO: Calculate actual streak from user data

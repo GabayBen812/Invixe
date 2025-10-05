@@ -2,29 +2,8 @@ import React, { useState, useEffect } from "react";
 import { View, Image, Animated, StyleSheet, Text, Pressable } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { lessonSteps as lesson101Steps } from "../modules/lessons/step1/lesson101";
-import { lessonSteps as lesson301Steps } from "../modules/lessons/step1/lesson301";
-import { lessonSteps as lesson302Steps } from "../modules/lessons/step1/lesson302";
-import { lessonSteps as lesson303Steps } from "../modules/lessons/step1/lesson303";
-import { lessonSteps as lesson304Steps } from "../modules/lessons/step1/lesson304";
-import { lessonSteps as lesson305Steps } from "../modules/lessons/step1/lesson305";
-import { lessonSteps as lesson306Steps } from "../modules/lessons/step1/lesson306";
-import { lessonSteps as lesson307Steps } from "../modules/lessons/step1/lesson307";
-import { lessonSteps as lesson308Steps } from "../modules/lessons/step1/lesson308";
-import { lessonSteps as lesson309Steps } from "../modules/lessons/step1/lesson309";
-import { lessonSteps as lesson310Steps } from "../modules/lessons/step1/lesson310";
-import { lessonSteps as lesson201Steps } from "../modules/lessons/step1/lesson201";
-import { lessonSteps as lesson202Steps } from "../modules/lessons/step1/lesson202";
-import { lessonSteps as lesson203Steps } from "../modules/lessons/step1/lesson203";
-import { lessonSteps as lesson204Steps } from "../modules/lessons/step1/lesson204";
-import { lessonSteps as lesson205Steps } from "../modules/lessons/step1/lesson205";
-import { lessonSteps as lesson401Steps } from "../modules/lessons/step1/lesson401";
-import { lessonSteps as lesson402Steps } from "../modules/lessons/step1/lesson402";
-import { lessonSteps as lesson403Steps } from "../modules/lessons/step1/lesson403";
-import { lessonSteps as lesson404Steps } from "../modules/lessons/step1/lesson404";
-import { lessonSteps as lesson405Steps } from "../modules/lessons/step1/lesson405";
-import { lessonSteps as lesson102Steps } from "../modules/lessons/step1/lesson102";
 import { LessonStep } from "../modules/lessons/types";
+import { useLessons } from "../context/LessonsContext";
 import Button from "../components/ui/Button";
 import Inventory from "../components/lesson/Inventory";
 import SpeechBubble from "../components/lesson/SpeechBubble";
@@ -89,31 +68,7 @@ const characterImages: { [key: string]: any } = {
 
 type Props = NativeStackScreenProps<RootStackParamList, "Lesson">;
 
-const lessonSteps: Record<number, LessonStep[]> = {
-  101: lesson101Steps,
-  301: lesson301Steps,
-  201: lesson201Steps,
-  202: lesson202Steps,
-  203: lesson203Steps,
-  204: lesson204Steps,
-  205: lesson205Steps,
-  302: lesson302Steps,
-  303: lesson303Steps,
-  304: lesson304Steps,
-  305: lesson305Steps,
-  306: lesson306Steps,
-  307: lesson307Steps,
-  308: lesson308Steps,
-  309: lesson309Steps,
-  310: lesson310Steps,
-  401: lesson401Steps,
-  402: lesson402Steps,
-  403: lesson403Steps,
-  404: lesson404Steps,
-  405: lesson405Steps,
-
-  102: lesson102Steps,
-};
+const inMemorySteps: Record<number, LessonStep[]> = {};
 
 // Character image resolver
 function getCharacterImg(characterImgKey?: string) {
@@ -128,6 +83,7 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [fadeAnim] = useState(new Animated.Value(1));
   const lessonId = route.params?.lessonId || 1;
   const { completedLessons, markLessonCompleted, setCompletedLessons, lightnings, setLightnings } = useUser();
+  const { getLessonSteps } = useLessons();
   const [showCorrectOverlay, setShowCorrectOverlay] = useState(false);
   const [pendingNextStep, setPendingNextStep] = useState<string | null>(null);
   const [selectedChoiceIdx, setSelectedChoiceIdx] = useState<number | null>(null);
@@ -140,7 +96,22 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
   }, [route.params?.lessonId]);
 
-  const currentLessonSteps = lessonSteps[lessonId] || [];
+  const [currentLessonSteps, setCurrentLessonSteps] = useState<LessonStep[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cached = inMemorySteps[lessonId];
+      if (cached) {
+        if (!cancelled) setCurrentLessonSteps(cached);
+        return;
+      }
+      const steps = await getLessonSteps(lessonId);
+      inMemorySteps[lessonId] = steps;
+      if (!cancelled) setCurrentLessonSteps(steps);
+    })();
+    return () => { cancelled = true; };
+  }, [lessonId]);
   const step: LessonStep =
     currentLessonSteps.find((s: LessonStep) => s.id === stepId) ||
     currentLessonSteps[0];

@@ -12,6 +12,7 @@ app.use('/api/login', require('./routes/login'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/stocks', require('./routes/stocks'));
 app.use('/api/exportLesson', require('./routes/exportLesson'));
+app.use('/api/lessons', require('./routes/lessons'));
 
 // Health check routes
 app.use('/api/health', require('./routes/health'));
