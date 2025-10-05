@@ -40,7 +40,11 @@ router.get('/registry', async (_req, res) => {
     res.json(mapped);
   } catch (err) {
     console.error('GET /lessons/registry error', err);
-    res.status(500).json({ error: 'Failed to load lessons registry' });
+    if (String(_req.query.debug) === '1') {
+      res.status(500).json({ error: 'Failed to load lessons registry', message: String(err && err.message ? err.message : err) });
+    } else {
+      res.status(500).json({ error: 'Failed to load lessons registry' });
+    }
   }
 });
 
