@@ -29,7 +29,7 @@ const CoinIcon = () => (
 );
 
 const COINS_REWARD = 10;
-const API_URL = "http://10.0.0.16:4000/api/user/add-coins"; // Adjust as needed
+const API_URL = "http://10.0.0.9:4000/api/user/add-coins"; // Adjust as needed
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonComplete">;
 

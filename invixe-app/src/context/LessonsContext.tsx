@@ -10,7 +10,7 @@ type LessonsContextType = {
 
 const LessonsContext = createContext<LessonsContextType | undefined>(undefined);
 
-const API_BASE = 'http://10.0.0.16:4000/api';
+const API_BASE = 'http://10.0.0.9:4000/api';
 
 export function LessonsProvider({ children }: { children: React.ReactNode }) {
   const [lessonsRegistry, setLessonsRegistry] = useState<StepRegistry[]>([]);
