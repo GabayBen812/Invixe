@@ -19,14 +19,25 @@ interface Props {
   slots: SlotSpec[];
   tokens: TokenSpec[];
   submitText?: string;
-  onSubmit: (result: { numCorrect: number; total: number; mapping: Record<string, string | undefined> }) => void;
+  correctExplanation?: string;
+  wrongExplanation?: string;
+  onSubmit: (result: { 
+    numCorrect: number; 
+    total: number; 
+    mapping: Record<string, string | undefined>; 
+    isCorrect: boolean;
+    explanation: string;
+  }) => void;
 }
 
 type Position = { x: number; y: number };
 
-export default function DragMatchDrill({ slots, tokens, submitText = 'אישור', onSubmit }: Props) {
+export default function DragMatchDrill({ slots, tokens, submitText = 'אישור', correctExplanation, wrongExplanation, onSubmit }: Props) {
   const [tokenPositions, setTokenPositions] = useState<Record<string, Position>>({});
   const [tokenToSlot, setTokenToSlot] = useState<Record<string, string | undefined>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [showingExplanation, setShowingExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   const slotRefs = useRef<Record<string, View | null>>({});
   const slotLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
@@ -85,11 +96,29 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
   };
 
   const handleSubmit = () => {
+    setSubmitted(true);
     let numCorrect = 0;
     tokens.forEach(t => {
       if (tokenToSlot[t.id] === t.targetSlotId) numCorrect += 1;
     });
-    onSubmit({ numCorrect, total: tokens.length, mapping: tokenToSlot });
+    const correct = numCorrect === tokens.length;
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+  };
+
+  const handleContinue = () => {
+    let numCorrect = 0;
+    tokens.forEach(t => {
+      if (tokenToSlot[t.id] === t.targetSlotId) numCorrect += 1;
+    });
+    const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
+    onSubmit({ 
+      numCorrect, 
+      total: tokens.length, 
+      mapping: tokenToSlot,
+      isCorrect,
+      explanation
+    });
   };
 
   return (
@@ -126,8 +155,8 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
           );
         })}
       </View>
-      <Pressable style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>{submitText}</Text>
+      <Pressable style={styles.submitButton} onPress={showingExplanation ? handleContinue : handleSubmit}>
+        <Text style={styles.submitText}>{showingExplanation ? 'המשך' : submitText}</Text>
       </Pressable>
     </View>
   );

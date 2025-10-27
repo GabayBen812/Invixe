@@ -44,8 +44,29 @@ export interface LessonStep {
   characterImg?: string; // Filename or key for the character image
   visual?: string; // Optional visual key for SVGs or images
   // Optional interactive activity configuration
-  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild';
+  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild' | 'dialog' | 'textWithImageExplain' | 'svgMultiSelect';
   activityConfig?: {
+    // Dialog activity config
+    dialog?: {
+      messages: Array<{
+        id: string;
+        characterId?: string;
+        text: string;
+        delay?: number;
+      }>;
+      typingSpeed?: number;
+      autoAdvance?: boolean;
+      autoAdvanceDelay?: number;
+    };
+    // Text with image explain config
+    questionWithImage?: {
+      imageSource?: string; // optional key for future use
+      uploadedImage?: string; // data URI (e.g., data:image/png;base64,...)
+      submitText?: string;
+      // Inline feedback explanations for question with image drills
+      correctExplanation?: string;
+      wrongExplanation?: string;
+    };
     // Generic multi-select options
     options?: Array<{
       id: string;
@@ -53,8 +74,18 @@ export interface LessonStep {
       imageKey?: string;
       correct: boolean;
     }>;
+    // SVG multi-select options
+    svgOptions?: Array<{
+      id: string;
+      label?: string;
+      svgCode: string;
+      correct: boolean;
+    }>;
     submitText?: string;
     layout?: 'grid' | 'list';
+    // Inline feedback explanations for multi-select drills
+    correctExplanation?: string;
+    wrongExplanation?: string;
     // Carousel select (single correct) config
     carousel?: {
       items: Array<{
@@ -63,8 +94,10 @@ export interface LessonStep {
         label?: string;
       }>;
       correctId: string;
-      explanationOnWrong?: string; // one-line reason
       submitText?: string;
+      // Inline feedback explanations for carousel drills
+      correctExplanation?: string;
+      wrongExplanation?: string;
     };
     // Drag and drop match words to drawings
     dragMatch?: {
@@ -80,6 +113,9 @@ export interface LessonStep {
         targetSlotId: string; // correct slot id
       }>;
       submitText?: string;
+      // Inline feedback explanations for drag match drills
+      correctExplanation?: string;
+      wrongExplanation?: string;
     };
     // Build a candle pattern by placing X candles in order
     sequenceBuild?: {
@@ -90,6 +126,9 @@ export interface LessonStep {
       }>;
       correctSequence: string[]; // array of option ids in correct order
       submitText?: string;
+      // Inline feedback explanations for sequence build drills
+      correctExplanation?: string;
+      wrongExplanation?: string;
     };
     // Candle selection config (supports all candle keys used in the app)
     target?:

@@ -26,9 +26,11 @@ import {
 } from '../assets/Candels';
 import DojiLessonVisuals from '../components/lesson/DojiLessonVisuals';
 import MultiSelectDrill from '../components/lesson/MultiSelectDrill';
+import SVGMultiSelectDrill from '../components/lesson/SVGMultiSelectDrill';
 import CarouselSelectDrill from '../components/lesson/CarouselSelectDrill';
 import DragMatchDrill from '../components/lesson/DragMatchDrill';
 import SequenceBuildDrill from '../components/lesson/SequenceBuildDrill';
+import Dialog from '../components/lesson/Dialog';
 
 const characterImg = require("../assets/character.png");
 const backgroundImages = {
@@ -89,6 +91,8 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [selectedChoiceIdx, setSelectedChoiceIdx] = useState<number | null>(null);
   const [answerMode, setAnswerMode] = useState<'none' | 'correct'>('none');
   const [drillRewards, setDrillRewards] = useState<number>(0);
+  const [drillExplanation, setDrillExplanation] = useState<string | null>(null);
+  const [showingDrillExplanation, setShowingDrillExplanation] = useState(false);
 
   useEffect(() => {
     if (route.params?.lessonId) {
@@ -115,6 +119,29 @@ export default function LessonScreen({ navigation, route }: Props) {
   const step: LessonStep =
     currentLessonSteps.find((s: LessonStep) => s.id === stepId) ||
     currentLessonSteps[0];
+
+  const isDialog = step?.activity === 'dialog' && !!step.activityConfig?.dialog;
+  const isExplain = step?.activity === 'textWithImageExplain' && !!step.activityConfig?.questionWithImage;
+
+  const handleDrillComplete = (result: { isCorrect: boolean; explanation: string; numCorrectSelections?: number; correct?: boolean; numCorrect?: number; total?: number }) => {
+    const rewards = result.numCorrectSelections || (result.correct ? 1 : 0) || (result.numCorrect || 0);
+    setDrillRewards(rewards);
+    setDrillExplanation(result.explanation);
+    setShowingDrillExplanation(true);
+    // Award lightnings
+    if (rewards > 0) {
+      setLightnings(lightnings + rewards);
+    }
+  };
+
+  const handleExplanationContinue = () => {
+    setShowingDrillExplanation(false);
+    setDrillExplanation(null);
+    // Navigate to next step based on choices[0].nextStep
+    if (step.choices && step.choices[0]) {
+      handleChoice(step.choices[0].nextStep);
+    }
+  };
 
   const handleChoice = (nextStep: string) => {
     // If the next step is a known fail step, navigate to fail immediately
@@ -192,21 +219,69 @@ export default function LessonScreen({ navigation, route }: Props) {
   const choices = step.choices;
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#D3E9FF' }}>
+    <PageBackground source={backgroundImages[step.backgroundImage as keyof typeof backgroundImages] || backgroundImages.defaultBackground}>
       <TopBar />
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>        
         {step.showInventory && step.inventory && (
           <Inventory inventory={step.inventory} />
         )}
         <View style={styles.bubbleWrapper}>
-          <SpeechBubble 
-            message={step.message} 
-            characterImg={getCharacterImg(step.characterImg)} 
-            position={step.bubblePosition || 'bottomLeft'}
-            align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-            buttonText={choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined}
-            onButtonPress={choices && choices.length === 1 && step.id !== 'simple_text_step' ? () => handleChoice(choices[0].nextStep) : undefined}
-          />
+          {/* Dialog activity */}
+          {step.activity === 'dialog' && step.activityConfig?.dialog && (
+            <Dialog
+              messages={step.activityConfig.dialog.messages}
+              typingSpeed={step.activityConfig.dialog.typingSpeed ?? 40}
+              autoAdvance={step.activityConfig.dialog.autoAdvance ?? true}
+              autoAdvanceDelay={step.activityConfig.dialog.autoAdvanceDelay ?? 2000}
+              onComplete={() => {
+                if (choices && choices.length === 1) {
+                  handleChoice(choices[0].nextStep);
+                }
+              }}
+            />
+          )}
+
+          {/* Text with image explanation activity */}
+          {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && (
+            <View style={{ width: '100%', alignItems: 'center' }}>
+              <View style={styles.explainContainer}>
+                {!!step.message && (
+                  <Text style={styles.explainText}>{step.message}</Text>
+                )}
+                {step.activityConfig.questionWithImage.uploadedImage && (
+                  <Image
+                    source={{ uri: step.activityConfig.questionWithImage.uploadedImage }}
+                    style={styles.explainImage}
+                    resizeMode="contain"
+                  />
+                )}
+                <Pressable
+                  style={styles.simpleTextButton}
+                  onPress={() => {
+                    if (choices && choices.length >= 1) {
+                      handleChoice(choices[0].nextStep);
+                    }
+                  }}
+                >
+                  <Text style={styles.confirmButtonText}>
+                    {step.activityConfig.questionWithImage.submitText || 'המשך'}
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
+
+          {/* Hide bubble when dialog or explain is active */}
+          {!(isDialog || isExplain) && (
+            <SpeechBubble 
+              message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
+              characterImg={getCharacterImg(step.characterImg)} 
+              position={step.bubblePosition || 'bottomLeft'}
+              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              buttonText={showingDrillExplanation ? 'המשך' : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined)}
+              onButtonPress={showingDrillExplanation ? handleExplanationContinue : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? () => handleChoice(choices[0].nextStep) : undefined)}
+            />
+          )}
           {/* Render candlestick SVG if visual is set */}
           {step.visual === 'hammer' && (
             <View style={styles.candleSvgWrapper}><HammerCandleSVG width={60} height={120} /></View>
@@ -316,18 +391,26 @@ export default function LessonScreen({ navigation, route }: Props) {
               }))}
               layout={step.activityConfig.layout || 'grid'}
               submitText={step.activityConfig.submitText || 'בדוק'}
-              onSubmit={async ({ numCorrectSelections }) => {
-                const reward = numCorrectSelections; // 1 lightning per correct selection
-                if (reward > 0) {
-                  try {
-                    await setLightnings(lightnings + reward);
-                  } catch (e) {
-                    console.error('Failed updating lightnings', e);
-                  }
-                }
-                setDrillRewards(reward);
-                setShowCorrectOverlay(true);
-              }}
+              correctExplanation={step.activityConfig.correctExplanation}
+              wrongExplanation={step.activityConfig.wrongExplanation}
+              onSubmit={handleDrillComplete}
+            />
+          )}
+
+          {/* SVG MultiSelect drill */}
+          {step.activity === 'svgMultiSelect' && step.activityConfig?.svgOptions && (
+            <SVGMultiSelectDrill
+              options={step.activityConfig.svgOptions.map((o: any) => ({
+                id: o.id,
+                label: o.label,
+                svgCode: o.svgCode || '',
+                correct: o.correct,
+              }))}
+              layout={step.activityConfig.layout || 'grid'}
+              submitText={step.activityConfig.submitText || 'בדוק'}
+              correctExplanation={step.activityConfig.correctExplanation}
+              wrongExplanation={step.activityConfig.wrongExplanation}
+              onSubmit={handleDrillComplete}
             />
           )}
 
@@ -340,16 +423,10 @@ export default function LessonScreen({ navigation, route }: Props) {
                 label: i.label,
               }))}
               correctId={step.activityConfig.carousel.correctId}
-              explanationOnWrong={step.activityConfig.carousel.explanationOnWrong}
               submitText={step.activityConfig.carousel.submitText || 'אישור'}
-              onSubmit={async ({ correct }) => {
-                const reward = correct ? 3 : 0;
-                if (reward > 0) {
-                  try { await setLightnings(lightnings + reward); } catch (e) { console.error(e); }
-                }
-                setDrillRewards(reward);
-                setShowCorrectOverlay(true);
-              }}
+              correctExplanation={step.activityConfig.carousel.correctExplanation}
+              wrongExplanation={step.activityConfig.carousel.wrongExplanation}
+              onSubmit={handleDrillComplete}
             />
           )}
 
@@ -364,14 +441,9 @@ export default function LessonScreen({ navigation, route }: Props) {
               }))}
               tokens={step.activityConfig.dragMatch.tokens}
               submitText={step.activityConfig.dragMatch.submitText || 'אישור'}
-              onSubmit={async ({ numCorrect, total }) => {
-                const reward = numCorrect; // 1 per correct match
-                if (reward > 0) {
-                  try { await setLightnings(lightnings + reward); } catch (e) { console.error(e); }
-                }
-                setDrillRewards(reward);
-                setShowCorrectOverlay(true);
-              }}
+              correctExplanation={step.activityConfig.dragMatch.correctExplanation}
+              wrongExplanation={step.activityConfig.dragMatch.wrongExplanation}
+              onSubmit={handleDrillComplete}
             />
           )}
 
@@ -382,65 +454,66 @@ export default function LessonScreen({ navigation, route }: Props) {
               options={step.activityConfig.sequenceBuild.options}
               correctSequence={step.activityConfig.sequenceBuild.correctSequence}
               submitText={step.activityConfig.sequenceBuild.submitText || 'אישור'}
-              onSubmit={async ({ correct }) => {
-                const reward = correct ? 4 : 0; // For patterns, default reward 4
-                if (reward > 0) { try { await setLightnings(lightnings + reward); } catch (e) { console.error(e); } }
-                setDrillRewards(reward);
-                setShowCorrectOverlay(true);
-              }}
+              correctExplanation={step.activityConfig.sequenceBuild.correctExplanation}
+              wrongExplanation={step.activityConfig.sequenceBuild.wrongExplanation}
+              onSubmit={handleDrillComplete}
             />
           )}
         </View>
-        <View style={styles.choices}>
-          {choices && choices.length > 1
-            ? choices.map((choice, idx) => (
-                <Pressable
-                  key={choice.text}
-                  onPress={() => setSelectedChoiceIdx(idx)}
-                  style={({ pressed }) => [
-                    styles.choiceCard,
-                    pressed && { transform: [{ scale: 0.985 }] },
-                    selectedChoiceIdx === idx && styles.choiceCardSelected,
-                    answerMode === 'correct' && idx === selectedChoiceIdx && styles.choiceCardCorrect,
-                  ]}
-                >
-                  <Text style={[
-                    styles.choiceText,
-                    selectedChoiceIdx === idx && styles.choiceTextSelected,
-                    answerMode === 'correct' && idx === selectedChoiceIdx && styles.choiceTextCorrect,
-                  ]}>{choice.text}</Text>
-                </Pressable>
-              ))
-            : null}
-          {choices && choices.length > 1 && selectedChoiceIdx !== null && (
-            <Pressable
-              style={styles.confirmButton}
-              onPress={() => {
-                const next = choices[selectedChoiceIdx!].nextStep;
-                setSelectedChoiceIdx(null);
-                handleChoice(next);
-              }}
-            >
-              <Text style={styles.confirmButtonText}>אישור</Text>
-            </Pressable>
-          )}
-          {step.id === 'simple_text_step' && choices && choices.length === 1 && (
-            <Pressable
-              style={styles.simpleTextButton}
-              onPress={() => {
-                handleChoice(choices[0].nextStep);
-              }}
-            >
-              <Text style={styles.confirmButtonText}>אישור</Text>
-            </Pressable>
-          )}
-        </View>
+        {/* Choices: hidden during dialog/explain to reduce clutter */}
+        {!(isDialog || isExplain) && (
+          <View style={styles.choices}>
+            {choices && choices.length > 1 && (
+              <>
+                {choices.map((choice, idx) => (
+                  <Pressable
+                    key={choice.text}
+                    onPress={() => setSelectedChoiceIdx(idx)}
+                    style={({ pressed }) => [
+                      styles.choiceCard,
+                      pressed && { transform: [{ scale: 0.985 }] },
+                      selectedChoiceIdx === idx && styles.choiceCardSelected,
+                      answerMode === 'correct' && idx === selectedChoiceIdx && styles.choiceCardCorrect,
+                    ]}
+                  >
+                    <Text style={[
+                      styles.choiceText,
+                      selectedChoiceIdx === idx && styles.choiceTextSelected,
+                      answerMode === 'correct' && idx === selectedChoiceIdx && styles.choiceTextCorrect,
+                    ]}>{choice.text}</Text>
+                  </Pressable>
+                ))}
+                {selectedChoiceIdx !== null && (
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={() => {
+                      const next = choices[selectedChoiceIdx!].nextStep;
+                      setSelectedChoiceIdx(null);
+                      handleChoice(next);
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>אישור</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+            {choices && choices.length === 1 && step.id !== 'simple_text_step' && (
+              <Pressable
+                style={styles.primaryButton}
+                onPress={() => handleChoice(choices[0].nextStep)}
+              >
+                <Text style={styles.primaryButtonText}>{choices[0].text || 'המשך'}</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </Animated.View>
-      {showCorrectOverlay && (
+      {/* Legacy overlay - only show for non-drill steps if needed */}
+      {showCorrectOverlay && !showingDrillExplanation && (
         <View style={styles.correctOverlayContainer}>
           <View style={styles.correctSheet}>
             <Text style={styles.correctTitle}>
-              {step.activity ? 'בדיקה הושלמה' : 'תשובה נכונה!'}
+              {drillRewards > 0 ? 'תשובה נכונה!' : 'תשובה שגויה'}
             </Text>
             <View style={styles.rewardPill}>
               <Text style={styles.rewardPillText}>{`⚡ X ${drillRewards} - זכית ב־`}</Text>
@@ -476,7 +549,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           }} />
         </View>
       </View>
-    </View>
+    </PageBackground>
   );
 }
 
@@ -564,6 +637,43 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
+  },
+  primaryButton: {
+    marginTop: 20,
+    backgroundColor: '#3F9FFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    alignSelf: 'center'
+  },
+  primaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  explainContainer: {
+    width: '92%',
+    maxWidth: 500,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  explainText: {
+    color: '#0D2033',
+    fontWeight: '700',
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  explainImage: {
+    width: '100%',
+    height: 220,
+    borderRadius: 12,
+    backgroundColor: '#0D2033',
+    marginBottom: 16,
   },
   progressContainer: {
     alignItems: 'center',

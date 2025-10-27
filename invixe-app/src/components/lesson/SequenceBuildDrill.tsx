@@ -15,7 +15,14 @@ interface Props {
   options: SequenceOption[];
   correctSequence: string[]; // option ids in correct order
   submitText?: string;
-  onSubmit: (payload: { correct: boolean; placedIds: (string | undefined)[] }) => void;
+  correctExplanation?: string;
+  wrongExplanation?: string;
+  onSubmit: (payload: { 
+    correct: boolean; 
+    placedIds: (string | undefined)[]; 
+    isCorrect: boolean;
+    explanation: string;
+  }) => void;
 }
 
 const CandleByKey = ({ keyName }: { keyName: CandleKey }) => {
@@ -45,8 +52,11 @@ const CandleByKey = ({ keyName }: { keyName: CandleKey }) => {
   }
 };
 
-export default function SequenceBuildDrill({ slotsCount, options, correctSequence, submitText = 'אישור', onSubmit }: Props) {
+export default function SequenceBuildDrill({ slotsCount, options, correctSequence, submitText = 'אישור', correctExplanation, wrongExplanation, onSubmit }: Props) {
   const [placed, setPlaced] = useState<(string | undefined)[]>(Array(slotsCount).fill(undefined));
+  const [submitted, setSubmitted] = useState(false);
+  const [showingExplanation, setShowingExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
   const slotLayouts = useRef<{ x: number; y: number; width: number; height: number }[]>([]);
   const panValues = useRef<Record<string, Animated.ValueXY>>({}).current;
 
@@ -81,8 +91,21 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
   };
 
   const check = () => {
+    setSubmitted(true);
     const correct = placed.length === correctSequence.length && placed.every((id, i) => id === correctSequence[i]);
-    onSubmit({ correct, placedIds: placed });
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+  };
+
+  const handleContinue = () => {
+    const correct = placed.length === correctSequence.length && placed.every((id, i) => id === correctSequence[i]);
+    const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
+    onSubmit({ 
+      correct, 
+      placedIds: placed,
+      isCorrect,
+      explanation
+    });
   };
 
   return (
@@ -107,8 +130,8 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
           );
         })}
       </View>
-      <Pressable style={styles.submitButton} onPress={check}>
-        <Text style={styles.submitText}>{submitText}</Text>
+      <Pressable style={styles.submitButton} onPress={showingExplanation ? handleContinue : check}>
+        <Text style={styles.submitText}>{showingExplanation ? 'המשך' : submitText}</Text>
       </Pressable>
     </View>
   );

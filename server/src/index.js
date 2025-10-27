@@ -6,13 +6,26 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Supabase config (optional; routes may import their own client)
+const { createClient } = require('@supabase/supabase-js');
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('Supabase env vars not set (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY).');
+}
+const supabase = SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY) : null;
+app.set('supabase', supabase);
+app.set('SUPABASE_ONLY', process.env.SUPABASE_ONLY === 'true');
+
 // API Routes
 app.use('/api/register', require('./routes/register'));
 app.use('/api/login', require('./routes/login'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/stocks', require('./routes/stocks'));
+// Keep lesson builder compatibility
 app.use('/api/exportLesson', require('./routes/exportLesson'));
 app.use('/api/lessons', require('./routes/lessons'));
+app.use('/api/v2/lessons', require('./routes/v2.lessons'));
 
 // Health check routes
 app.use('/api/health', require('./routes/health'));

@@ -6,15 +6,18 @@
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
     "prisma:generate": "prisma generate",
-    "db:seed:lessons": "node src/scripts/seed-lessons.js"
+    "db:seed:lessons": "node src/scripts/seed-lessons.js",
+    "migrate:to-supabase": "node src/scripts/migrate-to-supabase.js"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
+    "@supabase/supabase-js": "^2.45.4",
     "axios": "^1.10.0",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "supabase": "^2.51.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^3.0.0",

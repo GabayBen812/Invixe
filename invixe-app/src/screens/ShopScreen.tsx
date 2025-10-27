@@ -73,8 +73,8 @@ const shopItems: ShopItem[] = [
   },
   {
     id: 'lightning_3',
-    name: '3 ברקים',
-    description: 'חבילה של 3 ברקים במחיר מוזל',
+    name: '3 מטבעות',
+    description: 'חבילה של 3 מטבעות במחיר מוזל',
     price: 120,
     icon: (
       <View style={{ flexDirection: 'row', gap: 2, width: 80, justifyContent: 'center' }}>
@@ -87,8 +87,8 @@ const shopItems: ShopItem[] = [
   },
   {
     id: 'lightning_5',
-    name: '5 ברקים',
-    description: 'חבילה גדולה של 5 ברקים',
+    name: '5 מטבעות',
+    description: 'חבילה גדולה של 5 מטבעות',
     price: 180,
     icon: (
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, width: 80, justifyContent: 'center' }}>
@@ -103,8 +103,8 @@ const shopItems: ShopItem[] = [
   },
   {
     id: 'lightning_10',
-    name: '10 ברקים',
-    description: 'חבילה ענקית של 10 ברקים במחיר הטוב ביותר',
+    name: '10 מטבעות',
+    description: 'חבילה ענקית של 10 מטבעות במחיר הטוב ביותר',
     price: 300,
     icon: (
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 2, width: 80, justifyContent: 'center' }}>
@@ -201,7 +201,7 @@ export default function ShopScreen({ navigation }: Props) {
             styles.categoryTabText,
             selectedCategory === 'lightning' && styles.categoryTabTextActive
           ]}>
-            ברקים
+            מטבעות
           </Text>
         </TouchableOpacity>
         

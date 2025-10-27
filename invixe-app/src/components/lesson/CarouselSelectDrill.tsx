@@ -10,23 +10,50 @@ export interface CarouselItem {
 interface Props {
   items: CarouselItem[];
   correctId: string;
-  explanationOnWrong?: string;
   submitText?: string;
-  onSubmit: (payload: { correct: boolean; selectedId: string; explanation?: string }) => void;
+  correctExplanation?: string;
+  wrongExplanation?: string;
+  onSubmit: (payload: { 
+    correct: boolean; 
+    selectedId: string; 
+    isCorrect: boolean;
+    explanation: string;
+  }) => void;
 }
 
-export default function CarouselSelectDrill({ items, correctId, explanationOnWrong, submitText = 'אישור', onSubmit }: Props) {
+export default function CarouselSelectDrill({ items, correctId, submitText = 'אישור', correctExplanation, wrongExplanation, onSubmit }: Props) {
   const [index, setIndex] = useState(0);
+  const [submitted, setSubmitted] = useState(false);
+  const [showingExplanation, setShowingExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   const normalizedItems = useMemo(() => items.length > 0 ? items : [], [items]);
   const selected = normalizedItems[index] || normalizedItems[0];
 
-  const goLeft = () => setIndex(prev => (prev - 1 + normalizedItems.length) % normalizedItems.length);
-  const goRight = () => setIndex(prev => (prev + 1) % normalizedItems.length);
+  const goLeft = () => {
+    if (submitted) return;
+    setIndex(prev => (prev - 1 + normalizedItems.length) % normalizedItems.length);
+  };
+  const goRight = () => {
+    if (submitted) return;
+    setIndex(prev => (prev + 1) % normalizedItems.length);
+  };
 
   const handleSubmit = () => {
+    setSubmitted(true);
     const correct = selected?.id === correctId;
-    onSubmit({ correct, selectedId: selected?.id, explanation: correct ? undefined : explanationOnWrong });
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+  };
+
+  const handleContinue = () => {
+    const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
+    onSubmit({ 
+      correct: isCorrect, 
+      selectedId: selected?.id, 
+      isCorrect,
+      explanation
+    });
   };
 
   if (normalizedItems.length === 0) return null;
@@ -49,8 +76,8 @@ export default function CarouselSelectDrill({ items, correctId, explanationOnWro
           <Text style={styles.arrowText}>›</Text>
         </Pressable>
       </View>
-      <Pressable style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>{submitText}</Text>
+      <Pressable style={styles.submitButton} onPress={showingExplanation ? handleContinue : handleSubmit}>
+        <Text style={styles.submitText}>{showingExplanation ? 'המשך' : submitText}</Text>
       </Pressable>
     </View>
   );

@@ -75,7 +75,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const fetchPortfolio = async () => {
     try {
-      const response = await fetch('http://10.0.0.9:4000/api/user/portfolio');
+      const response = await fetch('http://10.0.0.8:4000/api/user/portfolio');
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -91,7 +91,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const fetchStockPrices = async () => {
     try {
       const symbols = portfolio.map(h => h.symbol).join(',');
-      const response = await fetch(`http://10.0.0.9:4000/api/stocks/prices?symbols=${symbols}`);
+      const response = await fetch(`http://10.0.0.8:4000/api/stocks/prices?symbols=${symbols}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock prices');
       }
@@ -175,7 +175,7 @@ export default function ProfileScreen({ navigation }: Props) {
           <View style={styles.statCard}>
             <LightningIcon />
             <Text style={styles.statValue}>{String(lightnings)}</Text>
-            <Text style={styles.statLabel}>ברקים</Text>
+            <Text style={styles.statLabel}>מטבעות</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{String(completedLessons.length)}</Text>

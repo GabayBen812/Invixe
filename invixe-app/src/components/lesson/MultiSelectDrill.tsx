@@ -13,12 +13,23 @@ interface Props {
   options: MultiSelectOption[];
   layout?: 'grid' | 'list';
   submitText?: string;
-  onSubmit: (result: { selectedIds: string[]; numCorrectSelections: number; perOptionCorrectness: Record<string, boolean>; allCorrect: boolean; }) => void;
+  correctExplanation?: string;
+  wrongExplanation?: string;
+  onSubmit: (result: { 
+    selectedIds: string[]; 
+    numCorrectSelections: number; 
+    perOptionCorrectness: Record<string, boolean>; 
+    allCorrect: boolean; 
+    isCorrect: boolean;
+    explanation: string;
+  }) => void;
 }
 
-export default function MultiSelectDrill({ title, options, layout = 'grid', submitText = 'בדוק', onSubmit }: Props) {
+export default function MultiSelectDrill({ title, options, layout = 'grid', submitText = 'בדוק', correctExplanation, wrongExplanation, onSubmit }: Props) {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
+  const [showingExplanation, setShowingExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   const selectedIds = useMemo(() => Object.keys(selected).filter(k => selected[k]), [selected]);
 
@@ -51,7 +62,21 @@ export default function MultiSelectDrill({ title, options, layout = 'grid', subm
 
   const handleSubmit = () => {
     setSubmitted(true);
-    onSubmit({ selectedIds, numCorrectSelections, perOptionCorrectness, allCorrect });
+    const correct = allCorrect;
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+  };
+
+  const handleContinue = () => {
+    const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
+    onSubmit({ 
+      selectedIds, 
+      numCorrectSelections, 
+      perOptionCorrectness, 
+      allCorrect,
+      isCorrect,
+      explanation
+    });
   };
 
   return (
@@ -73,8 +98,8 @@ export default function MultiSelectDrill({ title, options, layout = 'grid', subm
           );
         })}
       </View>
-      <Pressable style={styles.submitButton} onPress={handleSubmit}>
-        <Text style={styles.submitText}>{submitText}</Text>
+      <Pressable style={styles.submitButton} onPress={showingExplanation ? handleContinue : handleSubmit}>
+        <Text style={styles.submitText}>{showingExplanation ? 'המשך' : submitText}</Text>
       </Pressable>
     </View>
   );

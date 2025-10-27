@@ -10,7 +10,7 @@ type LessonsContextType = {
 
 const LessonsContext = createContext<LessonsContextType | undefined>(undefined);
 
-const API_BASE = 'http://10.0.0.9:4000/api';
+const API_BASE = 'http://10.0.0.8:4000/api';
 
 export function LessonsProvider({ children }: { children: React.ReactNode }) {
   const [lessonsRegistry, setLessonsRegistry] = useState<StepRegistry[]>([]);
@@ -22,7 +22,7 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
     async function loadRegistry() {
       try {
         setLoadingRegistry(true);
-        const res = await fetch(`${API_BASE}/lessons/registry`);
+        const res = await fetch(`${API_BASE}/v2/lessons/registry`);
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = await res.json();
         if (!cancelled) setLessonsRegistry(data || []);
@@ -40,7 +40,7 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
   const getLessonSteps = async (lessonId: number): Promise<LessonStep[]> => {
     if (stepsCache[lessonId]) return stepsCache[lessonId];
     try {
-      const res = await fetch(`${API_BASE}/lessons/${lessonId}/steps`);
+      const res = await fetch(`${API_BASE}/v2/lessons/${lessonId}/steps`);
       if (!res.ok) throw new Error(`status ${res.status}`);
       const data = (await res.json()) as LessonStep[];
       setStepsCache(prev => ({ ...prev, [lessonId]: data || [] }));
