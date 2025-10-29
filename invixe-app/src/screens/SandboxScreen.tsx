@@ -18,6 +18,7 @@ import BottomNavbar from '../components/ui/BottomNavbar';
 import PageBackground from '../components/ui/PageBackground';
 import theme from '../theme';
 import { useUser } from '../context/UserContext';
+import { API_BASE_URL } from '../config/api';
 import { WebView } from 'react-native-webview';
 
 
@@ -94,7 +95,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const fetchStockData = async (symbol: string, interval: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`http://10.0.0.8:4000/api/stocks/${symbol}?count=50&interval=${interval}`);
+      const response = await fetch(`${API_BASE_URL}/stocks/${symbol}?count=50&interval=${interval}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
@@ -145,7 +146,7 @@ export default function SandboxScreen({ navigation }: Props) {
   // Fetch live price
   const fetchLivePrice = async (symbol: string) => {
     try {
-      const response = await fetch(`http://10.0.0.8:4000/api/stocks/${symbol}/price`);
+      const response = await fetch(`${API_BASE_URL}/stocks/${symbol}/price`);
       if (!response.ok) return;
       const result = await response.json();
       setLivePrice(result.price);
@@ -171,7 +172,7 @@ export default function SandboxScreen({ navigation }: Props) {
 
   const fetchUserHoldings = async () => {
     try {
-      const response = await fetch('http://10.0.0.8:4000/api/user/portfolio');
+      const response = await fetch(`${API_BASE_URL}/user/portfolio`);
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -249,7 +250,7 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch('http://10.0.0.8:4000/api/user/portfolio/buy', {
+        const response = await fetch(`${API_BASE_URL}/user/portfolio/buy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -280,7 +281,7 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch('http://10.0.0.8:4000/api/user/portfolio/sell', {
+        const response = await fetch(`${API_BASE_URL}/user/portfolio/sell`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

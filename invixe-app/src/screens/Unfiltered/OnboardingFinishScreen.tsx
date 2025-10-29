@@ -12,7 +12,9 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
 
-const API_URL = "http://10.0.0.8:4000/api/register"; // Change to your backend URL
+import { API_BASE_URL } from "../../config/api";
+
+const API_URL = `${API_BASE_URL}/register`;
 
 type Props = NativeStackScreenProps<RootStackParamList, "OnboardingFinish">;
 

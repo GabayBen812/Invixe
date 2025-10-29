@@ -92,6 +92,13 @@ export const lessonsRegistry: StepRegistry[] = [
     step: 2,
     lessons: [
       {
+        id: 5,
+        title: "מבוא להשקעות במניות",
+        description: "הכרות עם עולם ההשקעות והמניות - הבסיס לכל המשך הלמידה",
+        lessonType: "info",
+        unlockRequirements: {},
+      },
+      {
         id: 6,
         title: "מהי מניה?",
         description: "הבנת המושג מניה וכיצד היא עובדת",

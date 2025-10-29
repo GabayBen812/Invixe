@@ -14,6 +14,7 @@ import BottomNavbar from '../components/ui/BottomNavbar';
 import theme from '../theme';
 import { useUser } from '../context/UserContext';
 import Svg, { Path } from 'react-native-svg';
+import { API_BASE_URL } from '../config/api';
 
 // Gold coin SVG
 const CoinIcon = () => (
@@ -75,7 +76,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const fetchPortfolio = async () => {
     try {
-      const response = await fetch('http://10.0.0.8:4000/api/user/portfolio');
+      const response = await fetch(`${API_BASE_URL}/user/portfolio`);
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -91,7 +92,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const fetchStockPrices = async () => {
     try {
       const symbols = portfolio.map(h => h.symbol).join(',');
-      const response = await fetch(`http://10.0.0.8:4000/api/stocks/prices?symbols=${symbols}`);
+      const response = await fetch(`${API_BASE_URL}/stocks/prices?symbols=${symbols}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock prices');
       }

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { StepRegistry } from '../modules/lessons/registry';
 import { LessonStep } from '../modules/lessons/types';
+import { API_BASE_URL } from '../config/api';
 
 type LessonsContextType = {
   lessonsRegistry: StepRegistry[];
@@ -10,7 +11,7 @@ type LessonsContextType = {
 
 const LessonsContext = createContext<LessonsContextType | undefined>(undefined);
 
-const API_BASE = 'http://10.0.0.8:4000/api';
+const API_BASE = API_BASE_URL;
 
 export function LessonsProvider({ children }: { children: React.ReactNode }) {
   const [lessonsRegistry, setLessonsRegistry] = useState<StepRegistry[]>([]);

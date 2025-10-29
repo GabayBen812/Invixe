@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { getParentLessonForSublesson, areAllSublessonsCompleted } from '../modules/lessons/registry';
+import { API_BASE_URL } from '../config/api';
 
 interface LessonAttempt {
   lessonId: number;
@@ -40,7 +41,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       if (!userEmail) {
         console.log('No user email provided, using default user');
         // For now, use a default user if no email is provided
-        const res = await fetch('http://10.0.0.8:4000/api/user/progress');
+        const res = await fetch(`${API_BASE_URL}/user/progress`);
         if (!res.ok) {
           throw new Error(`Failed to fetch user data: ${res.status}`);
         }
@@ -52,7 +53,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return;
       }
 
-      const res = await fetch(`http://10.0.0.8:4000/api/user/progress?email=${encodeURIComponent(userEmail)}`);
+      const res = await fetch(`${API_BASE_URL}/user/progress?email=${encodeURIComponent(userEmail)}`);
       if (!res.ok) {
         throw new Error(`Failed to fetch user data: ${res.status}`);
       }
@@ -82,7 +83,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     try {
       setCompletedLessonsState(lessons);
       const userEmail = currentUserEmail;
-      const res = await fetch('http://10.0.0.8:4000/api/user/progress', {
+      const res = await fetch(`${API_BASE_URL}/user/progress`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -104,7 +105,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     try {
       setLessonAttemptsState(attempts);
       const userEmail = currentUserEmail;
-      const res = await fetch('http://10.0.0.8:4000/api/user/lesson-attempts', {
+      const res = await fetch(`${API_BASE_URL}/user/lesson-attempts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -191,7 +192,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setCoins = async (coins: number) => {
     setCoinsState(coins);
     const userEmail = currentUserEmail;
-    await fetch('http://10.0.0.8:4000/api/user/currency', {
+    await fetch(`${API_BASE_URL}/user/currency`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: userEmail, coins }),
@@ -202,7 +203,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setLightnings = async (lightnings: number) => {
     setLightningsState(lightnings);
     const userEmail = currentUserEmail;
-    await fetch('http://10.0.0.8:4000/api/user/currency', {
+    await fetch(`${API_BASE_URL}/user/currency`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: userEmail, lightnings }),

@@ -16,7 +16,9 @@ import Button from "../../components/ui/Button";
 import theme from "../../theme";
 import Svg, { Path } from "react-native-svg";
 
-const API_URL = "http://10.0.0.8:4000/api/login"; // Use your local IP
+import { API_BASE_URL } from "../../config/api";
+
+const API_URL = `${API_BASE_URL}/login`;
 
 // Inline SVG logo as a React component
 const InvixeLogo = () => (
