@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { parseSVGCode } from '../../utils/svgParser';
 
 interface Choice {
   id: string;
@@ -9,7 +10,7 @@ interface Choice {
 
 interface Props {
   question: string;
-  imageSource: any; // Image source (require() or {uri: ''})
+  svgCode: string;
   choices: Choice[];
   submitText?: string;
   correctExplanation?: string;
@@ -22,9 +23,9 @@ interface Props {
   }) => void;
 }
 
-export default function QuestionWithImage({ 
+export default function QuestionWithSVG({ 
   question, 
-  imageSource, 
+  svgCode,
   choices, 
   submitText = 'בדוק',
   correctExplanation,
@@ -58,6 +59,8 @@ export default function QuestionWithImage({
     });
   };
 
+  const parsedSVG = svgCode ? parseSVGCode(svgCode) : null;
+
   return (
     <View style={styles.container}>
       {/* Question Text */}
@@ -65,9 +68,13 @@ export default function QuestionWithImage({
         <Text style={styles.questionText}>{question}</Text>
       </View>
 
-      {/* Image */}
-      <View style={styles.imageContainer}>
-        <Image source={imageSource} style={styles.image} resizeMode="contain" />
+      {/* SVG */}
+      <View style={styles.svgContainer}>
+        {parsedSVG || (
+          <View style={styles.svgPlaceholder}>
+            <Text style={styles.svgPlaceholderText}>SVG</Text>
+          </View>
+        )}
       </View>
 
       {/* Choices */}
@@ -86,7 +93,7 @@ export default function QuestionWithImage({
               buttonStyle = styles.choiceButtonCorrect;
             }
           } else if (isSelected) {
-            buttonStyle = styles.selectedChoice;
+            buttonStyle = styles.choiceButtonSelected;
           }
 
           return (
@@ -101,7 +108,7 @@ export default function QuestionWithImage({
             >
               <Text style={[
                 styles.choiceText,
-                (submitted || isSelected) && styles.selectedChoiceText
+                (submitted || isSelected) && styles.choiceTextSelected
               ]}>
                 {choice.text}
               </Text>
@@ -132,6 +139,8 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
     paddingVertical: 16,
+    width: '100%',
+    alignItems: 'center',
   },
   questionContainer: {
     marginBottom: 20,
@@ -139,6 +148,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -152,24 +162,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 24,
   },
-  imageContainer: {
+  svgContainer: {
     marginBottom: 24,
     alignItems: 'center',
-    backgroundColor: '#1F2937',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
+    width: '100%',
+    minHeight: 200,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
   },
-  image: {
+  svgPlaceholder: {
     width: '100%',
-    height: 200,
+    height: 180,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  svgPlaceholderText: {
+    color: '#334155',
+    fontWeight: '700',
+    fontSize: 16,
   },
   choicesContainer: {
     marginBottom: 24,
+    width: '100%',
   },
   choiceButton: {
     backgroundColor: '#FFFFFF',
@@ -185,7 +208,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 2,
   },
-  selectedChoice: {
+  choiceButtonSelected: {
     borderColor: '#3F9FFF',
     backgroundColor: '#EBF4FF',
   },
@@ -204,7 +227,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  selectedChoiceText: {
+  choiceTextSelected: {
     color: '#1E40AF',
     fontWeight: '600',
   },
@@ -214,6 +237,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 32,
     alignItems: 'center',
+    width: '100%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -229,3 +253,4 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+

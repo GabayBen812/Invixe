@@ -1,7 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 const { createClient } = require('@supabase/supabase-js');
 
 // Helper: get user by email
@@ -25,7 +23,7 @@ async function getUserByEmail(email) {
       .eq('userid', user.id);
     return { ...user, progress: (progress||[]).map(p=>({ lessonId: p.lessonid, completed: p.completed })), lessonAttempts: (lessonAttempts||[]).map(a=>({ lessonId: a.lessonid, completed: a.completed, lastAttempted: a.lastattempted, attempts: a.attempts })) };
   }
-  return prisma.user.findUnique({ where: { email }, include: { progress: true, lessonAttempts: true } });
+  throw new Error('Supabase not configured');
 }
 
 // Helper: get default user (for backward compatibility)
@@ -49,7 +47,7 @@ async function getDefaultUser() {
       .eq('userid', user.id);
     return { ...user, progress: (progress||[]).map(p=>({ lessonId: p.lessonid, completed: p.completed })), lessonAttempts: (lessonAttempts||[]).map(a=>({ lessonId: a.lessonid, completed: a.completed, lastAttempted: a.lastattempted, attempts: a.attempts })) };
   }
-  return prisma.user.findFirst({ include: { progress: true, lessonAttempts: true } });
+  throw new Error('Supabase not configured');
 }
 
 // GET user progress, coins, and lightnings
@@ -106,7 +104,7 @@ router.post('/progress', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    const supabase = req.app.get('SUPABASE_ONLY') ? req.app.get('supabase') : null;
+    const supabase = req.app.get('supabase');
     if (supabase) {
       await supabase.from('Progress').delete().eq('userid', user.id);
       if (completedLessons && completedLessons.length > 0) {
@@ -116,13 +114,7 @@ router.post('/progress', async (req, res) => {
       }
       return res.json({ success: true });
     }
-    await prisma.progress.deleteMany({ where: { userId: user.id } });
-    if (completedLessons && completedLessons.length > 0) {
-      const rows = completedLessons.map((lessonId) => ({ userId: user.id, lessonId: String(lessonId), completed: true }));
-      await prisma.progress.createMany({ data: rows });
-    }
-    
-    res.json({ success: true });
+    throw new Error('Supabase not configured');
   } catch (error) {
     console.error('Error updating progress:', error);
     res.status(500).json({ error: 'Server error' });
@@ -145,7 +137,7 @@ router.post('/lesson-attempts', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    const supabase = req.app.get('SUPABASE_ONLY') ? req.app.get('supabase') : null;
+    const supabase = req.app.get('supabase');
     if (supabase) {
       await supabase.from('LessonAttempt').delete().eq('userid', user.id);
       if (lessonAttempts && lessonAttempts.length > 0) {
@@ -155,13 +147,7 @@ router.post('/lesson-attempts', async (req, res) => {
       }
       return res.json({ success: true });
     }
-    await prisma.lessonAttempt.deleteMany({ where: { userId: user.id } });
-    if (lessonAttempts && lessonAttempts.length > 0) {
-      const rows = lessonAttempts.map(attempt => ({ userId: user.id, lessonId: String(attempt.lessonId), completed: attempt.completed, lastAttempted: new Date(attempt.lastAttempted), attempts: attempt.attempts }));
-      await prisma.lessonAttempt.createMany({ data: rows });
-    }
-    
-    res.json({ success: true });
+    throw new Error('Supabase not configured');
   } catch (error) {
     console.error('Error updating lesson attempts:', error);
     res.status(500).json({ error: 'Server error' });
@@ -184,7 +170,7 @@ router.post('/currency', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    const supabase = req.app.get('SUPABASE_ONLY') ? req.app.get('supabase') : null;
+    const supabase = req.app.get('supabase');
     if (supabase) {
       const payload = {
         ...(typeof coins === 'number' ? { coins } : {}),
@@ -194,8 +180,7 @@ router.post('/currency', async (req, res) => {
       if (error) throw error;
       return res.json({ success: true });
     }
-    await prisma.user.update({ where: { id: user.id }, data: { coins: typeof coins === 'number' ? coins : user.coins, lightnings: typeof lightnings === 'number' ? lightnings : user.lightnings } });
-    res.json({ success: true });
+    throw new Error('Supabase not configured');
   } catch (error) {
     console.error('Error updating currency:', error);
     res.status(500).json({ error: 'Server error' });
@@ -227,8 +212,7 @@ router.post('/add-coins', async (req, res) => {
       if (error) throw error;
       return res.json({ success: true, newCoins, coinsAdded: coins });
     }
-    await prisma.user.update({ where: { id: user.id }, data: { coins: newCoins } });
-    res.json({ success: true, newCoins, coinsAdded: coins });
+    throw new Error('Supabase not configured');
   } catch (error) {
     console.error('Error adding coins:', error);
     res.status(500).json({ error: 'Server error' });
@@ -251,7 +235,7 @@ router.get('/portfolio', async (req, res) => {
     
     if (!user) return res.status(404).json({ error: 'User not found' });
     
-    const supabase = req.app.get('SUPABASE_ONLY') ? req.app.get('supabase') : null;
+    const supabase = req.app.get('supabase');
     if (supabase) {
       const { data: portfolio, error } = await supabase
         .from('Portfolio')
@@ -261,8 +245,7 @@ router.get('/portfolio', async (req, res) => {
       if (error) throw error;
       return res.json({ portfolio });
     }
-    const portfolio = await prisma.portfolio.findMany({ where: { userId: user.id }, orderBy: { updatedAt: 'desc' } });
-    return res.json({ portfolio });
+    throw new Error('Supabase not configured');
   } catch (error) {
     console.error('Error fetching portfolio:', error);
     res.status(500).json({ error: 'Server error' });
@@ -310,8 +293,6 @@ router.post('/portfolio/buy', async (req, res) => {
         .maybeSingle();
       if (error && error.code !== 'PGRST116') throw error; // not found is ok
       existingHolding = data || null;
-    } else {
-      existingHolding = await prisma.portfolio.findFirst({ where: { userId: user.id, symbol } });
     }
 
     if (existingHolding) {
@@ -325,8 +306,6 @@ router.post('/portfolio/buy', async (req, res) => {
           .update({ shares: newShares, avgprice: newAvgPrice })
           .eq('id', existingHolding.id);
         if (error) throw error;
-      } else {
-        await prisma.portfolio.update({ where: { id: existingHolding.id }, data: { shares: newShares, avgPrice: newAvgPrice } });
       }
     } else {
       if (supabase) {
@@ -334,8 +313,6 @@ router.post('/portfolio/buy', async (req, res) => {
           .from('Portfolio')
           .insert({ userid: user.id, symbol, shares: sharesNum, avgprice: priceNum });
         if (error) throw error;
-      } else {
-        await prisma.portfolio.create({ data: { userId: user.id, symbol, shares: sharesNum, avgPrice: priceNum } });
       }
     }
 
@@ -343,8 +320,6 @@ router.post('/portfolio/buy', async (req, res) => {
     if (supabase) {
       const { error } = await supabase.from('User').update({ coins: user.coins - totalCost }).eq('id', user.id);
       if (error) throw error;
-    } else {
-      await prisma.user.update({ where: { id: user.id }, data: { coins: user.coins - totalCost } });
     }
 
     res.json({ 
@@ -393,8 +368,6 @@ router.post('/portfolio/sell', async (req, res) => {
         .maybeSingle();
       if (error && error.code !== 'PGRST116') throw error;
       holding = data || null;
-    } else {
-      holding = await prisma.portfolio.findFirst({ where: { userId: user.id, symbol } });
     }
 
     if (!holding || holding.shares < sharesNum) {
@@ -409,15 +382,11 @@ router.post('/portfolio/sell', async (req, res) => {
       if (supabase) {
         const { error } = await supabase.from('Portfolio').delete().eq('id', holding.id);
         if (error) throw error;
-      } else {
-        await prisma.portfolio.delete({ where: { id: holding.id } });
       }
     } else {
       if (supabase) {
         const { error } = await supabase.from('Portfolio').update({ shares: newShares }).eq('id', holding.id);
         if (error) throw error;
-      } else {
-        await prisma.portfolio.update({ where: { id: holding.id }, data: { shares: newShares } });
       }
     }
 
@@ -425,8 +394,6 @@ router.post('/portfolio/sell', async (req, res) => {
     if (supabase) {
       const { error } = await supabase.from('User').update({ coins: user.coins + totalValue }).eq('id', user.id);
       if (error) throw error;
-    } else {
-      await prisma.user.update({ where: { id: user.id }, data: { coins: user.coins + totalValue } });
     }
 
     res.json({ 

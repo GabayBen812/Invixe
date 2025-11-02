@@ -22,9 +22,6 @@ app.use('/api/register', require('./routes/register'));
 app.use('/api/login', require('./routes/login'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/stocks', require('./routes/stocks'));
-// Keep lesson builder compatibility
-app.use('/api/exportLesson', require('./routes/exportLesson'));
-app.use('/api/lessons', require('./routes/lessons'));
 app.use('/api/v2/lessons', require('./routes/v2.lessons'));
 
 // Health check routes

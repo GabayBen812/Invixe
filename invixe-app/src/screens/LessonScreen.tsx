@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { View, Image, Animated, StyleSheet, Text, Pressable } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
+import { View, Image, Animated, StyleSheet, Text, Pressable, ActivityIndicator } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep } from "../modules/lessons/types";
@@ -31,12 +31,15 @@ import CarouselSelectDrill from '../components/lesson/CarouselSelectDrill';
 import DragMatchDrill from '../components/lesson/DragMatchDrill';
 import SequenceBuildDrill from '../components/lesson/SequenceBuildDrill';
 import Dialog from '../components/lesson/Dialog';
+import QuestionWithImage from '../components/lesson/QuestionWithImage';
+import QuestionWithSVG from '../components/lesson/QuestionWithSVG';
+import TextWithSVG from '../components/lesson/TextWithSVG';
 
 const characterImg = require("../assets/character.png");
 const backgroundImages = {
   defaultBackground: require("../assets/DefaultBlankBackground.png"),
-  bg1: require("../assets/Lessons/1/lesson1_bg1.png"),
-  bg2: require("../assets/Lessons/1/lesson1_bg2.png"),
+  bg1: require("../assets/DefaultBlankBackground.png"),
+  bg2: require("../assets/DefaultBlankBackground.png"),
   bg4: require("../assets/Lessons/1/lesson1_bg4.png"),
   bg3: require("../assets/Lessons/2/lesson2_bg1.png"),
   bg5: require("../assets/Lessons/2/lesson2_bg2.png"),
@@ -93,6 +96,9 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [drillRewards, setDrillRewards] = useState<number>(0);
   const [drillExplanation, setDrillExplanation] = useState<string | null>(null);
   const [showingDrillExplanation, setShowingDrillExplanation] = useState(false);
+  const [showSimpleQuestionButtonSheet, setShowSimpleQuestionButtonSheet] = useState(false);
+  const [simpleQuestionIsCorrect, setSimpleQuestionIsCorrect] = useState(false);
+  const svgMultiSelectSubmitRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (route.params?.lessonId) {
@@ -116,21 +122,52 @@ export default function LessonScreen({ navigation, route }: Props) {
     })();
     return () => { cancelled = true; };
   }, [lessonId]);
+
+  // Reset drill state when step changes
+  useEffect(() => {
+    setSelectedChoiceIdx(null);
+    setShowingDrillExplanation(false);
+    setDrillExplanation(null);
+    setDrillRewards(0);
+    setShowCorrectOverlay(false);
+    setPendingNextStep(null);
+    setShowSimpleQuestionButtonSheet(false);
+    setSimpleQuestionIsCorrect(false);
+    svgMultiSelectSubmitRef.current = null;
+  }, [stepId]);
+
   const step: LessonStep =
     currentLessonSteps.find((s: LessonStep) => s.id === stepId) ||
     currentLessonSteps[0];
 
   const isDialog = step?.activity === 'dialog' && !!step.activityConfig?.dialog;
   const isExplain = step?.activity === 'textWithImageExplain' && !!step.activityConfig?.questionWithImage;
+  const isTextWithSVG = step?.activity === 'textWithSVG' && !!step.activityConfig?.questionWithImage;
+  const isSimpleQuestion = step?.activity === 'simple_question';
+  const isSVGMultiSelect = step?.activity === 'svgMultiSelect' && !!step.activityConfig?.svgOptions;
 
-  const handleDrillComplete = (result: { isCorrect: boolean; explanation: string; numCorrectSelections?: number; correct?: boolean; numCorrect?: number; total?: number }) => {
-    const rewards = result.numCorrectSelections || (result.correct ? 1 : 0) || (result.numCorrect || 0);
-    setDrillRewards(rewards);
-    setDrillExplanation(result.explanation);
-    setShowingDrillExplanation(true);
-    // Award lightnings
-    if (rewards > 0) {
-      setLightnings(lightnings + rewards);
+  const handleDrillComplete = (result: { isCorrect: boolean; explanation: string; numCorrectSelections?: number; correct?: boolean; numCorrect?: number; total?: number; rewards?: number }) => {
+    const rewards = result.rewards || result.numCorrectSelections || (result.correct ? 1 : 0) || (result.numCorrect || 0);
+    const isCorrect = result.isCorrect || result.correct || false;
+    
+    // For simple_question, show button sheet instead of just setting explanation
+    if (isSimpleQuestion) {
+      setSimpleQuestionIsCorrect(isCorrect);
+      setDrillRewards(rewards);
+      setDrillExplanation(result.explanation);
+      setShowSimpleQuestionButtonSheet(true);
+      // Award lightnings
+      if (rewards > 0) {
+        setLightnings(lightnings + rewards);
+      }
+    } else {
+      setDrillRewards(rewards);
+      setDrillExplanation(result.explanation);
+      setShowingDrillExplanation(true);
+      // Award lightnings
+      if (rewards > 0) {
+        setLightnings(lightnings + rewards);
+      }
     }
   };
 
@@ -143,6 +180,16 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
   };
 
+  const handleSimpleQuestionButtonSheetContinue = () => {
+    setShowSimpleQuestionButtonSheet(false);
+    // Navigate to next step based on the selected choice's nextStep
+    if (selectedChoiceIdx !== null && step.choices && step.choices[selectedChoiceIdx]) {
+      const next = step.choices[selectedChoiceIdx].nextStep;
+      setSelectedChoiceIdx(null);
+      handleChoice(next);
+    }
+  };
+
   const handleChoice = (nextStep: string) => {
     // If the next step is a known fail step, navigate to fail immediately
     if (nextStep === 'wrong1') {
@@ -150,32 +197,16 @@ export default function LessonScreen({ navigation, route }: Props) {
       return;
     }
     
-    // Check if this step has points (correct answer) and should show bottom sheet
-    const nextStepData = currentLessonSteps.find(s => s.id === nextStep);
-    if (nextStepData && nextStepData.points && nextStepData.points > 0) {
-      // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
-      setShowCorrectOverlay(true);
-      setPendingNextStep(nextStep);
-      setAnswerMode('correct');
-      setDrillRewards(nextStepData.points);
-      return;
-    }
+    // Check if lesson is complete (empty/undefined nextStep or nextStep doesn't exist in steps)
+    const isEmptyOrInvalid = !nextStep || nextStep === "" || !currentLessonSteps.find(s => s.id === nextStep);
     
-    // Show Figma-like correct overlay for TA intro first question (legacy support)
-    if (lessonId === 11 && stepId === 'intro' && nextStep === 'correct_def') {
-      // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
-      setShowCorrectOverlay(true);
-      setPendingNextStep(nextStep);
-      setAnswerMode('correct');
-      setDrillRewards(2); // Default reward for this specific case
-      return;
-    }
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(async () => {
-      if (nextStep === "map") {
+    if (isEmptyOrInvalid || nextStep === "map") {
+      // Lesson is complete - navigate to completion screen
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(async () => {
         let shouldComplete = true;
         let shouldFail = false;
         // Special logic for quiz lesson: only complete if user answered correctly
@@ -199,18 +230,100 @@ export default function LessonScreen({ navigation, route }: Props) {
           }
         }
         navigation.navigate("LessonComplete", { lessonId });
-      } else {
-        setStepId(nextStep);
-        fadeAnim.setValue(1);
-      }
+      });
+      return;
+    }
+    
+    // Check if this step has points (correct answer) and should show bottom sheet
+    const nextStepData = currentLessonSteps.find(s => s.id === nextStep);
+    if (nextStepData && nextStepData.points && nextStepData.points > 0) {
+      // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
+      setShowCorrectOverlay(true);
+      setPendingNextStep(nextStep);
+      setAnswerMode('correct');
+      setDrillRewards(nextStepData.points);
+      return;
+    }
+    
+    // Show Figma-like correct overlay for TA intro first question (legacy support)
+    if (lessonId === 11 && stepId === 'intro' && nextStep === 'correct_def') {
+      // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
+      setShowCorrectOverlay(true);
+      setPendingNextStep(nextStep);
+      setAnswerMode('correct');
+      setDrillRewards(2); // Default reward for this specific case
+      return;
+    }
+    
+    // Navigate to next step in lesson
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      setStepId(nextStep);
+      fadeAnim.setValue(1);
     });
   };
+
+  // Loading state animations
+  const loadingAnimation = useRef(new Animated.Value(0)).current;
+  const spinAnimation = useRef(new Animated.Value(0)).current;
+  
+  useEffect(() => {
+    // Opacity pulse animation for character
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(loadingAnimation, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(loadingAnimation, {
+          toValue: 0,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+    
+    // Spin animation for loader
+    Animated.loop(
+      Animated.timing(spinAnimation, {
+        toValue: 1,
+        duration: 2000,
+        useNativeDriver: true,
+      })
+    ).start();
+  }, []);
+
+  const spin = spinAnimation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const opacity = loadingAnimation.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0.6, 1, 0.6],
+  });
 
   if (!step) {
     return (
       <PageBackground source={backgroundImages.bg1}>
-        <View style={styles.content}>
-          <SpeechBubble message="Loading lesson..." />
+        <TopBar />
+        <View style={styles.loadingContainer}>
+          <Animated.View style={[styles.loadingCharacterContainer, { opacity }]}>
+            <Image
+              source={characterImg}
+              style={styles.loadingCharacter}
+            />
+          </Animated.View>
+          <View style={styles.loadingSpinnerContainer}>
+            <Animated.View style={{ transform: [{ rotate: spin }] }}>
+              <ActivityIndicator size="large" color="#3F9FFF" />
+            </Animated.View>
+          </View>
+          <Text style={styles.loadingText}>טוען שיעור...</Text>
         </View>
       </PageBackground>
     );
@@ -225,6 +338,32 @@ export default function LessonScreen({ navigation, route }: Props) {
         {step.showInventory && step.inventory && (
           <Inventory inventory={step.inventory} />
         )}
+        {/* Text with image explanation activity - outside bubbleWrapper for proper flex layout */}
+        {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && (
+          <View style={styles.textWithImageWrapper}>
+            <SpeechBubble 
+              message={step.message || ''}
+              position={step.bubblePosition || 'topRight'}
+              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              disableTyping
+              disableEnterAnim
+            />
+            {(step.activityConfig.questionWithImage.uploadedImagePublicUrl || step.activityConfig.questionWithImage.uploadedImageUrl || step.activityConfig.questionWithImage.uploadedImage) && (
+              <View style={styles.textWithImageContainer}>
+                <Image
+                  source={{ 
+                    uri: step.activityConfig.questionWithImage.uploadedImagePublicUrl 
+                      || step.activityConfig.questionWithImage.uploadedImageUrl
+                      || step.activityConfig.questionWithImage.uploadedImage 
+                  }}
+                  style={styles.textWithImageImage}
+                  resizeMode="contain"
+                />
+              </View>
+            )}
+          </View>
+        )}
+        
         <View style={styles.bubbleWrapper}>
           {/* Dialog activity */}
           {step.activity === 'dialog' && step.activityConfig?.dialog && (
@@ -241,38 +380,62 @@ export default function LessonScreen({ navigation, route }: Props) {
             />
           )}
 
-          {/* Text with image explanation activity */}
-          {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && (
-            <View style={{ width: '100%', alignItems: 'center' }}>
-              <View style={styles.explainContainer}>
-                {!!step.message && (
-                  <Text style={styles.explainText}>{step.message}</Text>
-                )}
-                {step.activityConfig.questionWithImage.uploadedImage && (
-                  <Image
-                    source={{ uri: step.activityConfig.questionWithImage.uploadedImage }}
-                    style={styles.explainImage}
-                    resizeMode="contain"
-                  />
-                )}
-                <Pressable
-                  style={styles.simpleTextButton}
-                  onPress={() => {
-                    if (choices && choices.length >= 1) {
-                      handleChoice(choices[0].nextStep);
-                    }
-                  }}
-                >
-                  <Text style={styles.confirmButtonText}>
-                    {step.activityConfig.questionWithImage.submitText || 'המשך'}
-                  </Text>
-                </Pressable>
-              </View>
-            </View>
+          {/* Text with SVG explanation activity */}
+          {step.activity === 'textWithSVG' && step.activityConfig?.questionWithImage && (
+            <TextWithSVG
+              text={step.message}
+              svgCode={step.activityConfig.questionWithImage.svgCode}
+              submitText={step.activityConfig.questionWithImage.submitText || 'המשך'}
+              onContinue={() => {
+                if (choices && choices.length >= 1) {
+                  handleChoice(choices[0].nextStep);
+                }
+              }}
+            />
           )}
 
-          {/* Hide bubble when dialog or explain is active */}
-          {!(isDialog || isExplain) && (
+          {/* Question with image drill */}
+          {step.activity === 'questionWithImage' && step.activityConfig?.questionWithImage && (
+            <QuestionWithImage
+              question={step.activityConfig.questionWithImage.question || ''}
+              imageSource={step.activityConfig.questionWithImage.uploadedImage 
+                ? { uri: step.activityConfig.questionWithImage.uploadedImage }
+                : require('../assets/DefaultBlankBackground.png')}
+              choices={step.activityConfig.questionWithImage.choices || []}
+              submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
+              correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
+              wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
+              onSubmit={(result) => {
+                const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
+                handleDrillComplete({
+                  ...result,
+                  rewards
+                });
+              }}
+            />
+          )}
+
+          {/* Question with SVG drill */}
+          {step.activity === 'questionWithSVG' && step.activityConfig?.questionWithImage && (
+            <QuestionWithSVG
+              question={step.activityConfig.questionWithImage.question || ''}
+              svgCode={step.activityConfig.questionWithImage.svgCode || ''}
+              choices={step.activityConfig.questionWithImage.choices || []}
+              submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
+              correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
+              wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
+              onSubmit={(result) => {
+                const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
+                handleDrillComplete({
+                  ...result,
+                  rewards
+                });
+              }}
+            />
+          )}
+
+          {/* Hide bubble when dialog, explain, textWithSVG, simpleQuestion, or svgMultiSelect is active */}
+          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect) && (
             <SpeechBubble 
               message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
               characterImg={getCharacterImg(step.characterImg)} 
@@ -280,6 +443,18 @@ export default function LessonScreen({ navigation, route }: Props) {
               align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
               buttonText={showingDrillExplanation ? 'המשך' : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined)}
               onButtonPress={showingDrillExplanation ? handleExplanationContinue : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? () => handleChoice(choices[0].nextStep) : undefined)}
+            />
+          )}
+
+          {/* Simple question - show speech bubble with message/explanation */}
+          {isSimpleQuestion && (
+            <SpeechBubble 
+              message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
+              characterImg={getCharacterImg(step.characterImg)} 
+              position={step.bubblePosition || 'bottomLeft'}
+              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              disableTyping
+              disableEnterAnim
             />
           )}
           {/* Render candlestick SVG if visual is set */}
@@ -399,19 +574,39 @@ export default function LessonScreen({ navigation, route }: Props) {
 
           {/* SVG MultiSelect drill */}
           {step.activity === 'svgMultiSelect' && step.activityConfig?.svgOptions && (
-            <SVGMultiSelectDrill
-              options={step.activityConfig.svgOptions.map((o: any) => ({
-                id: o.id,
-                label: o.label,
-                svgCode: o.svgCode || '',
-                correct: o.correct,
-              }))}
-              layout={step.activityConfig.layout || 'grid'}
-              submitText={step.activityConfig.submitText || 'בדוק'}
-              correctExplanation={step.activityConfig.correctExplanation}
-              wrongExplanation={step.activityConfig.wrongExplanation}
-              onSubmit={handleDrillComplete}
-            />
+            <>
+              <SpeechBubble 
+                message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
+                characterImg={getCharacterImg(step.characterImg)} 
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                disableTyping
+                disableEnterAnim
+              />
+              <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 10 }}>
+                <SVGMultiSelectDrill
+                  options={step.activityConfig.svgOptions.map((o: any) => ({
+                    id: o.id,
+                    label: o.label,
+                    svgCode: o.svgCode || undefined,
+                    svgUrl: o.svgUrl || undefined,
+                    svgPublicUrl: o.svgPublicUrl || undefined,
+                    svgPath: o.svgPath || undefined,
+                    correct: o.correct,
+                  }))}
+                  layout={step.activityConfig.layout || 'grid'}
+                  submitText={step.activityConfig.submitText || 'בדוק'}
+                  correctExplanation={step.activityConfig.correctExplanation}
+                  wrongExplanation={step.activityConfig.wrongExplanation}
+                  onSubmit={handleDrillComplete}
+                  showSubmitButton={false}
+                  onSubmitTriggerRef={svgMultiSelectSubmitRef}
+                  onStateChange={(state) => {
+                    // Track if we can submit
+                  }}
+                />
+              </View>
+            </>
           )}
 
           {/* Carousel select drill */}
@@ -460,10 +655,94 @@ export default function LessonScreen({ navigation, route }: Props) {
             />
           )}
         </View>
-        {/* Choices: hidden during dialog/explain to reduce clutter */}
-        {!(isDialog || isExplain) && (
+        {/* Choices: hidden during dialog/explain/textWithSVG to reduce clutter */}
+        {!(isDialog || isExplain || isTextWithSVG) && (
           <View style={styles.choices}>
-            {choices && choices.length > 1 && (
+            {isSimpleQuestion && choices && choices.length > 0 && (
+              <>
+                {choices.map((choice, idx) => {
+                  const isSelected = selectedChoiceIdx === idx;
+                  const isCorrect = (choice as any).correct === true;
+                  const isSubmitted = showSimpleQuestionButtonSheet || showingDrillExplanation;
+                  
+                  let cardStyle: any[] = [styles.choiceCard];
+                  let textStyle: any[] = [styles.choiceText];
+                  
+                  if (isSubmitted) {
+                    if (isSelected && isCorrect) {
+                      cardStyle.push(styles.choiceCardCorrect);
+                      textStyle.push(styles.choiceTextCorrect);
+                    } else if (isSelected && !isCorrect) {
+                      cardStyle.push(styles.choiceCardWrong);
+                      textStyle.push(styles.choiceTextWrong);
+                    } else if (!isSelected && isCorrect) {
+                      cardStyle.push(styles.choiceCardCorrect);
+                      textStyle.push(styles.choiceTextCorrect);
+                    } else {
+                      cardStyle.push(styles.choiceCardDisabled);
+                      textStyle.push(styles.choiceTextDisabled);
+                    }
+                  } else if (isSelected) {
+                    cardStyle.push(styles.choiceCardSelected);
+                    textStyle.push(styles.choiceTextSelected);
+                  }
+
+                  return (
+                    <Pressable
+                      key={choice.text}
+                      onPress={() => {
+                        if (!isSubmitted) {
+                          setSelectedChoiceIdx(idx);
+                        }
+                      }}
+                      style={({ pressed }) => [
+                        ...cardStyle,
+                        pressed && !isSubmitted && { transform: [{ scale: 0.985 }] },
+                      ]}
+                    >
+                      <Text style={textStyle}>{choice.text}</Text>
+                    </Pressable>
+                  );
+                })}
+                {!showSimpleQuestionButtonSheet && (
+                  <Pressable
+                    style={styles.primaryButton}
+                    onPress={() => {
+                      if (!showSimpleQuestionButtonSheet && !showingDrillExplanation) {
+                        // Submit logic
+                        if (selectedChoiceIdx !== null) {
+                          const selectedChoice = choices[selectedChoiceIdx] as any;
+                          const correct = selectedChoice?.correct === true;
+                          const explanation = correct 
+                            ? (step.activityConfig?.correctExplanation || 'נכון!')
+                            : (step.activityConfig?.wrongExplanation || 'לא נכון, נסה שוב');
+                          
+                          const rewards = correct ? (step.activityConfig?.rewards || 0) : 0;
+                          handleDrillComplete({
+                            isCorrect: correct,
+                            explanation,
+                            correct,
+                            numCorrect: correct ? 1 : 0,
+                            total: 1,
+                            rewards
+                          });
+                        }
+                      } else {
+                        // Continue logic (shouldn't happen for simple_question with button sheet)
+                        if (selectedChoiceIdx !== null && choices[selectedChoiceIdx]) {
+                          const next = choices[selectedChoiceIdx].nextStep;
+                          setSelectedChoiceIdx(null);
+                          handleChoice(next);
+                        }
+                      }
+                    }}
+                  >
+                    <Text style={styles.primaryButtonText}>בדוק</Text>
+                  </Pressable>
+                )}
+              </>
+            )}
+            {!isSimpleQuestion && choices && choices.length > 1 && (
               <>
                 {choices.map((choice, idx) => (
                   <Pressable
@@ -497,7 +776,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 )}
               </>
             )}
-            {choices && choices.length === 1 && step.id !== 'simple_text_step' && (
+            {!isSimpleQuestion && choices && choices.length === 1 && step.id !== 'simple_text_step' && (
               <Pressable
                 style={styles.primaryButton}
                 onPress={() => handleChoice(choices[0].nextStep)}
@@ -536,6 +815,65 @@ export default function LessonScreen({ navigation, route }: Props) {
           </View>
         </View>
       )}
+      {/* Button sheet for simple_question */}
+      {showSimpleQuestionButtonSheet && isSimpleQuestion && (
+        <View style={styles.buttonSheetContainer}>
+          <View style={styles.buttonSheet}>
+            <Text style={[styles.buttonSheetTitle, simpleQuestionIsCorrect ? styles.buttonSheetTitleCorrect : styles.buttonSheetTitleWrong]}>
+              {simpleQuestionIsCorrect ? 'תשובה נכונה!' : 'טעות'}
+            </Text>
+            {simpleQuestionIsCorrect && drillRewards > 0 && (
+              <View style={styles.buttonSheetRewardRow}>
+                <Text style={styles.buttonSheetRewardText}>הרווחת {drillRewards}$</Text>
+              </View>
+            )}
+            <Pressable
+              style={[styles.buttonSheetContinueButton, !simpleQuestionIsCorrect && styles.buttonSheetContinueButtonWrong]}
+              onPress={handleSimpleQuestionButtonSheetContinue}
+            >
+              <Text style={styles.buttonSheetContinueButtonText}>המשך</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+      {/* Absolute continue button for textWithImageExplain */}
+      {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && !showCorrectOverlay && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (choices && choices.length >= 1) {
+                handleChoice(choices[0].nextStep);
+              }
+            }}
+          >
+            <Text style={styles.continueButtonText}>
+              {step.activityConfig.questionWithImage.submitText || 'המשך'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Absolute submit/continue button for svgMultiSelect */}
+      {step.activity === 'svgMultiSelect' && step.activityConfig?.svgOptions && !showSimpleQuestionButtonSheet && !showCorrectOverlay && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                // Continue to next step
+                handleExplanationContinue();
+              } else if (svgMultiSelectSubmitRef.current) {
+                // Trigger submit from drill component
+                svgMultiSelectSubmitRef.current();
+              }
+            }}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation ? 'המשך' : (step.activityConfig.submitText || 'בדוק')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.progressContainer}>
         {/* <Text style={styles.progressText}>
           {`${currentLessonSteps.findIndex(s => s.id === stepId) + 1}/${currentLessonSteps.length}`}
@@ -556,7 +894,8 @@ export default function LessonScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   content: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "flex-start",
+    marginTop: 16,
     alignItems: "center",
     paddingBottom: 150,
     width: "100%",
@@ -571,6 +910,13 @@ const styles = StyleSheet.create({
     marginBottom: 0,
     paddingBottom: 90,
     // backgroundColor: 'blue'
+  },
+  textWithImageWrapper: {
+    flex: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 16,
   },
   choices: {
     width: "100%",
@@ -611,6 +957,19 @@ const styles = StyleSheet.create({
   },
   choiceTextCorrect: {
     color: '#FFFFFF',
+  },
+  choiceCardWrong: {
+    backgroundColor: '#FF6B6B',
+  },
+  choiceTextWrong: {
+    color: '#FFFFFF',
+  },
+  choiceCardDisabled: {
+    backgroundColor: '#F3F4F6',
+    opacity: 0.6,
+  },
+  choiceTextDisabled: {
+    color: '#9CA3AF',
   },
   choiceButton: {
     maxWidth: '95%',
@@ -674,6 +1033,52 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#0D2033',
     marginBottom: 16,
+  },
+  textWithImageContainer: {
+    width: '94%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    flex: 1,
+    minHeight: 180,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 6,
+    marginBottom: 14,
+    overflow: 'hidden',
+    maxHeight: '100%',
+  },
+  textWithImageImage: {
+    width: '100%',
+    height: '100%',
+  },
+  absoluteContinueButton: {
+    position: 'absolute',
+    bottom: 70,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  continueButton: {
+    backgroundColor: '#3F9FFF',
+    minWidth: 200,
+    borderRadius: 16.4,
+    paddingVertical: 16,
+    paddingHorizontal: 21,
+    marginBottom: 20,
+    shadowColor: '#3F9FFF',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  continueButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   progressContainer: {
     alignItems: 'center',
@@ -775,5 +1180,99 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: -1, // Ensure it's behind other elements
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 100,
+  },
+  loadingCharacterContainer: {
+    marginBottom: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingCharacter: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+  },
+  loadingSpinnerContainer: {
+    marginBottom: 20,
+    width: 50,
+    height: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#3F9FFF',
+    marginTop: 10,
+  },
+  buttonSheetContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    zIndex: 2,
+  },
+  buttonSheet: {
+    width: '100%',
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 40,
+    borderTopRightRadius: 40,
+    paddingTop: 32,
+    paddingBottom: 40,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 16,
+  },
+  buttonSheetTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  buttonSheetTitleCorrect: {
+    color: '#62D24C',
+  },
+  buttonSheetTitleWrong: {
+    color: '#FF6B6B',
+  },
+  buttonSheetRewardRow: {
+    backgroundColor: '#E8F5E9',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  buttonSheetRewardText: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#62D24C',
+  },
+  buttonSheetContinueButton: {
+    backgroundColor: '#3F9FFF',
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    width: '100%',
+    alignItems: 'center',
+  },
+  buttonSheetContinueButtonWrong: {
+    backgroundColor: '#FF6B6B',
+  },
+  buttonSheetContinueButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '800',
   },
 });

@@ -1,7 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 
@@ -12,18 +10,13 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Missing phone or password' });
     }
     const supabase = req.app.get('supabase');
-    let user;
-    if (supabase && req.app.get('SUPABASE_ONLY')) {
-      const { data, error } = await supabase
-        .from('User')
-        .select('id, email, password, agegroup, goal')
-        .eq('email', phone)
-        .maybeSingle();
-      if (error) throw error;
-      user = data || null;
-    } else {
-      user = await prisma.user.findUnique({ where: { email: phone } });
-    }
+    if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
+    const { data: user, error } = await supabase
+      .from('User')
+      .select('id, email, password, agegroup, goal')
+      .eq('email', phone)
+      .maybeSingle();
+    if (error) throw error;
     if (!user) {
       return res.status(401).json({ error: 'User not found' });
     }

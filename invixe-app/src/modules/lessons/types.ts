@@ -44,8 +44,12 @@ export interface LessonStep {
   characterImg?: string; // Filename or key for the character image
   visual?: string; // Optional visual key for SVGs or images
   // Optional interactive activity configuration
-  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild' | 'dialog' | 'textWithImageExplain' | 'svgMultiSelect';
+  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild' | 'dialog' | 'textWithImageExplain' | 'svgMultiSelect' | 'questionWithImage' | 'questionWithSVG' | 'textWithSVG' | 'simple_question';
   activityConfig?: {
+    // Simple question config (single choice with explanations)
+    rewards?: number; // Points/rewards for correct answer
+    correctExplanation?: string; // Explanation shown when answer is correct
+    wrongExplanation?: string; // Explanation shown when answer is wrong
     // Dialog activity config
     dialog?: {
       messages: Array<{
@@ -58,14 +62,25 @@ export interface LessonStep {
       autoAdvance?: boolean;
       autoAdvanceDelay?: number;
     };
-    // Text with image explain config
+    // Question with image config (also used for questionWithSVG and textWithSVG)
     questionWithImage?: {
+      question?: string; // Question text for questionWithImage/questionWithSVG
       imageSource?: string; // optional key for future use
       uploadedImage?: string; // data URI (e.g., data:image/png;base64,...)
+      uploadedImageUrl?: string; // blob URL
+      uploadedImagePublicUrl?: string; // public URL (e.g., Supabase storage URL)
+      uploadedImagePath?: string; // storage path
+      svgCode?: string; // SVG markup string for questionWithSVG/textWithSVG
+      choices?: Array<{
+        id: string;
+        text: string;
+        correct: boolean;
+      }>; // Choices for questionWithImage/questionWithSVG
       submitText?: string;
-      // Inline feedback explanations for question with image drills
+      // Inline feedback explanations for question with image/SVG drills
       correctExplanation?: string;
       wrongExplanation?: string;
+      rewards?: number; // Points/rewards for correct answer
     };
     // Generic multi-select options
     options?: Array<{
@@ -78,7 +93,10 @@ export interface LessonStep {
     svgOptions?: Array<{
       id: string;
       label?: string;
-      svgCode: string;
+      svgCode?: string; // Legacy: inline SVG code (for backward compatibility)
+      svgUrl?: string; // Blob URL or public URL for preview
+      svgPublicUrl?: string; // Supabase storage public URL
+      svgPath?: string; // Storage path
       correct: boolean;
     }>;
     submitText?: string;
