@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, Pressable, ScrollView } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import Button from "../components/ui/Button";
 import theme from "../theme";
 import { useUser } from '../context/UserContext';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, G, Mask, Ellipse, Defs } from 'react-native-svg';
+import TopBar from '../components/ui/TopBar';
 
 // Gold coin SVG (same as TopBar)
 const CoinIcon = () => (
@@ -33,10 +34,27 @@ import { API_BASE_URL } from "../config/api";
 
 const API_URL = `${API_BASE_URL}/user/add-coins`;
 
+// Character SVG from provided design (simplified version)
+const CharacterSVG = () => (
+  <Svg width={172} height={168} viewBox="0 0 172 168" fill="none">
+    <Defs>
+      <Mask id="characterMask" maskUnits="userSpaceOnUse" x="0" y="0" width="172" height="168">
+        <Ellipse cx="86" cy="83.7935" rx="86" ry="83.7935" fill="white"/>
+      </Mask>
+    </Defs>
+    <Ellipse cx="86" cy="83.7935" rx="86" ry="83.7935" fill="#FFA73B"/>
+    <G mask="url(#characterMask)">
+      <Path d="M114.116 126.589C116.269 127.212 145.019 145.954 145.407 147.988L145.221 149.219C143.674 150.726 141.734 152.392 142.286 154.709C142.439 155.343 143.062 155.896 143.209 156.509C143.554 157.968 140.837 162.734 139.908 164.294C137.093 169.007 107.202 163.019 101.272 163.36C99.7576 163.445 98.7574 162.875 97.4566 162.785C85.2463 161.943 75.6759 156.858 66.0509 149.717C57.3442 143.257 20.4358 152.874 17.375 142.367C17.465 142.059 26.1364 133.299 33.0953 129.336C39.4006 125.746 50.5339 120.822 50.5339 120.822C50.5339 120.822 54.8409 119.07 55.6334 118.335C56.2619 117.755 56.5735 116.013 57.1638 115.034C57.8688 113.862 59.3719 112.254 59.7764 111.157C60.4213 109.416 58.235 106.758 58.328 104.777C43.3083 105.864 35.0771 91.9116 31.2949 79.7275C30.0159 75.6058 28.2505 68.7203 28.8353 64.5347C28.9228 63.9223 29.0758 63.4857 29.7317 63.278C33.4538 62.7029 36.8316 64.5188 40.3241 65.3442C40.1656 60.3332 39.3239 55.2316 39.7666 50.1567C40.98 36.2473 48.8232 29.5535 61.0881 24.0685C83.8744 13.8868 112.504 21.9864 124.943 43.3404C131.633 54.8216 130.25 67.3731 129.452 80.0257C128.418 87.2592 128.634 87.9869 129.972 93.8233C130.999 105.251 124.621 116.663 116.308 124.204C115.439 124.992 113.903 125.226 114.105 126.584L114.116 126.589Z" fill="#0D2033"/>
+      <Path d="M128.326 74.4025C128.108 76.4772 128.143 77.5949 128.108 77.7058C128.083 77.7073 128.095 77.7454 128.108 77.7058L126.648 87.9818C131.283 100.145 123.691 118.277 112.3 124.555C100.899 130.839 83.9829 126.387 73.2921 120.295C66.613 116.493 59.4749 109.767 60.5462 101.561C59.3984 101.476 58.7753 102.429 57.5291 102.61C43.5152 104.644 35.7649 87.8646 32.8244 77.1823C31.764 73.3322 30.8458 69.3489 31.0371 65.3444C31.6001 64.7586 38.8803 67.3786 40.1593 67.9058C51.4131 72.5494 59.6006 80.1271 64.3557 91.1183C64.7657 92.0715 66.2578 91.4378 66.5584 90.1012C67.0558 87.87 66.8317 85.3352 67.1487 83.2211C69.2092 69.3649 77.3531 59.3535 68.6517 45.4707C67.5039 43.6388 65.8588 42.2649 64.9242 40.3159C65.7276 40.3053 66.5365 40.2627 67.34 40.3532C76.5496 41.4129 91.2577 47.2547 99.5436 51.5787C101.97 52.8461 107.682 57.1169 108.081 59.7689C108.294 61.2014 108.065 63.0279 108.097 64.5509C108.108 65.0035 107.84 66.3987 108.912 65.8769C111.3 64.716 114.886 57.0477 115.771 54.449C117.398 49.3702 119.424 42.9631 118.477 37.6533C119.958 41.9721 123.489 45.0766 125.314 49.3688C126.801 52.8674 127.663 55.9181 128.32 60.2854C129.141 65.7381 128.32 74.3972 128.32 74.3972L128.326 74.4025Z" fill="#62D24C"/>
+      <Path d="M90.0649 159.606C80.7515 157.582 72.5038 152.023 65.1689 146.298C66.262 143.156 68.1586 140.185 67.6612 136.708L60.7076 137.205L58.6598 137.595L65.464 138.854L62.0453 147.102C62.0453 147.102 70.9702 152.864 79.1568 157.618C84.3916 160.659 97.3097 161.294 97.3097 161.294L113.907 163.576L128.908 165.763L79.1568 171.895L70.6561 166.95C60.3878 171.127 17.6552 167.333 18.5853 144.886C18.5853 144.886 27.0632 135.047 34.0297 130.642C41.6386 125.83 55.6313 120.205 55.6313 120.205C56.6151 122.559 55.9483 125.003 56.1669 127.41C56.3746 129.657 58.6598 137.595 58.6598 137.595L60.7076 137.205C60.7076 137.205 58.5664 131.313 58.3915 130.03C57.905 126.43 58.0253 122.005 57.7957 118.325C57.9761 116.126 60.0148 114.422 61.3703 112.755C62.3103 113.319 62.6164 114.491 63.2668 115.162C63.8353 115.753 64.8847 115.993 65.2017 116.472C65.5843 117.047 65.5241 118.16 65.9013 118.985C71.9026 132.171 81.2816 142.635 87.9825 154.984C88.3542 155.671 90.371 159.324 90.0649 159.611V159.606Z" fill="#FFE435"/>
+    </G>
+  </Svg>
+);
+
 type Props = NativeStackScreenProps<RootStackParamList, "LessonComplete">;
 
 export default function LessonCompleteScreen({ navigation, route }: Props) {
-  const { coins, setCoins } = useUser();
+  const { coins, setCoins, lightnings } = useUser();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -68,58 +86,163 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   const handleContinue = () => {
     navigation.navigate("Map");
   };
+  
+  // Performance stats (placeholders for now - can be calculated from lesson data)
+  const totalDollars = coins || 0;
+  const accuracy = 88; // Can be calculated from lesson performance
+  const timeSpent = "3:20"; // Can be tracked during lesson
 
   return (
     <View style={{ flex: 1, backgroundColor: '#D3E9FF' }}>
-      <View style={styles.container}>
-        <Text style={styles.title}>🎉 כל הכבוד!</Text>
-        <Text style={styles.subtitle}>סיימת את השיעור בהצלחה</Text>
-        <View style={styles.coinsRow}>
-          <CoinIcon />
-          <Text style={styles.coinsText}>+{COINS_REWARD} מטבעות</Text>
+      <TopBar />
+      <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Character Avatar */}
+        <View style={styles.characterContainer}>
+          <CharacterSVG />
         </View>
+
+        {/* Hebrew Heading */}
+        <Text style={styles.heading}>השיעור הושלם!</Text>
+
+        {/* Hebrew Paragraph */}
+        <Text style={styles.paragraph}>
+          עכשיו שאתה מבין איך לקרוא נרות, כל מה שנשאר זה ללמוד איך להשתמש בזה בחוכמה.
+        </Text>
+
+        {/* Performance Summary Boxes */}
+        <View style={styles.summaryBoxes}>
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryHeader}>TOTAL $</Text>
+            <View style={styles.summaryContent}>
+              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                <Path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.5v-1.68c1.51-.29 2.72-1.16 2.72-2.77-.01-1.54-1.31-2.46-3.66-3.09z" fill="#24AE5F"/>
+              </Svg>
+              <Text style={styles.summaryValue}>{totalDollars}</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryHeader}>GOOD</Text>
+            <View style={styles.summaryContent}>
+              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                <Path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" fill="#FF6B6B"/>
+              </Svg>
+              <Text style={styles.summaryValue}>{accuracy}%</Text>
+            </View>
+          </View>
+
+          <View style={styles.summaryBox}>
+            <Text style={styles.summaryHeader}>SPEEDY</Text>
+            <View style={styles.summaryContent}>
+              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+                <Path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" fill="#FF6B6B"/>
+              </Svg>
+              <Text style={styles.summaryValue}>{timeSpent}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* CLAIM Button */}
         {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.optimismOrange} style={{ marginTop: theme.spacing.md }} />
+          <ActivityIndicator size="large" color="#FFA73B" style={{ marginTop: theme.spacing.md }} />
         ) : error ? (
           <Text style={styles.error}>{error}</Text>
         ) : (
-          <Button text="המשך" onPress={handleContinue} />
+          <Pressable style={styles.claimButton} onPress={handleContinue}>
+            <Text style={styles.claimButtonText}>CLAIM $</Text>
+          </Pressable>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: "center",
+  scrollContainer: {
+    flexGrow: 1,
     alignItems: "center",
-    padding: theme.spacing.xl,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
   },
-  title: {
+  characterContainer: {
+    marginTop: 20,
+    marginBottom: 20,
+    width: 172,
+    height: 168,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  heading: {
     fontSize: 32,
     fontFamily: theme.font.bold,
-    color: theme.colors.primaryBlue,
-    marginBottom: theme.spacing.lg,
+    color: "#FFA73B",
+    marginBottom: 16,
     textAlign: "center",
   },
-  subtitle: {
-    fontSize: 22,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.lg,
+  paragraph: {
+    fontSize: 18,
+    color: "#0D2033",
+    marginBottom: 32,
     textAlign: "center",
     fontFamily: theme.font.family,
+    paddingHorizontal: 20,
+    lineHeight: 26,
   },
-  coinsRow: {
+  summaryBoxes: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    width: "100%",
+    maxWidth: 500,
+    marginBottom: 40,
+    paddingHorizontal: 8,
+  },
+  summaryBox: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#FFA73B",
+    marginHorizontal: 6,
+    overflow: "hidden",
+  },
+  summaryHeader: {
+    fontSize: 14,
+    fontWeight: "bold",
+    backgroundColor: "#FFA73B",
+    color: "#FFFFFF",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    textAlign: "center",
+  },
+  summaryContent: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: theme.spacing.xl,
+    justifyContent: "center",
+    paddingVertical: 16,
+    paddingHorizontal: 12,
   },
-  coinsText: {
-    fontSize: 24,
-    color: theme.colors.optimismOrange,
-    fontFamily: theme.font.bold,
+  summaryValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#0D2033",
+    marginLeft: 8,
+  },
+  claimButton: {
+    backgroundColor: "#FFA73B",
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 48,
+    width: "100%",
+    maxWidth: 500,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  claimButtonText: {
+    color: "#0D2033",
+    fontSize: 18,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
   error: {
     color: theme.colors.error,

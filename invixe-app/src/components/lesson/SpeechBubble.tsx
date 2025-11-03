@@ -15,6 +15,11 @@ interface SpeechBubbleProps {
 }
 
 export default function SpeechBubble({ message, characterImg, position = 'bottomLeft', align = 'center', buttonText, onButtonPress, typingSpeedMs = 18, disableTyping = false, disableEnterAnim = false }: SpeechBubbleProps) {
+  // Don't render speech bubble if message is empty or whitespace-only
+  if (!message || message.trim().length === 0) {
+    return null;
+  }
+
   // Horizontal alignment and speaker side
   let alignSelf: 'flex-start' | 'flex-end' | 'center' = 'center';
   const isLeft = position === 'bottomLeft' || position === 'topLeft';
