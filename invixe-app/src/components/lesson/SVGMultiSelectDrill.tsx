@@ -41,6 +41,14 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
+  // Reset state when options change (new step)
+  React.useEffect(() => {
+    setSelected({});
+    setSubmitted(false);
+    setShowingExplanation(false);
+    setIsCorrect(false);
+  }, [options.map(o => o.id).join(',')]);
+
   // Expose state to parent for button management
   React.useEffect(() => {
     if (onStateChange) {
@@ -52,6 +60,40 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   }, [showingExplanation, selected, onStateChange]);
 
   const selectedIds = useMemo(() => Object.keys(selected).filter(k => selected[k]), [selected]);
+
+  // Get all correct option IDs
+  const correctOptionIds = useMemo(() => {
+    return options.filter(o => o.correct).map(o => o.id);
+  }, [options]);
+
+  // Check if selection is exactly correct: must select exactly all correct answers, no more, no less
+  const allCorrect = useMemo(() => {
+    // Get current selected IDs
+    const currentSelectedIds = Object.keys(selected).filter(k => selected[k]);
+    
+    // Get all correct option IDs
+    const currentCorrectIds = options.filter(o => o.correct).map(o => o.id);
+    
+    // Must have at least one selection
+    if (currentSelectedIds.length === 0) return false;
+    
+    // Must have at least one correct answer
+    if (currentCorrectIds.length === 0) return false;
+    
+    // Must select exactly the same number as correct answers
+    if (currentSelectedIds.length !== currentCorrectIds.length) {
+      return false;
+    }
+    
+    // All selected IDs must be in the correct set
+    const allSelectedAreCorrect = currentSelectedIds.every(id => currentCorrectIds.includes(id));
+    
+    // All correct IDs must be in the selected set
+    const allCorrectAreSelected = currentCorrectIds.every(id => currentSelectedIds.includes(id));
+    
+    // Both conditions must be true (they should be equivalent if lengths match, but checking both for safety)
+    return allSelectedAreCorrect && allCorrectAreSelected;
+  }, [selected, options]);
 
   const perOptionCorrectness = useMemo(() => {
     const res: Record<string, boolean> = {};
@@ -73,8 +115,6 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
     return count;
   }, [selected, options]);
 
-  const allCorrect = useMemo(() => Object.values(perOptionCorrectness).every(Boolean), [perOptionCorrectness]);
-
   const toggle = (id: string) => {
     if (submitted) return;
     setSelected(prev => {
@@ -91,20 +131,33 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   const handleSubmit = React.useCallback(() => {
     if (Object.keys(selected).filter(k => selected[k]).length === 0) return; // Can't submit without selection
     setSubmitted(true);
-    const correct = allCorrect;
+    
+    // Recalculate allCorrect directly from current state to ensure accuracy
+    const currentSelectedIds = Object.keys(selected).filter(k => selected[k]);
+    const currentCorrectIds = options.filter(o => o.correct).map(o => o.id);
+    
+    let correct = false;
+    if (currentSelectedIds.length > 0 && currentCorrectIds.length > 0) {
+      if (currentSelectedIds.length === currentCorrectIds.length) {
+        const allSelectedAreCorrect = currentSelectedIds.every(id => currentCorrectIds.includes(id));
+        const allCorrectAreSelected = currentCorrectIds.every(id => currentSelectedIds.includes(id));
+        correct = allSelectedAreCorrect && allCorrectAreSelected;
+      }
+    }
+    
     setIsCorrect(correct);
     setShowingExplanation(true);
     
     const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
     onSubmit({ 
-      selectedIds, 
+      selectedIds: currentSelectedIds, 
       numCorrectSelections, 
       perOptionCorrectness, 
-      allCorrect,
+      allCorrect: correct,
       isCorrect: correct,
       explanation
     });
-  }, [allCorrect, correctExplanation, wrongExplanation, selectedIds, numCorrectSelections, perOptionCorrectness, onSubmit, selected]);
+  }, [selected, options, correctExplanation, wrongExplanation, numCorrectSelections, perOptionCorrectness, onSubmit]);
 
   const handleContinue = React.useCallback(() => {
     const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
@@ -188,7 +241,9 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       if (parsedSVG) {
         return (
           <View style={styles.svgContainer}>
-            {parsedSVG}
+            <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+              {parsedSVG}
+            </View>
           </View>
         );
       }
@@ -297,12 +352,12 @@ const styles = StyleSheet.create({
     minHeight: 100,
   },
   svgContainer: {
-    width: 60,
-    height: 60,
+    width: 120,
+    height: 120,
     marginBottom: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   svgPlaceholder: {
     width: 60,

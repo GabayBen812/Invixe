@@ -24,8 +24,9 @@ export function parseSVGCode(svgCode: string): React.ReactElement | null {
     // Parse and render basic SVG elements
     const elements = parseSVGElements(cleanCode);
     
+    // Use viewBox for proper scaling, width/height will be controlled by parent container
     return (
-      <Svg width={200} height={200} viewBox={viewBox}>
+      <Svg width="100%" height="100%" viewBox={viewBox} preserveAspectRatio="xMidYMid meet">
         {elements}
       </Svg>
     );

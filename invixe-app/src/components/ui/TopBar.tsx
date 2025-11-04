@@ -139,6 +139,7 @@ const styles = StyleSheet.create({
     paddingTop: 32,
     paddingBottom: 8,
     backgroundColor: "#FFFFFF",
+    height: 90,
   },
   rightSection: {
     flexDirection: "row",

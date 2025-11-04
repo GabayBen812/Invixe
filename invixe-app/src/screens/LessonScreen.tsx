@@ -98,6 +98,7 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [showingDrillExplanation, setShowingDrillExplanation] = useState(false);
   const [showSimpleQuestionButtonSheet, setShowSimpleQuestionButtonSheet] = useState(false);
   const [simpleQuestionIsCorrect, setSimpleQuestionIsCorrect] = useState(false);
+  const [svgMultiSelectCanSubmit, setSvgMultiSelectCanSubmit] = useState(false);
   const svgMultiSelectSubmitRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -133,6 +134,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     setPendingNextStep(null);
     setShowSimpleQuestionButtonSheet(false);
     setSimpleQuestionIsCorrect(false);
+    setSvgMultiSelectCanSubmit(false);
     svgMultiSelectSubmitRef.current = null;
   }, [stepId]);
 
@@ -598,11 +600,19 @@ export default function LessonScreen({ navigation, route }: Props) {
                   submitText={step.activityConfig.submitText || 'בדוק'}
                   correctExplanation={step.activityConfig.correctExplanation}
                   wrongExplanation={step.activityConfig.wrongExplanation}
-                  onSubmit={handleDrillComplete}
+                  onSubmit={(result) => {
+                    // Extract rewards from activityConfig, similar to simple_question
+                    const rewards = result.isCorrect ? (step.activityConfig?.rewards || 0) : 0;
+                    handleDrillComplete({
+                      ...result,
+                      rewards
+                    });
+                  }}
                   showSubmitButton={false}
                   onSubmitTriggerRef={svgMultiSelectSubmitRef}
                   onStateChange={(state) => {
-                    // Track if we can submit
+                    // Track if we can submit - button should only show when selections are made
+                    setSvgMultiSelectCanSubmit(state.canSubmit);
                   }}
                 />
               </View>
@@ -704,7 +714,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     </Pressable>
                   );
                 })}
-                {!showSimpleQuestionButtonSheet && (
+                {!showSimpleQuestionButtonSheet && selectedChoiceIdx !== null && (
                   <Pressable
                     style={styles.primaryButton}
                     onPress={() => {
@@ -776,7 +786,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 )}
               </>
             )}
-            {!isSimpleQuestion && choices && choices.length === 1 && step.id !== 'simple_text_step' && (
+            {!isSimpleQuestion && !isSVGMultiSelect && choices && choices.length === 1 && step.id !== 'simple_text_step' && (
               <Pressable
                 style={styles.primaryButton}
                 onPress={() => handleChoice(choices[0].nextStep)}
@@ -853,8 +863,8 @@ export default function LessonScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       )}
-      {/* Absolute submit/continue button for svgMultiSelect */}
-      {step.activity === 'svgMultiSelect' && step.activityConfig?.svgOptions && !showSimpleQuestionButtonSheet && !showCorrectOverlay && (
+      {/* Static button for svgMultiSelect - using choices pattern like other drills */}
+      {step.activity === 'svgMultiSelect' && step.activityConfig?.svgOptions && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (svgMultiSelectCanSubmit || showingDrillExplanation) && (
         <View style={styles.absoluteContinueButton}>
           <Pressable
             style={styles.continueButton}
@@ -862,11 +872,12 @@ export default function LessonScreen({ navigation, route }: Props) {
               if (showingDrillExplanation) {
                 // Continue to next step
                 handleExplanationContinue();
-              } else if (svgMultiSelectSubmitRef.current) {
+              } else if (svgMultiSelectSubmitRef.current && svgMultiSelectCanSubmit) {
                 // Trigger submit from drill component
                 svgMultiSelectSubmitRef.current();
               }
             }}
+            disabled={!showingDrillExplanation && !svgMultiSelectCanSubmit}
           >
             <Text style={styles.continueButtonText}>
               {showingDrillExplanation ? 'המשך' : (step.activityConfig.submitText || 'בדוק')}
@@ -945,6 +956,7 @@ const styles = StyleSheet.create({
     color: '#0D2033',
     fontWeight: '700',
     fontSize: 18,
+    textAlign: 'center',
   },
   choiceCardSelected: {
     backgroundColor: '#3F9FFF',

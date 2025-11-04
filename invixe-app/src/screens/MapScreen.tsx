@@ -12,7 +12,7 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
-import { isLessonUnlocked } from "../modules/lessons/registry";
+import { isLessonUnlocked, areAllSublessonsCompleted } from "../modules/lessons/registry";
 import { useLessons } from "../context/LessonsContext";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
@@ -466,7 +466,9 @@ export default function MapScreen({ navigation }: Props) {
   const lessonStatuses = allLessons.map((lessonData, idx) => {
     const { lesson } = lessonData;
     const lessonAttempt = lessonAttempts.find((a) => a.lessonId === lesson.id);
-    const completed = completedLessons.includes(lesson.id);
+    // Check if lesson is completed: either directly completed OR all sublessons are completed
+    const completed = completedLessons.includes(lesson.id) || 
+                      (lesson.sublessons && lesson.sublessons.length > 0 && areAllSublessonsCompleted(lesson, completedLessons));
     const unlocked = isLessonUnlocked(lesson.id, completedLessons);
 
     // Current lesson is the first uncompleted, unlocked lesson
@@ -955,18 +957,18 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: "90%",
     // top: -90, // Position below TopBar (assuming TopBar height is ~90px)
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(255, 255, 255, 0.98)",
+    left: "5%",
+    right: "5%",
+    backgroundColor: "rgba(104, 160, 14, 0)",
     zIndex: 1000,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(226, 232, 240, 0.8)",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    shadowColor: "#1E293B",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    borderBottomColor: "rgba(226, 232, 240, 0)",
+    // paddingVertical: 12,
+    // paddingHorizontal: 20,
+    // shadowColor: "#1E293B",
+    // shadowOffset: { width: 0, height: 2 },
+    // shadowOpacity: 0.08,
+    // shadowRadius: 8,
     elevation: 8,
     marginTop: 120,
   },
@@ -1310,7 +1312,7 @@ const styles = StyleSheet.create({
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.03,
-    shadowRadius: 6,
+    shadowRadius: 0,
     elevation: 1,
   },
 
