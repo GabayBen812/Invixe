@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, Image, ImageSourcePropType, ActivityIndicator } from 'react-native';
+import SpeechBubble from './SpeechBubble';
 
 interface Choice {
   id: string;
@@ -14,6 +15,7 @@ interface Props {
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
+  characterImg?: ImageSourcePropType;
   onSubmit: (result: { 
     correct: boolean; 
     selectedChoiceId: string;
@@ -29,12 +31,25 @@ export default function QuestionWithImage({
   submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
+  characterImg,
   onSubmit 
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [imageLoading, setImageLoading] = useState(true);
+
+  // Preload image when component mounts
+  useEffect(() => {
+    if (imageSource && typeof imageSource === 'object' && imageSource.uri) {
+      Image.prefetch(imageSource.uri)
+        .then(() => setImageLoading(false))
+        .catch(() => setImageLoading(false));
+    } else {
+      setImageLoading(false);
+    }
+  }, [imageSource]);
 
   const handleSubmit = () => {
     if (selectedChoice) {
@@ -60,14 +75,31 @@ export default function QuestionWithImage({
 
   return (
     <View style={styles.container}>
-      {/* Question Text */}
-      <View style={styles.questionContainer}>
-        <Text style={styles.questionText}>{question}</Text>
-      </View>
+      {/* Question Text in Speech Bubble */}
+      <SpeechBubble
+        message={question}
+        characterImg={characterImg}
+        position="bottomLeft"
+        randomPosition={true}
+        disableTyping={true}
+        disableEnterAnim={false}
+      />
 
       {/* Image */}
       <View style={styles.imageContainer}>
-        <Image source={imageSource} style={styles.image} resizeMode="contain" />
+        {imageLoading && (
+          <View style={styles.imageLoadingContainer}>
+            <ActivityIndicator size="large" color="#3F9FFF" />
+          </View>
+        )}
+        <Image 
+          source={imageSource} 
+          style={[styles.image, imageLoading && styles.imageHidden]} 
+          resizeMode="contain"
+          onLoadStart={() => setImageLoading(true)}
+          onLoadEnd={() => setImageLoading(false)}
+          onError={() => setImageLoading(false)}
+        />
       </View>
 
       {/* Choices */}
@@ -133,25 +165,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
-  questionContainer: {
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
   imageContainer: {
     marginBottom: 24,
     alignItems: 'center',
@@ -167,6 +180,19 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: 200,
+  },
+  imageHidden: {
+    opacity: 0,
+  },
+  imageLoadingContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1F2937',
   },
   choicesContainer: {
     marginBottom: 24,

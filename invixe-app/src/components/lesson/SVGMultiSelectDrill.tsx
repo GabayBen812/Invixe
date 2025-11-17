@@ -186,11 +186,13 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
 
   const [svgCache, setSvgCache] = useState<Record<string, string>>({});
   const fetchingRef = useRef<Set<string>>(new Set());
+  const parsedCacheRef = useRef<Record<string, React.ReactElement | null>>({});
 
-  // Fetch SVG from URL if available
+  // Fetch SVG from URL if available - fetch all in parallel for speed
   useEffect(() => {
     const fetchSVGs = async () => {
-      for (const option of options) {
+      // Collect all URLs to fetch
+      const fetchPromises = options.map(async (option) => {
         const url = option.svgPublicUrl || option.svgUrl;
         if (url && !svgCache[option.id] && !option.svgCode && !fetchingRef.current.has(url)) {
           fetchingRef.current.add(url);
@@ -198,13 +200,7 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
             const response = await fetch(url);
             if (response.ok) {
               const svgText = await response.text();
-              setSvgCache(prev => {
-                // Only update if not already cached (prevent race conditions)
-                if (!prev[option.id]) {
-                  return { ...prev, [option.id]: svgText };
-                }
-                return prev;
-              });
+              return { id: option.id, svgText };
             }
           } catch (error) {
             console.error(`Failed to fetch SVG for option ${option.id}:`, error);
@@ -212,7 +208,24 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
             fetchingRef.current.delete(url);
           }
         }
-      }
+        return null;
+      });
+
+      // Fetch all SVGs in parallel
+      const results = await Promise.all(fetchPromises);
+      
+      // Update cache with all results at once
+      setSvgCache(prev => {
+        const newCache = { ...prev };
+        results.forEach(result => {
+          if (result && !newCache[result.id]) {
+            newCache[result.id] = result.svgText;
+            // Clear parsed cache for this SVG so it gets re-parsed
+            delete parsedCacheRef.current[result.id];
+          }
+        });
+        return newCache;
+      });
     };
     fetchSVGs();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,9 +249,23 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
     }
     
     if (svgCodeToParse) {
+      // Check parsed cache first to avoid re-parsing
+      const cacheKey = `${option.id}-${svgCodeToParse.substring(0, 50)}`; // Use first 50 chars as hash
+      if (parsedCacheRef.current[cacheKey]) {
+        return (
+          <View style={styles.svgContainer}>
+            <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+              {parsedCacheRef.current[cacheKey]}
+            </View>
+          </View>
+        );
+      }
+      
       // Parse and render the SVG code using react-native-svg
       const parsedSVG = parseSVGCode(svgCodeToParse);
       if (parsedSVG) {
+        // Cache the parsed result
+        parsedCacheRef.current[cacheKey] = parsedSVG;
         return (
           <View style={styles.svgContainer}>
             <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>

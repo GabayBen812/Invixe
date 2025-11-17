@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 
@@ -15,7 +15,11 @@ export default function TextWithSVG({
   submitText = 'המשך',
   onContinue 
 }: Props) {
-  const parsedSVG = svgCode ? parseSVGCode(svgCode) : null;
+  // Memoize SVG parsing to avoid re-parsing on every render
+  const parsedSVG = useMemo(() => {
+    if (!svgCode) return null;
+    return parseSVGCode(svgCode);
+  }, [svgCode]);
 
   return (
     <View style={styles.container}>

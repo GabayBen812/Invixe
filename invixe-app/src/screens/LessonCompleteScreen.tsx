@@ -55,11 +55,13 @@ type Props = NativeStackScreenProps<RootStackParamList, "LessonComplete">;
 
 export default function LessonCompleteScreen({ navigation, route }: Props) {
   const { coins, setCoins, lightnings } = useUser();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Start as false to show content immediately
   const [error, setError] = useState("");
 
   useEffect(() => {
+    // Show content immediately, add coins in background
     const addCoins = async () => {
+      setLoading(true);
       try {
         const res = await fetch(API_URL, {
           method: "POST",
@@ -80,7 +82,11 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
         setLoading(false);
       }
     };
-    addCoins();
+    // Small delay to ensure screen is rendered first, then add coins
+    const timer = setTimeout(() => {
+      addCoins();
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleContinue = () => {
@@ -142,14 +148,20 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* CLAIM Button */}
-        {loading ? (
-          <ActivityIndicator size="large" color="#FFA73B" style={{ marginTop: theme.spacing.md }} />
-        ) : error ? (
+        {/* CLAIM Button - Show button immediately, update coins in background */}
+        {error ? (
           <Text style={styles.error}>{error}</Text>
         ) : (
-          <Pressable style={styles.claimButton} onPress={handleContinue}>
-            <Text style={styles.claimButtonText}>CLAIM $</Text>
+          <Pressable 
+            style={[styles.claimButton, loading && styles.claimButtonLoading]} 
+            onPress={handleContinue}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator size="small" color="#0D2033" />
+            ) : (
+              <Text style={styles.claimButtonText}>CLAIM $</Text>
+            )}
           </Pressable>
         )}
       </ScrollView>
@@ -237,6 +249,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 20,
+  },
+  claimButtonLoading: {
+    opacity: 0.7,
   },
   claimButtonText: {
     color: "#0D2033",

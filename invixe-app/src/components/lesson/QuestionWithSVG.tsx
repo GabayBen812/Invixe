@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useMemo } from 'react';
+import { View, Text, Pressable, StyleSheet, ImageSourcePropType } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
+import SpeechBubble from './SpeechBubble';
 
 interface Choice {
   id: string;
@@ -15,6 +16,7 @@ interface Props {
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
+  characterImg?: ImageSourcePropType;
   onSubmit: (result: { 
     correct: boolean; 
     selectedChoiceId: string;
@@ -30,6 +32,7 @@ export default function QuestionWithSVG({
   submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
+  characterImg,
   onSubmit 
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
@@ -59,14 +62,23 @@ export default function QuestionWithSVG({
     });
   };
 
-  const parsedSVG = svgCode ? parseSVGCode(svgCode) : null;
+  // Memoize SVG parsing to avoid re-parsing on every render
+  const parsedSVG = useMemo(() => {
+    if (!svgCode) return null;
+    return parseSVGCode(svgCode);
+  }, [svgCode]);
 
   return (
     <View style={styles.container}>
-      {/* Question Text */}
-      <View style={styles.questionContainer}>
-        <Text style={styles.questionText}>{question}</Text>
-      </View>
+      {/* Question Text in Speech Bubble */}
+      <SpeechBubble
+        message={question}
+        characterImg={characterImg}
+        position="bottomLeft"
+        randomPosition={true}
+        disableTyping={true}
+        disableEnterAnim={false}
+      />
 
       {/* SVG */}
       <View style={styles.svgContainer}>
@@ -141,26 +153,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     width: '100%',
     alignItems: 'center',
-  },
-  questionContainer: {
-    marginBottom: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    textAlign: 'center',
-    lineHeight: 24,
   },
   svgContainer: {
     marginBottom: 24,

@@ -12,19 +12,53 @@ interface SpeechBubbleProps {
   typingSpeedMs?: number; // characters per tick
   disableTyping?: boolean; // show full text immediately
   disableEnterAnim?: boolean; // do not animate on mount (used for shadows)
+  randomPosition?: boolean; // randomly position character left or right (for drills)
 }
 
-export default function SpeechBubble({ message, characterImg, position = 'bottomLeft', align = 'center', buttonText, onButtonPress, typingSpeedMs = 18, disableTyping = false, disableEnterAnim = false }: SpeechBubbleProps) {
+export default function SpeechBubble({
+  message,
+  characterImg,
+  position = 'bottomLeft',
+  align = 'center',
+  buttonText,
+  onButtonPress,
+  typingSpeedMs = 18,
+  disableTyping = false,
+  disableEnterAnim = false,
+  randomPosition = false,
+}: SpeechBubbleProps) {
   // Don't render speech bubble if message is empty or whitespace-only
   if (!message || message.trim().length === 0) {
     return null;
   }
 
+  // Random position for drills - randomly choose left or right
+  const [randomSide, setRandomSide] = React.useState<'left' | 'right' | null>(null);
+  
+  React.useEffect(() => {
+    if (randomPosition) {
+      // Generate random position once per component mount
+      const side = Math.random() < 0.5 ? 'left' : 'right';
+      setRandomSide(side);
+    } else {
+      setRandomSide(null);
+    }
+  }, [randomPosition]);
+
+  // Determine actual position
+  let actualPosition = position;
+  if (randomPosition && randomSide) {
+    const isTop = position === 'topLeft' || position === 'topRight';
+    actualPosition = randomSide === 'left' 
+      ? (isTop ? 'topLeft' : 'bottomLeft')
+      : (isTop ? 'topRight' : 'bottomRight');
+  }
+
   // Horizontal alignment and speaker side
   let alignSelf: 'flex-start' | 'flex-end' | 'center' = 'center';
-  const isLeft = position === 'bottomLeft' || position === 'topLeft';
-  const isRight = position === 'bottomRight' || position === 'topRight';
-  const isCenter = position === 'center';
+  const isLeft = actualPosition === 'bottomLeft' || actualPosition === 'topLeft';
+  const isRight = actualPosition === 'bottomRight' || actualPosition === 'topRight';
+  const isCenter = actualPosition === 'center';
   if (isLeft) alignSelf = 'flex-start';
   if (isRight) alignSelf = 'flex-end';
   if (isCenter) alignSelf = 'center';
@@ -84,46 +118,69 @@ export default function SpeechBubble({ message, characterImg, position = 'bottom
     return () => { dot1.stopAnimation(); dot2.stopAnimation(); dot3.stopAnimation(); };
   }, [typing]);
 
-  const BubbleInner = (
-    <Animated.View style={[styles.bubbleContainer, { alignSelf, transform: [{ translateY: slideIn }], opacity }]}> 
-      {/* Decorative soft shadow wings */}
-      {/* <View style={styles.shadowWingLeft} /> */}
-      {/* <View style={styles.shadowWingRight} /> */}
+  const renderAvatar = (flip: boolean) => {
+    if (characterImg) {
+      return (
+        <Image
+          source={characterImg}
+          style={[styles.avatar, flip && styles.avatarFlipped]}
+        />
+      );
+    }
+    return (
+      <View style={flip && styles.avatarFlipped}>
+        <CharacterPrimarySVG size={80} />
+      </View>
+    );
+  };
 
-      {/* Content row: avatar + text */}
-      <View style={styles.row}> 
-        <View style={styles.avatarWrap}>
-          {characterImg ? (
-            <Image source={characterImg} style={styles.avatar} />
-          ) : (
-            <CharacterPrimarySVG size={80} />
-          )}
-        </View>
-        <View style={styles.messageArea}>
-          <Text style={styles.text}>{typed}</Text>
-          {/* Bottom row inside the bubble: dots + continue */}
-          {(typing || buttonText) && (
-            <View style={styles.bottomRow}>
-              {typing && typed.length < message.length ? (
-                <View style={styles.typingRow}>
-                  <Animated.View style={[styles.dot, { opacity: dot1 }]} />
-                  <Animated.View style={[styles.dot, { opacity: dot2 }]} />
-                  <Animated.View style={[styles.dot, { opacity: dot3 }]} />
-                </View>
-              ) : null}
-              {buttonText ? (
-                <TouchableOpacity style={styles.button} onPress={onButtonPress}>
-                  <Text style={styles.buttonText}>{buttonText}</Text>
-                </TouchableOpacity>
-              ) : null}
+  const messageArea = (
+    <View style={styles.messageArea}>
+      <Text style={styles.text}>{typed}</Text>
+      {(typing || buttonText) && (
+        <View style={styles.bottomRow}>
+          {typing && typed.length < message.length ? (
+            <View style={styles.typingRow}>
+              <Animated.View style={[styles.dot, { opacity: dot1 }]} />
+              <Animated.View style={[styles.dot, { opacity: dot2 }]} />
+              <Animated.View style={[styles.dot, { opacity: dot3 }]} />
             </View>
-          )}
+          ) : null}
+          {buttonText ? (
+            <TouchableOpacity style={styles.button} onPress={onButtonPress}>
+              <Text style={styles.buttonText}>{buttonText}</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
+      )}
+    </View>
+  );
+
+  const bubbleNode = (
+    <Animated.View style={[styles.bubbleContainer, { alignSelf, transform: [{ translateY: slideIn }], opacity }, isRight && styles.bubbleContainerRight]}>
+      <View style={[styles.row, isRight && styles.rowRight]}>
+        {!isRight && (
+          <View style={styles.avatarWrap}>
+            {renderAvatar(false)}
+          </View>
+        )}
+        {messageArea}
       </View>
     </Animated.View>
   );
 
-  return BubbleInner;
+  if (isRight) {
+    return (
+      <View style={[styles.rightWrapper, { alignSelf }]}>
+        {bubbleNode}
+        <View style={styles.avatarOutsideWrap}>
+          {renderAvatar(true)}
+        </View>
+      </View>
+    );
+  }
+
+  return bubbleNode;
 }
 
 const styles = StyleSheet.create({
@@ -143,36 +200,55 @@ const styles = StyleSheet.create({
     // elevation: 6,
     position: 'relative',
   },
+  bubbleContainerRight: {
+    marginLeft: 0,
+    flex: 1,
+    minWidth: 0,
+    maxWidth: '70%',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  characterLeft: {
-    width: 56,
-    height: 56,
-    resizeMode: 'contain',
-    marginRight: 16,
+  rowRight: {
+    justifyContent: 'flex-end',
   },
-  characterRight: {
-    width: 56,
-    height: 56,
-    resizeMode: 'contain',
-    marginLeft: 16,
+  rightWrapper: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 16,
+    width: '100%',
+    paddingHorizontal: 12,
+    alignSelf: 'center',
   },
   avatarWrap: {
-    width: 44,
-    height: 44,
+    width: 66,
+    height: 66,
     borderRadius: 22,
     backgroundColor: '#E6F0FF',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
+  avatarOutsideWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#E6F0FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: 8,
+  },
   avatar: {
     width: 80,
     height: 80,
     resizeMode: 'contain',
   },
+  avatarFlipped: {
+    transform: [{ scaleX: -1 }],
+  } as const,
   messageArea: {
     flex: 1,
     alignItems: 'flex-end',
@@ -185,6 +261,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'right',
     marginBottom: 8,
+    flexWrap: 'wrap',
   },
   typingRow: {
     flexDirection: 'row',

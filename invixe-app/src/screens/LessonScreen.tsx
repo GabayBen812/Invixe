@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Image, Animated, StyleSheet, Text, Pressable, ActivityIndicator } from "react-native";
+import { View, Image, Animated, StyleSheet, Text, Pressable, ActivityIndicator, Easing } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep } from "../modules/lessons/types";
@@ -86,6 +86,7 @@ function getCharacterImg(characterImgKey?: string) {
 export default function LessonScreen({ navigation, route }: Props) {
   const [stepId, setStepId] = useState("intro");
   const [fadeAnim] = useState(new Animated.Value(1));
+  const [progressAnim] = useState(new Animated.Value(0));
   const lessonId = route.params?.lessonId || 1;
   const { completedLessons, markLessonCompleted, setCompletedLessons, lightnings, setLightnings } = useUser();
   const { getLessonSteps } = useLessons();
@@ -100,10 +101,15 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [simpleQuestionIsCorrect, setSimpleQuestionIsCorrect] = useState(false);
   const [svgMultiSelectCanSubmit, setSvgMultiSelectCanSubmit] = useState(false);
   const svgMultiSelectSubmitRef = useRef<(() => void) | null>(null);
+  const visitedStepsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (route.params?.lessonId) {
       setStepId("intro");
+      visitedStepsRef.current.clear();
+      visitedStepsRef.current.add("intro");
+      // Initialize progress to 0
+      progressAnim.setValue(0);
     }
   }, [route.params?.lessonId]);
 
@@ -123,6 +129,94 @@ export default function LessonScreen({ navigation, route }: Props) {
     })();
     return () => { cancelled = true; };
   }, [lessonId]);
+
+  // Track current step as visited and update progress
+  useEffect(() => {
+    if (stepId && currentLessonSteps.length > 0) {
+      visitedStepsRef.current.add(stepId);
+      console.log(`Visited step: "${stepId}". Total visited: ${Array.from(visitedStepsRef.current).join(', ')}`);
+      
+      // Calculate and animate progress
+      const currentIndex = currentLessonSteps.findIndex(s => s.id === stepId);
+      const progress = currentIndex >= 0 ? (currentIndex + 1) / currentLessonSteps.length : 0;
+      
+      Animated.timing(progressAnim, {
+        toValue: progress,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false, // width animation doesn't support native driver
+      }).start();
+    }
+  }, [stepId, currentLessonSteps]);
+
+  // Preload images and SVGs for current step and next step
+  useEffect(() => {
+    if (!stepId || currentLessonSteps.length === 0) return;
+    
+    const currentStep = currentLessonSteps.find((s: LessonStep) => s.id === stepId) || currentLessonSteps[0];
+    if (!currentStep) return;
+    
+    // Preload image for current step if it has one
+    const imageUrl = currentStep.activityConfig?.questionWithImage?.uploadedImagePublicUrl 
+      || currentStep.activityConfig?.questionWithImage?.uploadedImageUrl;
+    
+    if (imageUrl && typeof imageUrl === 'string') {
+      Image.prefetch(imageUrl).catch(err => {
+        console.warn('Failed to preload image:', err);
+      });
+    }
+    
+    // Preload SVGs for current step if it's svgMultiSelect
+    if (currentStep.activity === 'svgMultiSelect' && currentStep.activityConfig?.svgOptions) {
+      const svgOptions = currentStep.activityConfig.svgOptions;
+      const svgPromises = svgOptions.map((opt: any) => {
+        const svgUrl = opt.svgPublicUrl || opt.svgUrl;
+        if (svgUrl && typeof svgUrl === 'string') {
+          return fetch(svgUrl)
+            .then(res => res.ok ? res.text() : null)
+            .catch(err => {
+              console.warn('Failed to preload SVG:', err);
+              return null;
+            });
+        }
+        return Promise.resolve(null);
+      });
+      Promise.all(svgPromises).catch(() => {}); // Fire and forget
+    }
+    
+    // Preload image and SVGs for next step if available
+    if (currentStep.choices && currentStep.choices[0] && currentStep.choices[0].nextStep) {
+      const nextStepId = currentStep.choices[0].nextStep;
+      const nextStep = currentLessonSteps.find(s => s.id === nextStepId);
+      if (nextStep) {
+        const nextImageUrl = nextStep.activityConfig?.questionWithImage?.uploadedImagePublicUrl 
+          || nextStep.activityConfig?.questionWithImage?.uploadedImageUrl;
+        if (nextImageUrl && typeof nextImageUrl === 'string') {
+          Image.prefetch(nextImageUrl).catch(err => {
+            console.warn('Failed to preload next step image:', err);
+          });
+        }
+        
+        // Preload SVGs for next step if it's svgMultiSelect
+        if (nextStep.activity === 'svgMultiSelect' && nextStep.activityConfig?.svgOptions) {
+          const svgOptions = nextStep.activityConfig.svgOptions;
+          const svgPromises = svgOptions.map((opt: any) => {
+            const svgUrl = opt.svgPublicUrl || opt.svgUrl;
+            if (svgUrl && typeof svgUrl === 'string') {
+              return fetch(svgUrl)
+                .then(res => res.ok ? res.text() : null)
+                .catch(err => {
+                  console.warn('Failed to preload next step SVG:', err);
+                  return null;
+                });
+            }
+            return Promise.resolve(null);
+          });
+          Promise.all(svgPromises).catch(() => {}); // Fire and forget
+        }
+      }
+    }
+  }, [stepId, currentLessonSteps]);
 
   // Reset drill state when step changes
   useEffect(() => {
@@ -178,7 +272,18 @@ export default function LessonScreen({ navigation, route }: Props) {
     setDrillExplanation(null);
     // Navigate to next step based on choices[0].nextStep
     if (step.choices && step.choices[0]) {
-      handleChoice(step.choices[0].nextStep);
+      const nextStep = step.choices[0].nextStep;
+      console.log(nextStep);
+      
+      // If nextStep is "intro" and we're not at intro, we've completed the lesson (looping back)
+      if (nextStep === "intro" && stepId !== "intro") {
+        // Complete the lesson instead of going back to intro
+        handleChoice("map");
+      } else {
+        console.log('nextStep', step);
+        
+        handleChoice(nextStep);
+      }
     }
   };
 
@@ -188,7 +293,13 @@ export default function LessonScreen({ navigation, route }: Props) {
     if (selectedChoiceIdx !== null && step.choices && step.choices[selectedChoiceIdx]) {
       const next = step.choices[selectedChoiceIdx].nextStep;
       setSelectedChoiceIdx(null);
-      handleChoice(next);
+      // If nextStep is "intro" and we're not at intro, we've completed the lesson (looping back)
+      if (next === "intro" && stepId !== "intro") {
+        // Complete the lesson instead of going back to intro
+        handleChoice("map");
+      } else {
+        handleChoice(next);
+      }
     }
   };
 
@@ -199,40 +310,102 @@ export default function LessonScreen({ navigation, route }: Props) {
       return;
     }
     
-    // Check if lesson is complete (empty/undefined nextStep or nextStep doesn't exist in steps)
-    const isEmptyOrInvalid = !nextStep || nextStep === "" || !currentLessonSteps.find(s => s.id === nextStep);
+    // Check if lesson is complete (empty/undefined nextStep)
+    if (!nextStep || nextStep === "") {
+      // Empty nextStep means lesson is complete
+      nextStep = "map";
+    }
     
-    if (isEmptyOrInvalid || nextStep === "map") {
-      // Lesson is complete - navigate to completion screen
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start(async () => {
-        let shouldComplete = true;
-        let shouldFail = false;
-        // Special logic for quiz lesson: only complete if user answered correctly
-        if (lessonId === 101) {
-          if (stepId === "wrong1") {
-            shouldComplete = false;
-            shouldFail = true;
-          }
+    // Find current step index and next step index to detect backwards navigation (loops)
+    const currentStepIndex = currentLessonSteps.findIndex(s => s.id === stepId);
+    const nextStepIndices = currentLessonSteps
+      .map((s, idx) => s.id === nextStep ? idx : -1)
+      .filter(idx => idx !== -1);
+    
+    // If nextStep exists, check if we're going backwards (loop detection)
+    if (nextStep && nextStep !== "map" && nextStepIndices.length > 0) {
+      const lastNextStepIndex = nextStepIndices[nextStepIndices.length - 1]; // Get the LAST occurrence
+      const firstNextStepIndex = nextStepIndices[0]; // Get the FIRST occurrence
+      
+      // If we're going to a step that appears BEFORE our current position, it's a loop
+      // OR if we're going to the first occurrence but we've already visited that step ID
+      if (currentStepIndex >= 0 && firstNextStepIndex < currentStepIndex) {
+        console.log(`Loop detected: going backwards from step ${currentStepIndex} ("${stepId}") to step ${firstNextStepIndex} ("${nextStep}")`);
+        nextStep = "map";
+      } else if (visitedStepsRef.current.has(nextStep) && nextStep !== stepId && firstNextStepIndex < currentStepIndex) {
+        // Also check if we've visited this step before and we're going backwards
+        console.log(`Loop detected: trying to go to "${nextStep}" from "${stepId}", but we've already visited "${nextStep}" and going backwards`);
+        nextStep = "map";
+      } else if (lastNextStepIndex >= 0) {
+        // Check if the LAST occurrence of this step ID has an empty nextStep
+        const lastStepWithId = currentLessonSteps[lastNextStepIndex];
+        if (lastStepWithId.choices && lastStepWithId.choices[0] && 
+            (!lastStepWithId.choices[0].nextStep || lastStepWithId.choices[0].nextStep === "")) {
+          // This is the last step with this ID and it has empty nextStep - complete lesson
+          console.log(`Last step "${nextStep}" has empty nextStep, completing lesson`);
+          nextStep = "map";
         }
+      }
+    }
+    
+    // Check if nextStep exists in steps
+    const nextStepExists = currentLessonSteps.find(s => s.id === nextStep);
+    
+    // If nextStep doesn't exist in steps, complete the lesson
+    if (!nextStepExists && nextStep !== "map") {
+      console.log(`Step "${nextStep}" not found in lesson steps, completing lesson`);
+      nextStep = "map";
+    }
+    
+    if (nextStep === "map") {
+      // Lesson is complete - start async operations immediately, then animate and navigate
+      let shouldComplete = true;
+      let shouldFail = false;
+      // Special logic for quiz lesson: only complete if user answered correctly
+      if (lessonId === 101) {
+        if (stepId === "wrong1") {
+          shouldComplete = false;
+          shouldFail = true;
+        }
+      }
+      
+      // Start async operations immediately (don't wait for animations)
+      if (shouldComplete && !shouldFail) {
+        // Fire and forget - don't block navigation
+        (async () => {
+          try {
+            await markLessonCompleted(lessonId);
+          } catch (error: any) {
+            console.error("Failed to save progress:", error);
+            // Continue even if progress save fails
+          }
+        })();
+      }
+      
+      // Animate progress to 100% first, then fade out, then navigate
+      Animated.sequence([
+        // Animate progress bar to 100% - user wants to see this complete
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }),
+        // Then fade out quickly
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        // Navigate after progress bar completes and fade out finishes
         if (shouldFail) {
           navigation.navigate("LessonFail");
-          return;
+        } else {
+          navigation.navigate("LessonComplete", { lessonId });
         }
-        if (shouldComplete) {
-          try {
-            // Mark lesson as completed (tracks attempts + completed list)
-            await markLessonCompleted(lessonId);
-          } catch (error) {
-            console.error("Failed to save progress:", error);
-            // Continue with navigation even if progress save fails
-          }
-        }
-        navigation.navigate("LessonComplete", { lessonId });
       });
+      
       return;
     }
     
@@ -258,11 +431,13 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
     
     // Navigate to next step in lesson
+    console.log(`Navigating from "${stepId}" to "${nextStep}"`);
     Animated.timing(fadeAnim, {
       toValue: 0,
       duration: 200,
       useNativeDriver: true,
     }).start(() => {
+      // Track visited steps to detect loops (will also be tracked in useEffect)
       setStepId(nextStep);
       fadeAnim.setValue(1);
     });
@@ -343,13 +518,16 @@ export default function LessonScreen({ navigation, route }: Props) {
         {/* Text with image explanation activity - outside bubbleWrapper for proper flex layout */}
         {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && (
           <View style={styles.textWithImageWrapper}>
-            <SpeechBubble 
-              message={step.message || ''}
-              position={step.bubblePosition || 'topRight'}
-              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-              disableTyping
-              disableEnterAnim
-            />
+            {/* Only show speech bubble if there's a message */}
+            {step.message && step.message.trim() !== '' && (
+              <SpeechBubble 
+                message={step.message}
+                position={step.bubblePosition || 'topRight'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                disableTyping
+                disableEnterAnim
+              />
+            )}
             {(step.activityConfig.questionWithImage.uploadedImagePublicUrl || step.activityConfig.questionWithImage.uploadedImageUrl || step.activityConfig.questionWithImage.uploadedImage) && (
               <View style={styles.textWithImageContainer}>
                 <Image
@@ -407,6 +585,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
               correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
               wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
+              characterImg={getCharacterImg(step.characterImg)}
               onSubmit={(result) => {
                 const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
                 handleDrillComplete({
@@ -426,6 +605,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
               correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
               wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
+              characterImg={getCharacterImg(step.characterImg)}
               onSubmit={(result) => {
                 const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
                 handleDrillComplete({
@@ -436,13 +616,14 @@ export default function LessonScreen({ navigation, route }: Props) {
             />
           )}
 
-          {/* Hide bubble when dialog, explain, textWithSVG, simpleQuestion, or svgMultiSelect is active */}
-          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect) && (
+          {/* Hide bubble when dialog, explain, textWithSVG, simpleQuestion, questionWithSVG, questionWithImage, or svgMultiSelect is active */}
+          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || step.activity === 'questionWithSVG' || step.activity === 'questionWithImage') && (
             <SpeechBubble 
               message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
               characterImg={getCharacterImg(step.characterImg)} 
               position={step.bubblePosition || 'bottomLeft'}
               align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              randomPosition={step.activity?.includes('question') || step.activity?.includes('drill') || step.activity?.includes('Drill')}
               buttonText={showingDrillExplanation ? 'המשך' : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined)}
               onButtonPress={showingDrillExplanation ? handleExplanationContinue : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? () => handleChoice(choices[0].nextStep) : undefined)}
             />
@@ -455,6 +636,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               characterImg={getCharacterImg(step.characterImg)} 
               position={step.bubblePosition || 'bottomLeft'}
               align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              randomPosition={true}
               disableTyping
               disableEnterAnim
             />
@@ -890,8 +1072,11 @@ export default function LessonScreen({ navigation, route }: Props) {
           {`${currentLessonSteps.findIndex(s => s.id === stepId) + 1}/${currentLessonSteps.length}`}
         </Text> */}
         <View style={styles.progressBarBg}>
-          <View style={{
-            width: `${((currentLessonSteps.findIndex(s => s.id === stepId) + 1) / currentLessonSteps.length) * 100}%`,
+          <Animated.View style={{
+            width: progressAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', '100%'],
+            }),
             height: '100%',
             backgroundColor: '#62D24C',
             borderRadius: 8,
