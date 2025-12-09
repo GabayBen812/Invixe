@@ -1267,10 +1267,10 @@ const styles = StyleSheet.create({
   choiceCardSelected: {
     backgroundColor: '#3372D8',
     shadowColor: '#3F9FFF',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
   choiceTextSelected: {
     color: '#FFFFFF',
