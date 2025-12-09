@@ -1,25 +1,28 @@
-import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useMemo, useState, useEffect } from 'react';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 
 interface Props {
-  text?: string;
+  explanation: string;
+  imageUrl?: string;
   svgCode?: string;
   svgUrl?: string;
   svgPublicUrl?: string;
-  submitText?: string;
+  continueText?: string;
   onContinue: () => void;
 }
 
-export default function TextWithSVG({ 
-  text,
+export default function PathSelectExplanation({
+  explanation,
+  imageUrl,
   svgCode,
   svgUrl,
   svgPublicUrl,
-  submitText = 'המשך',
-  onContinue 
+  continueText = 'המשך',
+  onContinue
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
+  const parsedCacheRef = React.useRef<React.ReactElement | null>(null);
 
   // Fetch SVG from URL if available
   useEffect(() => {
@@ -46,30 +49,47 @@ export default function TextWithSVG({
     const svgToParse = svgCode || svgCache;
     if (!svgToParse) return null;
     
+    // Check parsed cache first
+    if (parsedCacheRef.current) {
+      return parsedCacheRef.current;
+    }
+    
     const parsed = parseSVGCode(svgToParse);
+    if (parsed) {
+      parsedCacheRef.current = parsed;
+    }
     return parsed;
   }, [svgCode, svgCache]);
 
   return (
     <View style={styles.container}>
-      <View style={styles.explainContainer}>
-        {!!text && (
-          <Text style={styles.explainText}>{text}</Text>
+      <View style={styles.explanationContainer}>
+        {explanation && (
+          <Text style={styles.explanationText}>{explanation}</Text>
         )}
-        <View style={styles.svgContainer}>
-          {parsedSVG || (
-            <View style={styles.svgPlaceholder}>
-              <Text style={styles.svgPlaceholderText}>SVG</Text>
-            </View>
-          )}
-        </View>
-        <Pressable
-          style={styles.simpleTextButton}
-          onPress={onContinue}
-        >
-          <Text style={styles.confirmButtonText}>
-            {submitText}
-          </Text>
+        
+        {imageUrl && (
+          <View style={styles.imageContainer}>
+            <Image
+              source={{ uri: imageUrl }}
+              style={styles.image}
+              resizeMode="contain"
+            />
+          </View>
+        )}
+        
+        {(parsedSVG || svgCode || svgUrl || svgPublicUrl) && (
+          <View style={styles.svgContainer}>
+            {parsedSVG || (
+              <View style={styles.svgPlaceholder}>
+                <Text style={styles.svgPlaceholderText}>SVG</Text>
+              </View>
+            )}
+          </View>
+        )}
+        
+        <Pressable style={styles.continueButton} onPress={onContinue}>
+          <Text style={styles.continueButtonText}>{continueText}</Text>
         </Pressable>
       </View>
     </View>
@@ -80,36 +100,46 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
-  },
-  explainContainer: {
-    width: '92%',
-    maxWidth: 500,
-    backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
     paddingHorizontal: 16,
-    borderRadius: 16,
-    alignItems: 'center',
-    marginBottom: 16,
   },
-  explainText: {
-    color: '#0D2033',
-    fontWeight: '700',
+  explanationContainer: {
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+  },
+  explanationText: {
     fontSize: 18,
+    fontWeight: '700',
+    color: '#0D2033',
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
+    lineHeight: 26,
+  },
+  imageContainer: {
+    width: '100%',
+    minHeight: 200,
+    maxHeight: 300,
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  image: {
+    width: '100%',
+    height: '100%',
   },
   svgContainer: {
     width: '100%',
-    minHeight: 220,
+    minHeight: 200,
+    maxHeight: 300,
+    marginBottom: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    marginBottom: 16,
-    padding: 16,
   },
   svgPlaceholder: {
-    width: '100%',
+    width: 200,
     height: 200,
     backgroundColor: '#E2E8F0',
     borderRadius: 8,
@@ -121,15 +151,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
-  simpleTextButton: {
-    marginTop: 20,
+  continueButton: {
+    marginTop: 8,
     backgroundColor: '#3F9FFF',
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 28,
-    alignSelf: 'center'
   },
-  confirmButtonText: {
+  continueButtonText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',

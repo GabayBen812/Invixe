@@ -99,7 +99,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   const timeSpent = "3:20"; // Can be tracked during lesson
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#D3E9FF' }}>
+    <View style={{ flex: 1, backgroundColor: '#E3EEF9' }}>
       <TopBar />
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Character Avatar */}

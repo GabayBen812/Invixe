@@ -261,7 +261,7 @@ export default function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D3E9FF', // solid color like MapScreen
+    backgroundColor: '#E3EEF9', // solid color like MapScreen
   },
   scrollContent: {
     paddingHorizontal: theme.spacing.md,

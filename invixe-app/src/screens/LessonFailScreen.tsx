@@ -18,7 +18,7 @@ export default function LessonFailScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#D3E9FF' }}>
+    <View style={{ flex: 1, backgroundColor: '#E3EEF9' }}>
       <View style={styles.container}>
         <SadIcon />
         <Text style={styles.title}>אוי לא...</Text>

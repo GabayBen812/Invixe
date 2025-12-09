@@ -295,7 +295,7 @@ export default function ShopScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D3E9FF',
+    backgroundColor: '#E3EEF9',
   },
   header: {
     paddingHorizontal: 20,

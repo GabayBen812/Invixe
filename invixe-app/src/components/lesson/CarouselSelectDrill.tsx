@@ -1,10 +1,16 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
+import { parseSVGCode } from '../../utils/svgParser';
 
 export interface CarouselItem {
   id: string;
   imageSource?: any;
+  imageKey?: string;
   label?: string;
+  svgCode?: string;
+  svgUrl?: string;
+  svgPublicUrl?: string;
+  svgPath?: string;
 }
 
 interface Props {
@@ -26,9 +32,79 @@ export default function CarouselSelectDrill({ items, correctId, submitText = 'א
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [svgCache, setSvgCache] = useState<Record<string, string>>({});
+  const parsedCacheRef = useRef<Record<string, React.ReactElement>>({});
 
   const normalizedItems = useMemo(() => items.length > 0 ? items : [], [items]);
   const selected = normalizedItems[index] || normalizedItems[0];
+
+  // Fetch SVGs from URLs
+  useEffect(() => {
+    const fetchSVGs = async () => {
+      const promises = normalizedItems.map(async (item) => {
+        if (item.svgPublicUrl && !svgCache[item.id]) {
+          try {
+            const response = await fetch(item.svgPublicUrl);
+            const text = await response.text();
+            setSvgCache(prev => ({ ...prev, [item.id]: text }));
+          } catch (e) {
+            console.error(`Failed to fetch SVG for ${item.id}:`, e);
+          }
+        } else if (item.svgUrl && !svgCache[item.id]) {
+          try {
+            const response = await fetch(item.svgUrl);
+            const text = await response.text();
+            setSvgCache(prev => ({ ...prev, [item.id]: text }));
+          } catch (e) {
+            console.error(`Failed to fetch SVG for ${item.id}:`, e);
+          }
+        }
+      });
+      await Promise.all(promises);
+    };
+    fetchSVGs();
+  }, [normalizedItems.map(i => i.svgPublicUrl || i.svgUrl || i.id).join(',')]);
+
+  const renderItemContent = (item: CarouselItem) => {
+    // Priority: 1) svgPublicUrl (from cache), 2) svgCode, 3) svgUrl (from cache), 4) imageSource/imageKey
+    let svgCodeToParse: string | undefined;
+    
+    if (item.svgPublicUrl && svgCache[item.id]) {
+      svgCodeToParse = svgCache[item.id];
+    } else if (item.svgCode) {
+      svgCodeToParse = item.svgCode;
+    } else if (item.svgUrl && svgCache[item.id]) {
+      svgCodeToParse = svgCache[item.id];
+    }
+    
+    if (svgCodeToParse) {
+      const cacheKey = `${item.id}-${svgCodeToParse.substring(0, 50)}`;
+      if (parsedCacheRef.current[cacheKey]) {
+        return (
+          <View style={{ width: 90, height: 140, alignItems: 'center', justifyContent: 'center' }}>
+            {parsedCacheRef.current[cacheKey]}
+          </View>
+        );
+      }
+      
+      const parsedSVG = parseSVGCode(svgCodeToParse);
+      if (parsedSVG) {
+        parsedCacheRef.current[cacheKey] = parsedSVG;
+        return (
+          <View style={{ width: 90, height: 140, alignItems: 'center', justifyContent: 'center' }}>
+            {parsedSVG}
+          </View>
+        );
+      }
+    }
+    
+    // Fallback to imageSource/imageKey
+    if (item.imageSource) {
+      return <Image source={item.imageSource} style={styles.image} />;
+    }
+    
+    return null;
+  };
 
   const goLeft = () => {
     if (submitted) return;
@@ -65,9 +141,7 @@ export default function CarouselSelectDrill({ items, correctId, submitText = 'א
           <Text style={styles.arrowText}>‹</Text>
         </Pressable>
         <View style={styles.centerCard}>
-          {selected?.imageSource ? (
-            <Image source={selected.imageSource} style={styles.image} />
-          ) : null}
+          {selected ? renderItemContent(selected) : null}
           {selected?.label ? (
             <Text style={styles.label}>{selected.label}</Text>
           ) : null}

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, ImageSourcePropType } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 import SpeechBubble from './SpeechBubble';
@@ -11,7 +11,9 @@ interface Choice {
 
 interface Props {
   question: string;
-  svgCode: string;
+  svgCode?: string;
+  svgUrl?: string;
+  svgPublicUrl?: string;
   choices: Choice[];
   submitText?: string;
   correctExplanation?: string;
@@ -28,6 +30,8 @@ interface Props {
 export default function QuestionWithSVG({ 
   question, 
   svgCode,
+  svgUrl,
+  svgPublicUrl,
   choices, 
   submitText = 'בדוק',
   correctExplanation,
@@ -39,6 +43,7 @@ export default function QuestionWithSVG({
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [svgCache, setSvgCache] = useState<string | null>(null);
 
   const handleSubmit = () => {
     if (selectedChoice) {
@@ -62,11 +67,33 @@ export default function QuestionWithSVG({
     });
   };
 
+  // Fetch SVG from URL if available
+  useEffect(() => {
+    const fetchSVG = async () => {
+      const url = svgPublicUrl || svgUrl;
+      if (url && !svgCode && !svgCache) {
+        try {
+          const response = await fetch(url);
+          if (response.ok) {
+            const svgText = await response.text();
+            setSvgCache(svgText);
+          }
+        } catch (error) {
+          console.error('Failed to fetch SVG:', error);
+        }
+      }
+    };
+    fetchSVG();
+  }, [svgPublicUrl, svgUrl, svgCode, svgCache]);
+
   // Memoize SVG parsing to avoid re-parsing on every render
   const parsedSVG = useMemo(() => {
-    if (!svgCode) return null;
-    return parseSVGCode(svgCode);
-  }, [svgCode]);
+    const svgToParse = svgCode || svgCache;
+    if (!svgToParse) return null;
+    
+    const parsed = parseSVGCode(svgToParse);
+    return parsed;
+  }, [svgCode, svgCache]);
 
   return (
     <View style={styles.container}>

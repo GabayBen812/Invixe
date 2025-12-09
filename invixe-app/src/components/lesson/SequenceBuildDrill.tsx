@@ -1,19 +1,25 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Animated, PanResponder } from 'react-native';
 import { BullishCandleSVG, BearishCandleSVG, DojiCandleSVG } from './CandlestickSVGs';
 import { DragonflyDoji, InvertedHammerNew, RegularDoji, ShootingStar, Hammer, BullishEngulfing, BearishEngulfing } from '../../assets/Candels';
+import { parseSVGCode } from '../../utils/svgParser';
 
 type CandleKey = 'bullish' | 'bearish' | 'doji' | 'hammer' | 'invertedHammerNew' | 'dragonflyDoji' | 'regularDoji' | 'bullishEngulfing' | 'bearishEngulfing' | 'shootingStar';
 
 export interface SequenceOption {
   id: string;
   candleKey: CandleKey;
+  svgCode?: string;
+  svgUrl?: string;
+  svgPublicUrl?: string;
+  svgPath?: string;
 }
 
 interface Props {
   slotsCount: number;
   options: SequenceOption[];
-  correctSequence: string[]; // option ids in correct order
+  correctSequence?: string[]; // DEPRECATED: use correctSequences instead. Kept for backward compatibility
+  correctSequences?: string[][]; // array of arrays, each array is a valid sequence of option ids
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
@@ -52,13 +58,82 @@ const CandleByKey = ({ keyName }: { keyName: CandleKey }) => {
   }
 };
 
-export default function SequenceBuildDrill({ slotsCount, options, correctSequence, submitText = 'אישור', correctExplanation, wrongExplanation, onSubmit }: Props) {
+const renderOptionContent = (option: SequenceOption, svgCache: Record<string, string>, parsedCacheRef: React.MutableRefObject<Record<string, React.ReactElement>>) => {
+  // Priority: 1) svgPublicUrl (from cache), 2) svgCode, 3) svgUrl (from cache), 4) candleKey
+  let svgCodeToParse: string | undefined;
+  
+  if (option.svgPublicUrl && svgCache[option.id]) {
+    svgCodeToParse = svgCache[option.id];
+  } else if (option.svgCode) {
+    svgCodeToParse = option.svgCode;
+  } else if (option.svgUrl && svgCache[option.id]) {
+    svgCodeToParse = svgCache[option.id];
+  }
+  
+  if (svgCodeToParse) {
+    const cacheKey = `${option.id}-${svgCodeToParse.substring(0, 50)}`;
+    if (parsedCacheRef.current[cacheKey]) {
+      return (
+        <View style={{ width: 40, height: 120, alignItems: 'center', justifyContent: 'center' }}>
+          {parsedCacheRef.current[cacheKey]}
+        </View>
+      );
+    }
+    
+    const parsedSVG = parseSVGCode(svgCodeToParse);
+    if (parsedSVG) {
+      parsedCacheRef.current[cacheKey] = parsedSVG;
+      return (
+        <View style={{ width: 40, height: 120, alignItems: 'center', justifyContent: 'center' }}>
+          {parsedSVG}
+        </View>
+      );
+    }
+  }
+  
+  // Fallback to candleKey
+  return <CandleByKey keyName={option.candleKey} />;
+};
+
+export default function SequenceBuildDrill({ slotsCount, options, correctSequence, correctSequences, submitText = 'אישור', correctExplanation, wrongExplanation, onSubmit }: Props) {
+  // Support both old format (correctSequence) and new format (correctSequences)
+  // If correctSequence exists, convert it to correctSequences for backward compatibility
+  const validSequences: string[][] = correctSequences || (correctSequence ? [correctSequence] : []);
   const [placed, setPlaced] = useState<(string | undefined)[]>(Array(slotsCount).fill(undefined));
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [svgCache, setSvgCache] = useState<Record<string, string>>({});
+  const parsedCacheRef = useRef<Record<string, React.ReactElement>>({});
   const slotLayouts = useRef<{ x: number; y: number; width: number; height: number }[]>([]);
   const panValues = useRef<Record<string, Animated.ValueXY>>({}).current;
+
+  // Fetch SVGs from URLs
+  useEffect(() => {
+    const fetchSVGs = async () => {
+      const promises = options.map(async (option) => {
+        if (option.svgPublicUrl && !svgCache[option.id]) {
+          try {
+            const response = await fetch(option.svgPublicUrl);
+            const text = await response.text();
+            setSvgCache(prev => ({ ...prev, [option.id]: text }));
+          } catch (e) {
+            console.error(`Failed to fetch SVG for ${option.id}:`, e);
+          }
+        } else if (option.svgUrl && !svgCache[option.id]) {
+          try {
+            const response = await fetch(option.svgUrl);
+            const text = await response.text();
+            setSvgCache(prev => ({ ...prev, [option.id]: text }));
+          } catch (e) {
+            console.error(`Failed to fetch SVG for ${option.id}:`, e);
+          }
+        }
+      });
+      await Promise.all(promises);
+    };
+    fetchSVGs();
+  }, [options.map(o => o.svgPublicUrl || o.svgUrl || o.id).join(',')]);
 
   const attachPanResponder = (option: SequenceOption) => {
     if (!panValues[option.id]) panValues[option.id] = new Animated.ValueXY({ x: 0, y: 0 });
@@ -90,15 +165,24 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
     });
   };
 
+  // Check if the placed sequence matches any of the correct sequences
+  const isSequenceCorrect = (placedSeq: (string | undefined)[]): boolean => {
+    if (validSequences.length === 0) return false;
+    return validSequences.some(seq => {
+      if (placedSeq.length !== seq.length) return false;
+      return placedSeq.every((id, i) => id === seq[i]);
+    });
+  };
+
   const check = () => {
     setSubmitted(true);
-    const correct = placed.length === correctSequence.length && placed.every((id, i) => id === correctSequence[i]);
+    const correct = isSequenceCorrect(placed);
     setIsCorrect(correct);
     setShowingExplanation(true);
   };
 
   const handleContinue = () => {
-    const correct = placed.length === correctSequence.length && placed.every((id, i) => id === correctSequence[i]);
+    const correct = isSequenceCorrect(placed);
     const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
     onSubmit({ 
       correct, 
@@ -125,7 +209,7 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
           const resp = attachPanResponder(o);
           return (
             <Animated.View key={o.id} style={[styles.optionCandle, { transform: [{ translateX: pan.x }, { translateY: pan.y }] }]} {...resp.panHandlers}>
-              <CandleByKey keyName={o.candleKey} />
+              {renderOptionContent(o, svgCache, parsedCacheRef)}
             </Animated.View>
           );
         })}

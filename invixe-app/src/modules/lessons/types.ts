@@ -42,9 +42,10 @@ export interface LessonStep {
   points?: number; // Points earned for completing this step
   bubblePosition?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight' | 'center';
   characterImg?: string; // Filename or key for the character image
+  showCharacter?: boolean; // Whether to show character in speech bubble (default: true)
   visual?: string; // Optional visual key for SVGs or images
   // Optional interactive activity configuration
-  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild' | 'dialog' | 'textWithImageExplain' | 'svgMultiSelect' | 'questionWithImage' | 'questionWithSVG' | 'textWithSVG' | 'simple_question';
+  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild' | 'dialog' | 'textWithImageExplain' | 'svgMultiSelect' | 'questionWithImage' | 'questionWithSVG' | 'textWithSVG' | 'simple_question' | 'pathSelect';
   activityConfig?: {
     // Simple question config (single choice with explanations)
     rewards?: number; // Points/rewards for correct answer
@@ -71,6 +72,9 @@ export interface LessonStep {
       uploadedImagePublicUrl?: string; // public URL (e.g., Supabase storage URL)
       uploadedImagePath?: string; // storage path
       svgCode?: string; // SVG markup string for questionWithSVG/textWithSVG
+      svgUrl?: string; // SVG blob URL or public URL for preview
+      svgPublicUrl?: string; // SVG Supabase storage public URL
+      svgPath?: string; // SVG storage path
       choices?: Array<{
         id: string;
         text: string;
@@ -97,8 +101,33 @@ export interface LessonStep {
       svgUrl?: string; // Blob URL or public URL for preview
       svgPublicUrl?: string; // Supabase storage public URL
       svgPath?: string; // Storage path
+      pngUrl?: string; // PNG blob URL or public URL
+      pngPublicUrl?: string; // PNG Supabase storage public URL
+      pngPath?: string; // PNG storage path
+      inputType?: 'svg' | 'png'; // Type of input used
       correct: boolean;
     }>;
+    // Builder format (also supported for compatibility)
+    svgMultiSelect?: {
+      options?: Array<{
+        id: string;
+        label?: string;
+        svgCode?: string;
+        svgUrl?: string;
+        svgPublicUrl?: string;
+        svgPath?: string;
+        pngUrl?: string;
+        pngPublicUrl?: string;
+        pngPath?: string;
+        inputType?: 'svg' | 'png';
+        correct: boolean;
+      }>;
+      submitText?: string;
+      layout?: 'grid' | 'list';
+      rewards?: number;
+      correctExplanation?: string;
+      wrongExplanation?: string;
+    };
     submitText?: string;
     layout?: 'grid' | 'list';
     // Inline feedback explanations for multi-select drills
@@ -142,11 +171,27 @@ export interface LessonStep {
         id: string;
         candleKey: 'bullish' | 'bearish' | 'doji' | 'hammer' | 'invertedHammerNew' | 'dragonflyDoji' | 'regularDoji' | 'bullishEngulfing' | 'bearishEngulfing' | 'shootingStar';
       }>;
-      correctSequence: string[]; // array of option ids in correct order
+      correctSequence?: string[]; // DEPRECATED: use correctSequences instead. Kept for backward compatibility
+      correctSequences?: string[][]; // array of arrays, each array is a valid sequence of option ids
       submitText?: string;
       // Inline feedback explanations for sequence build drills
       correctExplanation?: string;
       wrongExplanation?: string;
+    };
+    // Path/Topic selection drill - allows users to explore multiple topics
+    pathSelect?: {
+      choices: Array<{
+        id: string;
+        text: string;
+        explanation?: string; // Text explanation for this path
+        explanationImageUrl?: string; // Optional image URL for explanation
+        explanationImagePath?: string; // Optional image path
+        explanationSvgCode?: string; // Optional SVG code for explanation
+        explanationSvgUrl?: string; // Optional SVG URL for explanation
+        explanationSvgPublicUrl?: string; // Optional SVG public URL
+        explanationSvgPath?: string; // Optional SVG path
+      }>;
+      submitText?: string; // Text for continue button (default: 'המשך')
     };
     // Candle selection config (supports all candle keys used in the app)
     target?:

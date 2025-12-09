@@ -1,12 +1,17 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, PanResponder, Animated } from 'react-native';
 import { DragonflyDoji, InvertedHammerNew, Doji, ShootingStar, RegularDoji, Hammer } from '../../assets/Candels';
+import { parseSVGCode } from '../../utils/svgParser';
 
 interface SlotSpec {
   id: string;
   drawKey?: 'hammer' | 'invertedHammerNew' | 'doji' | 'dragonflyDoji' | 'regularDoji' | 'shootingStar';
   imageSource?: any;
   labelBelow?: string;
+  svgCode?: string;
+  svgUrl?: string;
+  svgPublicUrl?: string;
+  svgPath?: string;
 }
 
 interface TokenSpec {
@@ -38,11 +43,40 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [svgCache, setSvgCache] = useState<Record<string, string>>({});
+  const parsedCacheRef = useRef<Record<string, React.ReactElement>>({});
 
   const slotRefs = useRef<Record<string, View | null>>({});
   const slotLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
 
   const tokenAnimated = useRef<Record<string, Animated.ValueXY>>({}).current;
+
+  // Fetch SVGs from URLs
+  useEffect(() => {
+    const fetchSVGs = async () => {
+      const promises = slots.map(async (slot) => {
+        if (slot.svgPublicUrl && !svgCache[slot.id]) {
+          try {
+            const response = await fetch(slot.svgPublicUrl);
+            const text = await response.text();
+            setSvgCache(prev => ({ ...prev, [slot.id]: text }));
+          } catch (e) {
+            console.error(`Failed to fetch SVG for ${slot.id}:`, e);
+          }
+        } else if (slot.svgUrl && !svgCache[slot.id]) {
+          try {
+            const response = await fetch(slot.svgUrl);
+            const text = await response.text();
+            setSvgCache(prev => ({ ...prev, [slot.id]: text }));
+          } catch (e) {
+            console.error(`Failed to fetch SVG for ${slot.id}:`, e);
+          }
+        }
+      });
+      await Promise.all(promises);
+    };
+    fetchSVGs();
+  }, [slots.map(s => s.svgPublicUrl || s.svgUrl || s.id).join(',')]);
 
   const getCandleForKey = (key?: SlotSpec['drawKey']) => {
     if (!key) return null;
@@ -62,6 +96,52 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
       default:
         return null;
     }
+  };
+
+  const renderSlotContent = (slot: SlotSpec) => {
+    // Priority: 1) svgPublicUrl (from cache), 2) svgCode, 3) svgUrl (from cache), 4) drawKey, 5) imageSource
+    let svgCodeToParse: string | undefined;
+    
+    if (slot.svgPublicUrl && svgCache[slot.id]) {
+      svgCodeToParse = svgCache[slot.id];
+    } else if (slot.svgCode) {
+      svgCodeToParse = slot.svgCode;
+    } else if (slot.svgUrl && svgCache[slot.id]) {
+      svgCodeToParse = svgCache[slot.id];
+    }
+    
+    if (svgCodeToParse) {
+      const cacheKey = `${slot.id}-${svgCodeToParse.substring(0, 50)}`;
+      if (parsedCacheRef.current[cacheKey]) {
+        return (
+          <View style={{ width: 34, height: 120, alignItems: 'center', justifyContent: 'center' }}>
+            {parsedCacheRef.current[cacheKey]}
+          </View>
+        );
+      }
+      
+      const parsedSVG = parseSVGCode(svgCodeToParse);
+      if (parsedSVG) {
+        parsedCacheRef.current[cacheKey] = parsedSVG;
+        return (
+          <View style={{ width: 34, height: 120, alignItems: 'center', justifyContent: 'center' }}>
+            {parsedSVG}
+          </View>
+        );
+      }
+    }
+    
+    // Fallback to drawKey or imageSource
+    if (slot.drawKey) {
+      return getCandleForKey(slot.drawKey);
+    }
+    
+    if (slot.imageSource) {
+      // If imageSource is provided, render it (would need Image component)
+      return null; // For now, return null as imageSource handling would need Image component
+    }
+    
+    return null;
   };
 
   const attachPanResponder = (token: TokenSpec) => {
@@ -128,7 +208,7 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
           <View key={s.id} ref={(ref: any) => (slotRefs.current[s.id] = ref)}
             onLayout={e => (slotLayouts.current[s.id] = e.nativeEvent.layout)}
             style={styles.slotBox}>
-            {getCandleForKey(s.drawKey)}
+            {renderSlotContent(s)}
             <View style={styles.slotUnderline} />
           </View>
         ))}
@@ -138,7 +218,7 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
           <View key={s.id} ref={(ref: any) => (slotRefs.current[s.id] = ref)}
             onLayout={e => (slotLayouts.current[s.id] = e.nativeEvent.layout)}
             style={styles.slotBox}>
-            {getCandleForKey(s.drawKey)}
+            {renderSlotContent(s)}
             <View style={styles.slotUnderline} />
           </View>
         ))}

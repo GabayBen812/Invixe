@@ -744,7 +744,7 @@ export default function MapScreen({ navigation }: Props) {
                 left: 0,
                 width: SCREEN_WIDTH,
                 height: totalMapHeight,
-                backgroundColor: "#D3E9FF",
+                backgroundColor: "#E3EEF9",
               }}
             />
             {/* Connectors between lessons */}
@@ -856,7 +856,7 @@ export default function MapScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#D3E9FF",
+    backgroundColor: "#E3EEF9",
   },
   scrollContent: {
     paddingBottom: 200, // Increased padding for better scroll

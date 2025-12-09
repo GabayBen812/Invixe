@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import Svg, { SvgProps } from 'react-native-svg';
 import { parseSVGCode } from '../../utils/svgParser';
 
@@ -11,6 +11,10 @@ export interface SVGMultiSelectOption {
   svgUrl?: string; // Blob URL or public URL for preview
   svgPublicUrl?: string; // Supabase storage public URL
   svgPath?: string; // Storage path
+  pngUrl?: string; // PNG blob URL or public URL
+  pngPublicUrl?: string; // PNG Supabase storage public URL
+  pngPath?: string; // PNG storage path
+  inputType?: 'svg' | 'png'; // Type of input used
   backgroundColor?: string;
   correct: boolean;
 }
@@ -232,6 +236,28 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   }, [options.map(o => o.svgPublicUrl || o.svgUrl || o.id).join(',')]); // Fetch when URLs change
 
   const renderSVG = (option: SVGMultiSelectOption) => {
+    // Handle PNG images
+    if (option.inputType === 'png' || option.pngPublicUrl || option.pngUrl) {
+      const pngUrl = option.pngPublicUrl || option.pngUrl;
+      if (pngUrl) {
+        return (
+          <View style={styles.svgContainer}>
+            <Image
+              source={{ uri: pngUrl }}
+              style={styles.pngImage}
+              resizeMode="contain"
+            />
+          </View>
+        );
+      }
+      return (
+        <View style={styles.svgPlaceholder}>
+          <Text style={styles.svgPlaceholderText}>...</Text>
+        </View>
+      );
+    }
+
+    // Handle SVG
     if (option.svgComponent) {
       const SvgComponent = option.svgComponent;
       return <SvgComponent width={60} height={60} />;
@@ -398,6 +424,10 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontWeight: '700',
     fontSize: 12,
+  },
+  pngImage: {
+    width: 120,
+    height: 120,
   },
   optionLabel: {
     fontSize: 16,

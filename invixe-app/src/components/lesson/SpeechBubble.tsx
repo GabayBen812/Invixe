@@ -15,6 +15,9 @@ interface SpeechBubbleProps {
   randomPosition?: boolean; // randomly position character left or right (for drills)
 }
 
+// Threshold after which we consider the message "very long" and hide the avatar
+const LONG_MESSAGE_THRESHOLD = 200;
+
 export default function SpeechBubble({
   message,
   characterImg,
@@ -31,6 +34,9 @@ export default function SpeechBubble({
   if (!message || message.trim().length === 0) {
     return null;
   }
+
+  // Detect very long messages to save vertical space by hiding the avatar
+  const isVeryLongMessage = message.trim().length > LONG_MESSAGE_THRESHOLD;
 
   // Random position for drills - randomly choose left or right
   const [randomSide, setRandomSide] = React.useState<'left' | 'right' | null>(null);
@@ -157,9 +163,16 @@ export default function SpeechBubble({
   );
 
   const bubbleNode = (
-    <Animated.View style={[styles.bubbleContainer, { alignSelf, transform: [{ translateY: slideIn }], opacity }, isRight && styles.bubbleContainerRight]}>
+    <Animated.View
+      style={[
+        styles.bubbleContainer,
+        { alignSelf, transform: [{ translateY: slideIn }], opacity },
+        // Only constrain width for right-side layout when avatar is visible
+        isRight && !isVeryLongMessage && styles.bubbleContainerRight,
+      ]}
+    >
       <View style={[styles.row, isRight && styles.rowRight]}>
-        {!isRight && (
+        {!isRight && !isVeryLongMessage && (
           <View style={styles.avatarWrap}>
             {renderAvatar(false)}
           </View>
@@ -170,6 +183,11 @@ export default function SpeechBubble({
   );
 
   if (isRight) {
+    // For very long messages, don't show the avatar at all – just use the full-width bubble
+    if (isVeryLongMessage) {
+      return bubbleNode;
+    }
+
     return (
       <View style={[styles.rightWrapper, { alignSelf }]}>
         {bubbleNode}

@@ -574,11 +574,11 @@ export default function SandboxScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#D3E9FF', // palette background
+    backgroundColor: '#E3EEF9', // palette background
   },
   content: {
     flex: 1,
-    backgroundColor: '#D3E9FF', // palette background
+    backgroundColor: '#E3EEF9', // palette background
   },
   title: {
     fontSize: 24,
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
   },
   controlButton: {
-    backgroundColor: '#D3E9FF',
+    backgroundColor: '#E3EEF9',
     borderRadius: theme.radius.sm,
     padding: theme.spacing.sm,
     marginLeft: theme.spacing.xs,
@@ -728,7 +728,7 @@ const styles = StyleSheet.create({
     height: 32,
   },
   timeRangeBubble: {
-    backgroundColor: '#D3E9FF',
+    backgroundColor: '#E3EEF9',
     borderRadius: 16,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#D3E9FF',
+    backgroundColor: '#E3EEF9',
   },
   confirmButton: {
     backgroundColor: theme.colors.primaryBlue,
