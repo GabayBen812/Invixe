@@ -656,10 +656,12 @@ export default function MapScreen({ navigation }: Props) {
           <StickyHeader
             title={
               activeStep?.step === 1
-                ? "ניתוח טכני"
+                ? "מבוא לשוק ההון"
                 : activeStep?.step === 2
-                ? "מניות ומסחר"
-                : "שוק ההון"
+                ? "ניתוח טכני"
+                : activeStep?.step === 3
+                ? "השקעות לטווח ארוך"
+                : "ניתוח פונדמנטלי"
             }
             progress={progressPercentage}
           />
@@ -696,7 +698,7 @@ export default function MapScreen({ navigation }: Props) {
                 <Text style={styles.unitBadgeText}>קורס מלא</Text>
               </View>
               <Text style={styles.unitTitle}>
-                {activeStep?.step === 1 ? "ניתוח טכני" : "מניות ומסחר"}
+                {activeStep?.step === 1 ? "מבוא לשוק ההון" : activeStep?.step === 2 ? "ניתוח טכני" : activeStep?.step === 3 ? "השקעות לטווח ארוך" : "ניתוח פונדמנטלי"}
               </Text>
               <Text style={styles.unitSubtitle}>
                 למד ניתוח טכני, מסחר במניות והשקעות חכמות

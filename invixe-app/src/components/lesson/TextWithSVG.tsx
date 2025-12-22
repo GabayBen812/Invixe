@@ -20,6 +20,7 @@ export default function TextWithSVG({
   onContinue 
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
+  const parsedCacheRef = useRef<React.ReactElement | null>(null);
 
   // Fetch SVG from URL if available
   useEffect(() => {
@@ -31,7 +32,7 @@ export default function TextWithSVG({
           if (response.ok) {
             const svgText = await response.text();
             setSvgCache(svgText);
-            parsedCacheRef.current = null; // Clear parsed cache
+            parsedCacheRef.current = null; // Clear parsed cache so it will be re‑parsed
           }
         } catch (error) {
           console.error('Failed to fetch SVG:', error);
@@ -45,8 +46,14 @@ export default function TextWithSVG({
   const parsedSVG = useMemo(() => {
     const svgToParse = svgCode || svgCache;
     if (!svgToParse) return null;
-    
+
+    // If we've already parsed this exact SVG, reuse it
+    if (parsedCacheRef.current) {
+      return parsedCacheRef.current;
+    }
+
     const parsed = parseSVGCode(svgToParse);
+    parsedCacheRef.current = parsed;
     return parsed;
   }, [svgCode, svgCache]);
 

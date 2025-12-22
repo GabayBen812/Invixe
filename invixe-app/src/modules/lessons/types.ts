@@ -153,6 +153,11 @@ export interface LessonStep {
         drawKey?: 'hammer' | 'invertedHammerNew' | 'doji' | 'dragonflyDoji' | 'regularDoji' | 'shootingStar';
         imageKey?: string; // optional image instead of drawKey
         labelBelow?: string;
+        // Optional SVG support for slots (for lesson-builder generated SVG candles)
+        svgCode?: string;
+        svgUrl?: string;
+        svgPublicUrl?: string;
+        svgPath?: string;
       }>;
       tokens: Array<{
         id: string;
@@ -190,6 +195,19 @@ export interface LessonStep {
         explanationSvgUrl?: string; // Optional SVG URL for explanation
         explanationSvgPublicUrl?: string; // Optional SVG public URL
         explanationSvgPath?: string; // Optional SVG path
+        // Optional additional explanation screens for this path choice.
+        // The runtime will show the main explanation (fields above) first,
+        // then each of these screens in order before marking the option complete.
+        extraExplanations?: Array<{
+          id: string;
+          explanation?: string;
+          explanationImageUrl?: string;
+          explanationImagePath?: string;
+          explanationSvgCode?: string;
+          explanationSvgUrl?: string;
+          explanationSvgPublicUrl?: string;
+          explanationSvgPath?: string;
+        }>;
       }>;
       submitText?: string; // Text for continue button (default: 'המשך')
     };

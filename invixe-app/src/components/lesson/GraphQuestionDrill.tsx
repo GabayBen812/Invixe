@@ -1,101 +1,129 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 
-interface Choice {
+export interface GraphQuestionChoice {
   id: string;
   text: string;
-  correct: boolean;
+  correct?: boolean;
+  speechbubbleText?: string;
+  svgCode?: string;
+  svgPublicUrl?: string | null;
+  pngUrl?: string | null;
 }
 
+type MediaType = 'svg' | 'png';
+
 interface Props {
-  question: string;
+  mediaType: MediaType;
   svgCode?: string;
   svgUrl?: string;
-  svgPublicUrl?: string;
-  choices: Choice[];
+  svgPublicUrl?: string | null;
+  pngUrl?: string | null;
+  choices: GraphQuestionChoice[];
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
   onStateChange?: (state: { showingExplanation: boolean; canSubmit: boolean }) => void;
   onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
-  onSubmit: (result: { 
-    correct: boolean; 
+  onSubmit: (result: {
+    correct: boolean;
     selectedChoiceId: string;
     isCorrect: boolean;
     explanation: string;
   }) => void;
 }
 
-export default function QuestionWithSVG({ 
-  question, 
+export default function GraphQuestionDrill({
+  mediaType,
   svgCode,
   svgUrl,
   svgPublicUrl,
-  choices, 
+  pngUrl,
+  choices,
   submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
   onStateChange,
   onSubmitTriggerRef,
-  onSubmit 
+  onSubmit,
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+
+  // Active media based on selected choice
+  const activeSvgCode = useMemo(() => {
+    if (mediaType !== 'svg') return undefined;
+    const selected = choices.find((c) => c.id === selectedChoice);
+    if (selected?.svgCode) return selected.svgCode;
+    return svgCode;
+  }, [mediaType, choices, selectedChoice, svgCode]);
+
+  const activeSvgUrl = useMemo(() => {
+    if (mediaType !== 'svg') return undefined;
+    const selected = choices.find((c) => c.id === selectedChoice);
+    if (selected?.svgPublicUrl) return selected.svgPublicUrl || undefined;
+    return svgPublicUrl || svgUrl;
+  }, [mediaType, choices, selectedChoice, svgPublicUrl, svgUrl]);
+
+  const activePngUrl = useMemo(() => {
+    if (mediaType !== 'png') return null;
+    const selected = choices.find((c) => c.id === selectedChoice);
+    if (selected?.pngUrl) return selected.pngUrl;
+    return pngUrl || null;
+  }, [mediaType, choices, selectedChoice, pngUrl]);
+
+  // Fetch SVG text when only URL is available
   const [svgCache, setSvgCache] = useState<string | null>(null);
 
-  const handleSubmit = () => {
-    if (selectedChoice) {
-      const selectedChoiceData = choices.find(c => c.id === selectedChoice);
-      const correct = selectedChoiceData?.correct || false;
-      setSubmitted(true);
-      setIsCorrect(correct);
-      setShowingExplanation(true);
-
-      const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
-      onSubmit({ 
-        correct,
-        selectedChoiceId: selectedChoice,
-        isCorrect: correct,
-        explanation
-      });
-    }
-  };
-
-  const handleContinue = () => {
-    const selectedChoiceData = choices.find(c => c.id === selectedChoice);
-    const correct = selectedChoiceData?.correct || false;
-    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
-    onSubmit({ 
-      correct,
-      selectedChoiceId: selectedChoice || '',
-      isCorrect: correct,
-      explanation
-    });
-  };
-
-  // Fetch SVG from URL if available
   useEffect(() => {
+    if (mediaType !== 'svg') return;
+    const codeToUse = activeSvgCode;
+    const urlToUse = !codeToUse ? activeSvgUrl : undefined;
+    if (!urlToUse) {
+      setSvgCache(null);
+      return;
+    }
+
+    let cancelled = false;
     const fetchSVG = async () => {
-      const url = svgPublicUrl || svgUrl;
-      if (url && !svgCode && !svgCache) {
-        try {
-          const response = await fetch(url);
-          if (response.ok) {
-            const svgText = await response.text();
-            setSvgCache(svgText);
-          }
-        } catch (error) {
-          console.error('Failed to fetch SVG:', error);
+      try {
+        const res = await fetch(urlToUse);
+        if (!cancelled && res.ok) {
+          const text = await res.text();
+          setSvgCache(text);
         }
+      } catch {
+        if (!cancelled) setSvgCache(null);
       }
     };
     fetchSVG();
-  }, [svgPublicUrl, svgUrl, svgCode, svgCache]);
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaType, activeSvgCode, activeSvgUrl]);
 
-  // Expose internal submit handler so parent can trigger it (for absolute button)
+  const handleSubmit = () => {
+    if (!selectedChoice) return;
+    const selectedChoiceData = choices.find((c) => c.id === selectedChoice);
+    const correct = selectedChoiceData?.correct || false;
+
+    setSubmitted(true);
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+
+    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
+    onSubmit({
+      correct,
+      selectedChoiceId: selectedChoice,
+      isCorrect: correct,
+      explanation,
+    });
+  };
+
+  // Expose submit handler for absolute button
   useEffect(() => {
     if (onSubmitTriggerRef) {
       onSubmitTriggerRef.current = handleSubmit;
@@ -107,7 +135,7 @@ export default function QuestionWithSVG({
     };
   }, [onSubmitTriggerRef, handleSubmit, selectedChoice, choices, correctExplanation, wrongExplanation]);
 
-  // Notify parent about state changes (e.g., whether user selected an option)
+  // Notify parent about state (used to enable/disable absolute button)
   useEffect(() => {
     if (onStateChange) {
       onStateChange({
@@ -117,27 +145,31 @@ export default function QuestionWithSVG({
     }
   }, [onStateChange, showingExplanation, selectedChoice]);
 
-  // Memoize SVG parsing to avoid re-parsing on every render
+  // Parse SVG for rendering
   const parsedSVG = useMemo(() => {
-    const svgToParse = svgCode || svgCache;
-    if (!svgToParse) return null;
-    
-    const parsed = parseSVGCode(svgToParse);
-    return parsed;
-  }, [svgCode, svgCache]);
+    if (mediaType !== 'svg') return null;
+    const code = activeSvgCode || svgCache;
+    if (!code) return null;
+    return parseSVGCode(code);
+  }, [mediaType, activeSvgCode, svgCache]);
 
   return (
     <View style={styles.container}>
-      {/* Question card */}
-      <View style={styles.questionCard}>
-        <Text style={styles.questionText}>{question}</Text>
-      </View>
-
-      {/* SVG */}
-      <View style={styles.svgContainer}>
-        {parsedSVG || (
-          <View style={styles.svgPlaceholder}>
-            <Text style={styles.svgPlaceholderText}>SVG</Text>
+      {/* Media */}
+      <View style={styles.mediaContainer}>
+        {mediaType === 'svg' ? (
+          parsedSVG ? (
+            parsedSVG
+          ) : (
+            <View style={styles.mediaPlaceholder}>
+              <Text style={styles.mediaPlaceholderText}>SVG</Text>
+            </View>
+          )
+        ) : activePngUrl ? (
+          <Image source={{ uri: activePngUrl } as any} style={styles.pngImage} resizeMode="contain" />
+        ) : (
+          <View style={styles.mediaPlaceholder}>
+            <Text style={styles.mediaPlaceholderText}>No Image</Text>
           </View>
         )}
       </View>
@@ -148,7 +180,7 @@ export default function QuestionWithSVG({
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
           let buttonStyle: any = styles.choiceButton;
-          
+
           if (submitted) {
             if (isSelected && isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
@@ -156,6 +188,8 @@ export default function QuestionWithSVG({
               buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
             } else if (!isSelected && isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+            } else {
+              buttonStyle = [styles.choiceButton, styles.choiceButtonDisabled];
             }
           } else if (isSelected) {
             buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
@@ -171,18 +205,19 @@ export default function QuestionWithSVG({
                 }
               }}
             >
-              <Text style={[
-                styles.choiceText,
-                (submitted || isSelected) && styles.choiceTextSelected
-              ]}>
+              <Text
+                style={[
+                  styles.choiceText,
+                  (submitted || isSelected) && styles.choiceTextSelected,
+                ]}
+              >
                 {choice.text}
               </Text>
             </Pressable>
           );
         })}
       </View>
-
-      {/* No inline submit button – submit is triggered via absolute button in LessonScreen */}
+      {/* No inline submit button – submit triggered by absolute button in LessonScreen */}
     </View>
   );
 }
@@ -194,27 +229,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: 'center',
   },
-  questionCard: {
-    width: '94%',
-    maxWidth: 480,
-    borderRadius: 22,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0D2033',
-    textAlign: 'right',
-  },
-  svgContainer: {
+  mediaContainer: {
     width: '94%',
     maxWidth: 480,
     marginBottom: 16,
@@ -226,7 +241,7 @@ const styles = StyleSheet.create({
     height: 260,
     maxHeight: 260,
   },
-  svgPlaceholder: {
+  mediaPlaceholder: {
     width: '100%',
     height: 160,
     backgroundColor: '#D4DDEE',
@@ -234,10 +249,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  svgPlaceholderText: {
+  mediaPlaceholderText: {
     color: '#334155',
     fontWeight: '700',
     fontSize: 16,
+  },
+  pngImage: {
+    width: '100%',
+    height: 220,
   },
   choicesContainer: {
     width: '94%',
@@ -267,8 +286,11 @@ const styles = StyleSheet.create({
     backgroundColor: '#12B76A',
   },
   choiceButtonWrong: {
-    borderColor: '#FF6B6B',
-    backgroundColor: '#FFEEEE',
+    borderColor: '#D92D20',
+    backgroundColor: '#FEE4E2',
+  },
+  choiceButtonDisabled: {
+    opacity: 0.6,
   },
   choiceText: {
     fontSize: 16,
@@ -281,26 +303,7 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  submitButton: {
-    backgroundColor: '#3F9FFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  submitText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
-  },
 });
+
+
 

@@ -34,6 +34,7 @@ import Dialog from '../components/lesson/Dialog';
 import QuestionWithImage from '../components/lesson/QuestionWithImage';
 import QuestionWithSVG from '../components/lesson/QuestionWithSVG';
 import TextWithSVG from '../components/lesson/TextWithSVG';
+import GraphQuestionDrill from '../components/lesson/GraphQuestionDrill';
 import PathSelectDrill from '../components/lesson/PathSelectDrill';
 import PathSelectExplanation from '../components/lesson/PathSelectExplanation';
 
@@ -103,7 +104,12 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [simpleQuestionIsCorrect, setSimpleQuestionIsCorrect] = useState(false);
   const [svgMultiSelectCanSubmit, setSvgMultiSelectCanSubmit] = useState(false);
   const svgMultiSelectSubmitRef = useRef<(() => void) | null>(null);
+  const [questionSvgCanSubmit, setQuestionSvgCanSubmit] = useState(false);
+  const questionSvgSubmitRef = useRef<(() => void) | null>(null);
+  const [graphQuestionCanSubmit, setGraphQuestionCanSubmit] = useState(false);
+  const graphQuestionSubmitRef = useRef<(() => void) | null>(null);
   const [pathSelectViewingOption, setPathSelectViewingOption] = useState<string | null>(null);
+  const [pathSelectViewingScreenIndex, setPathSelectViewingScreenIndex] = useState<number>(0);
   const [pathSelectCompletedOptions, setPathSelectCompletedOptions] = useState<Set<string>>(new Set());
   const visitedStepsRef = useRef<Set<string>>(new Set());
 
@@ -262,9 +268,13 @@ export default function LessonScreen({ navigation, route }: Props) {
     setShowSimpleQuestionButtonSheet(false);
     setSimpleQuestionIsCorrect(false);
     setSvgMultiSelectCanSubmit(false);
+    setQuestionSvgCanSubmit(false);
+    setGraphQuestionCanSubmit(false);
     setPathSelectViewingOption(null);
     setPathSelectCompletedOptions(new Set());
     svgMultiSelectSubmitRef.current = null;
+    questionSvgSubmitRef.current = null;
+    graphQuestionSubmitRef.current = null;
   }, [stepId]);
 
   const step: LessonStep =
@@ -273,8 +283,11 @@ export default function LessonScreen({ navigation, route }: Props) {
 
   const isDialog = step?.activity === 'dialog' && !!step.activityConfig?.dialog;
   const isExplain = step?.activity === 'textWithImageExplain' && !!step.activityConfig?.questionWithImage;
-  const isTextWithSVG = step?.activity === 'textWithSVG' && !!step.activityConfig?.questionWithImage;
-  const isSimpleQuestion = step?.activity === 'simple_question';
+  const activityType = step?.activity as any;
+  const isTextWithSVG = activityType === 'textWithSVG' && !!step.activityConfig?.questionWithImage;
+  const isSimpleQuestion = activityType === 'simple_question';
+  const isGraphQuestionActivity = activityType === 'graphQuestion' || activityType === 'graphQuestionPNG';
+  const isQuestionWithSVGActivity = activityType === 'questionWithSVG' || isGraphQuestionActivity;
   const isPathSelect = step?.activity === 'pathSelect' && !!step.activityConfig?.pathSelect;
   const isSVGMultiSelect = step?.activity === 'svgMultiSelect' && 
                            (!!step.activityConfig?.svgOptions || !!step.activityConfig?.svgMultiSelect?.options);
@@ -283,8 +296,8 @@ export default function LessonScreen({ navigation, route }: Props) {
     const rewards = result.rewards || result.numCorrectSelections || (result.correct ? 1 : 0) || (result.numCorrect || 0);
     const isCorrect = result.isCorrect || result.correct || false;
     
-    // For simple_question, show button sheet instead of just setting explanation
-    if (isSimpleQuestion) {
+     // For simple_question, questionWithSVG and graphQuestion, show bottom sheet instead of generic explanation
+     if (isSimpleQuestion || isQuestionWithSVGActivity) {
       setSimpleQuestionIsCorrect(isCorrect);
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
@@ -326,7 +339,7 @@ export default function LessonScreen({ navigation, route }: Props) {
 
   const handleSimpleQuestionButtonSheetContinue = () => {
     setShowSimpleQuestionButtonSheet(false);
-    // Navigate to next step based on the selected choice's nextStep
+    // Navigate to next step based on the selected choice's nextStep (simple_question only)
     if (selectedChoiceIdx !== null && step.choices && step.choices[selectedChoiceIdx]) {
       const next = step.choices[selectedChoiceIdx].nextStep;
       setSelectedChoiceIdx(null);
@@ -636,7 +649,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           )}
 
           {/* Question with SVG drill */}
-          {step.activity === 'questionWithSVG' && step.activityConfig?.questionWithImage && (
+          {(activityType === 'questionWithSVG') && step.activityConfig?.questionWithImage && (
             <QuestionWithSVG
               question={step.activityConfig.questionWithImage.question || ''}
               svgCode={step.activityConfig.questionWithImage.svgCode}
@@ -646,7 +659,6 @@ export default function LessonScreen({ navigation, route }: Props) {
               submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
               correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
               wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
-              characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
               onSubmit={(result) => {
                 const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
                 handleDrillComplete({
@@ -654,11 +666,83 @@ export default function LessonScreen({ navigation, route }: Props) {
                   rewards
                 });
               }}
+              onSubmitTriggerRef={questionSvgSubmitRef}
+              onStateChange={(state) => {
+                setQuestionSvgCanSubmit(state.canSubmit);
+              }}
             />
           )}
 
-          {/* Hide bubble when dialog, explain, textWithSVG, simpleQuestion, questionWithSVG, questionWithImage, or svgMultiSelect is active */}
-          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || step.activity === 'questionWithSVG' || step.activity === 'questionWithImage') && (
+          {/* Graph question (SVG-based) drill */}
+          {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && (
+            <>
+              <SpeechBubble
+                message={showingDrillExplanation ? (drillExplanation || step.message) : step.message}
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                disableTyping
+                disableEnterAnim
+              />
+              <GraphQuestionDrill
+                mediaType="svg"
+                svgCode={(step.activityConfig as any).graphQuestion.svgCode}
+                svgUrl={(step.activityConfig as any).graphQuestion.svgUrl}
+                svgPublicUrl={(step.activityConfig as any).graphQuestion.svgPublicUrl}
+                choices={(step.activityConfig as any).graphQuestion.choices || []}
+                submitText={(step.activityConfig as any).graphQuestion.submitText || 'בדוק'}
+                correctExplanation={(step.activityConfig as any).graphQuestion.correctExplanation}
+                wrongExplanation={(step.activityConfig as any).graphQuestion.wrongExplanation}
+                onSubmit={(result) => {
+                  const rewards = result.isCorrect ? ((step.activityConfig as any)?.graphQuestion?.rewards || 0) : 0;
+                  handleDrillComplete({
+                    ...result,
+                    rewards,
+                  });
+                }}
+                onSubmitTriggerRef={graphQuestionSubmitRef}
+                onStateChange={(state) => {
+                  setGraphQuestionCanSubmit(state.canSubmit);
+                }}
+              />
+            </>
+          )}
+
+          {/* Graph question (PNG-based) drill */}
+          {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (
+            <>
+              <SpeechBubble
+                message={showingDrillExplanation ? (drillExplanation || step.message) : step.message}
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                disableTyping
+                disableEnterAnim
+              />
+              <GraphQuestionDrill
+                mediaType="png"
+                pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
+                choices={(step.activityConfig as any).graphQuestionPNG.choices || []}
+                submitText={(step.activityConfig as any).graphQuestionPNG.submitText || 'בדוק'}
+                correctExplanation={(step.activityConfig as any).graphQuestionPNG.correctExplanation}
+                wrongExplanation={(step.activityConfig as any).graphQuestionPNG.wrongExplanation}
+                onSubmit={(result) => {
+                  const rewards = result.isCorrect ? ((step.activityConfig as any)?.graphQuestionPNG?.rewards || 0) : 0;
+                  handleDrillComplete({
+                    ...result,
+                    rewards,
+                  });
+                }}
+                onSubmitTriggerRef={graphQuestionSubmitRef}
+                onStateChange={(state) => {
+                  setGraphQuestionCanSubmit(state.canSubmit);
+                }}
+              />
+            </>
+          )}
+
+          {/* Hide bubble when dialog, explain, textWithSVG, simpleQuestion, questionWithSVG, questionWithImage, svgMultiSelect or graphQuestion is active */}
+          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || activityType === 'questionWithSVG' || activityType === 'questionWithImage' || isGraphQuestionActivity) && (
             <SpeechBubble 
               message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
               characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
@@ -871,6 +955,10 @@ export default function LessonScreen({ navigation, route }: Props) {
                 drawKey: s.drawKey as any,
                 imageSource: s.imageKey ? characterImages[s.imageKey] : undefined,
                 labelBelow: s.labelBelow,
+                svgCode: s.svgCode,
+                svgUrl: s.svgUrl,
+                svgPublicUrl: s.svgPublicUrl,
+                svgPath: s.svgPath,
               }))}
               tokens={step.activityConfig.dragMatch.tokens}
               submitText={step.activityConfig.dragMatch.submitText || 'אישור'}
@@ -904,6 +992,41 @@ export default function LessonScreen({ navigation, route }: Props) {
                     (c: any) => c.id === pathSelectViewingOption
                   );
                   if (!selectedOption) return null;
+
+                  // Build ordered list of explanation "screens" for this option.
+                  // First screen comes from the legacy single-explanation fields,
+                  // followed by any extraExplanations if present.
+                  const baseScreen = {
+                    explanation: selectedOption.explanation || '',
+                    imageUrl: selectedOption.explanationImageUrl || selectedOption.explanationImagePath,
+                    svgCode: selectedOption.explanationSvgCode,
+                    svgUrl: selectedOption.explanationSvgUrl,
+                    svgPublicUrl: selectedOption.explanationSvgPublicUrl,
+                  };
+
+                  const extraScreens =
+                    (selectedOption.extraExplanations || []).map((ex: any) => ({
+                      explanation: ex.explanation || '',
+                      imageUrl: ex.explanationImageUrl || ex.explanationImagePath,
+                      svgCode: ex.explanationSvgCode,
+                      svgUrl: ex.explanationSvgUrl,
+                      svgPublicUrl: ex.explanationSvgPublicUrl,
+                    })) || [];
+
+                  const allScreens = [
+                    // Only include base screen if it has any content
+                    ...(baseScreen.explanation ||
+                    baseScreen.imageUrl ||
+                    baseScreen.svgCode ||
+                    baseScreen.svgUrl ||
+                    baseScreen.svgPublicUrl
+                      ? [baseScreen]
+                      : []),
+                    ...extraScreens,
+                  ];
+
+                  const currentScreen =
+                    allScreens[pathSelectViewingScreenIndex] || allScreens[0];
                   
                   return (
                     <>
@@ -917,19 +1040,26 @@ export default function LessonScreen({ navigation, route }: Props) {
                       />
                       <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 10 }}>
                         <PathSelectExplanation
-                          explanation={selectedOption.explanation || ''}
-                          imageUrl={selectedOption.explanationImageUrl || selectedOption.explanationImagePath}
-                          svgCode={selectedOption.explanationSvgCode}
-                          svgUrl={selectedOption.explanationSvgUrl}
-                          svgPublicUrl={selectedOption.explanationSvgPublicUrl}
+                          explanation={currentScreen?.explanation || ''}
+                          imageUrl={currentScreen?.imageUrl}
+                          svgCode={currentScreen?.svgCode}
+                          svgUrl={currentScreen?.svgUrl}
+                          svgPublicUrl={currentScreen?.svgPublicUrl}
                           continueText="המשך"
                           onContinue={() => {
-                            // Mark option as completed and return to main drill
+                            // If there are more screens, advance to the next one.
+                            if (allScreens.length > 0 && pathSelectViewingScreenIndex < allScreens.length - 1) {
+                              setPathSelectViewingScreenIndex(idx => idx + 1);
+                              return;
+                            }
+
+                            // Otherwise, mark this option as completed and return to main drill
                             setPathSelectCompletedOptions(prev => {
                               const newSet = new Set(prev);
                               newSet.add(pathSelectViewingOption);
                               return newSet;
                             });
+                            setPathSelectViewingScreenIndex(0);
                             setPathSelectViewingOption(null);
                           }}
                         />
@@ -953,6 +1083,8 @@ export default function LessonScreen({ navigation, route }: Props) {
                       options={step.activityConfig.pathSelect.choices || []}
                       submitText={step.activityConfig.pathSelect.submitText || 'המשך'}
                       onOptionSelect={(optionId) => {
+                        // Reset to first screen whenever a new option is selected
+                        setPathSelectViewingScreenIndex(0);
                         setPathSelectViewingOption(optionId);
                       }}
                       onContinue={() => {
@@ -1054,7 +1186,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 )}
               </>
             )}
-            {!isSimpleQuestion && !isSVGMultiSelect && choices && choices.length === 1 && step.id !== 'simple_text_step' && (
+            {!isSimpleQuestion && !isSVGMultiSelect && step.activity !== 'questionWithSVG' && step.activity !== 'dragMatch' && choices && choices.length === 1 && step.id !== 'simple_text_step' && (
               <Pressable
                 style={styles.primaryButton}
                 onPress={() => handleChoice(choices[0].nextStep)}
@@ -1124,7 +1256,7 @@ export default function LessonScreen({ navigation, route }: Props) {
         </View>
       )}
       {/* Button sheet for simple_question */}
-      {showSimpleQuestionButtonSheet && isSimpleQuestion && (
+      {showSimpleQuestionButtonSheet && (isSimpleQuestion || isQuestionWithSVGActivity) && (
         <View style={styles.buttonSheetContainer}>
           <View style={styles.buttonSheet}>
             <Text style={[styles.buttonSheetTitle, simpleQuestionIsCorrect ? styles.buttonSheetTitleCorrect : styles.buttonSheetTitleWrong]}>
@@ -1141,7 +1273,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                   styles.continueButton,
                   simpleQuestionIsCorrect ? styles.continueButtonCorrect : styles.continueButtonWrong
                 ]}
-                onPress={handleSimpleQuestionButtonSheetContinue}
+                onPress={isQuestionWithSVGActivity ? handleExplanationContinue : handleSimpleQuestionButtonSheetContinue}
               >
                 <Text style={styles.continueButtonText}>המשך</Text>
               </Pressable>
@@ -1184,6 +1316,36 @@ export default function LessonScreen({ navigation, route }: Props) {
           >
             <Text style={styles.continueButtonText}>
               {showingDrillExplanation ? 'המשך' : (step.activityConfig.submitText || 'בדוק')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for questionWithSVG using same absolute pattern */}
+      {(activityType === 'questionWithSVG' || isGraphQuestionActivity) && (activityType === 'questionWithSVG' ? step.activityConfig?.questionWithImage : (activityType === 'graphQuestion' ? (step.activityConfig as any)?.graphQuestion : (step.activityConfig as any)?.graphQuestionPNG)) && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && ((activityType === 'questionWithSVG' ? questionSvgCanSubmit : graphQuestionCanSubmit) || showingDrillExplanation) && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                handleExplanationContinue();
+              } else if (activityType === 'questionWithSVG') {
+                if (questionSvgSubmitRef.current && questionSvgCanSubmit) {
+                  questionSvgSubmitRef.current();
+                }
+              } else if (graphQuestionSubmitRef.current && graphQuestionCanSubmit) {
+                graphQuestionSubmitRef.current();
+              }
+            }}
+            disabled={!showingDrillExplanation && !(activityType === 'questionWithSVG' ? questionSvgCanSubmit : graphQuestionCanSubmit)}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation
+                ? 'המשך'
+                : (activityType === 'questionWithSVG'
+                    ? (step.activityConfig?.questionWithImage?.submitText || 'בדוק')
+                    : (activityType === 'graphQuestion'
+                        ? ((step.activityConfig as any).graphQuestion.submitText || 'בדוק')
+                        : ((step.activityConfig as any).graphQuestionPNG.submitText || 'בדוק')))}
             </Text>
           </Pressable>
         </View>

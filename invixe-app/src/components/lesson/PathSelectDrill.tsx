@@ -11,6 +11,20 @@ export interface PathOption {
   explanationSvgUrl?: string;
   explanationSvgPublicUrl?: string;
   explanationSvgPath?: string;
+  // Optional additional explanation screens for this option.
+  // The drill UI itself doesn't use these directly, but they are
+  // available so the lesson screen can render multiple explanation
+  // screens per option if needed.
+  extraExplanations?: Array<{
+    id: string;
+    explanation?: string;
+    explanationImageUrl?: string;
+    explanationImagePath?: string;
+    explanationSvgCode?: string;
+    explanationSvgUrl?: string;
+    explanationSvgPublicUrl?: string;
+    explanationSvgPath?: string;
+  }>;
 }
 
 interface Props {

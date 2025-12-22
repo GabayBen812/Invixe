@@ -334,22 +334,61 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
     <View style={styles.container}>
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {options && options.length > 0 ? (
-        <View style={[styles.optionsContainer, layout === 'grid' ? styles.grid : styles.list]}> 
+        <View style={styles.panel}>
+          <View style={[styles.optionsContainer, layout === 'grid' ? styles.grid : styles.list]}> 
+            {/* Center cross between options, purely visual */}
+            <View pointerEvents="none" style={styles.crossHorizontal} />
+            <View pointerEvents="none" style={styles.crossVertical} />
         {options.map((opt) => {
           const picked = !!selected[opt.id];
           const isCorrectAfterSubmit = submitted ? perOptionCorrectness[opt.id] : undefined;
-          const bg = submitted
-            ? (picked && opt.correct) || (!picked && !opt.correct) ? '#62D24C' : '#FF6B6B'
-            : picked ? '#3F9FFF' : (opt.backgroundColor || '#FFFFFF');
-          const textColor = submitted || picked ? '#FFFFFF' : '#0D2033';
+
+          // Base (neutral) state – white card like in Figma
+          let backgroundColor = opt.backgroundColor || '#FFFFFF';
+          let borderColor = '#D0D5DD';
+          let textColor = '#0D2033';
+
+          if (!submitted) {
+            if (picked) {
+              // Selected before submit – blue highlight
+              backgroundColor = '#E0EDFF';
+              borderColor = '#3372D8';
+            }
+          } else {
+            // After submit – green for correct, red for wrong (like result sheet)
+            if (isCorrectAfterSubmit) {
+              backgroundColor = '#D1FADF'; // soft green
+              borderColor = '#12B76A';
+            } else {
+              backgroundColor = '#FEE4E2'; // soft red
+              borderColor = '#D92D20';
+            }
+            textColor = '#0D2033';
+          }
           
           return (
-            <Pressable key={opt.id} onPress={() => toggle(opt.id)} style={[styles.optionCard, { backgroundColor: bg }]}> 
+            <Pressable
+              key={opt.id}
+              onPress={() => toggle(opt.id)}
+              style={[
+                styles.optionCard,
+                { backgroundColor, borderColor },
+              ]}
+            > 
+              <View
+                style={[
+                  styles.optionDot,
+                  !submitted && picked && styles.optionDotSelected,
+                  submitted && isCorrectAfterSubmit && styles.optionDotCorrect,
+                  submitted && !isCorrectAfterSubmit && styles.optionDotWrong,
+                ]}
+              />
               {renderSVG(opt)}
               {opt.label ? <Text style={[styles.optionLabel, { color: textColor }]}>{opt.label}</Text> : null}
             </Pressable>
           );
         })}
+          </View>
         </View>
       ) : (
         <Text style={{ padding: 20, color: '#666' }}>No options available</Text>
@@ -373,6 +412,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 10,
   },
+  panel: {
+    width: '100%',
+    maxWidth: 480,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    borderWidth: 1,
+    borderColor: '#E4E7EC',
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
+  },
   title: {
     fontSize: 18,
     fontWeight: '800',
@@ -383,7 +437,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 480,
     alignSelf: 'center',
-    paddingHorizontal: 0,
+    paddingTop: 10,
+    paddingBottom: 6,
+    paddingHorizontal: 10,
+    position: 'relative',
   },
   grid: {
     flexDirection: 'row',
@@ -394,20 +451,63 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   optionCard: {
-    width: '48%',
+    width: '45%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    paddingVertical: 18,
-    paddingHorizontal: 14,
-    marginVertical: 8,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    marginVertical: 10,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 100,
+    borderWidth: 1,
+    borderColor: '#D0D5DD',
+    shadowColor: '#101828',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  optionDot: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#E4E7EC',
+  },
+  optionDotSelected: {
+    backgroundColor: '#3372D8',
+  },
+  optionDotCorrect: {
+    backgroundColor: '#12B76A',
+  },
+  optionDotWrong: {
+    backgroundColor: '#D92D20',
+  },
+  crossHorizontal: {
+    position: 'absolute',
+    left: '14%',
+    right: '14%',
+    top: '50%',
+    height: 6,
+    backgroundColor: '#A0CFFF',
+    borderRadius: 1,
+  },
+  crossVertical: {
+    position: 'absolute',
+    top: '14%',
+    bottom: '14%',
+    left: '50%',
+    width: 6,
+    backgroundColor: '#A0CFFF',
+    borderRadius: 1,
   },
   svgContainer: {
-    width: 120,
-    height: 120,
-    marginBottom: 8,
+    width: 96,
+    height: 96,
+    marginBottom: 4,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'visible',
@@ -426,12 +526,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   pngImage: {
-    width: 120,
-    height: 120,
+    width: 110,
+    height: 110,
   },
   optionLabel: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
+    marginTop: 4,
   },
   submitButton: {
     marginTop: 18,
