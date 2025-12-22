@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   svgPublicUrl?: string;
   submitText?: string;
   onContinue: () => void;
+  showButton?: boolean;
 }
 
 export default function TextWithSVG({ 
@@ -17,7 +18,8 @@ export default function TextWithSVG({
   svgUrl,
   svgPublicUrl,
   submitText = 'המשך',
-  onContinue 
+  onContinue,
+  showButton = true
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = useRef<React.ReactElement | null>(null);
@@ -59,17 +61,25 @@ export default function TextWithSVG({
 
   return (
     <View style={styles.container}>
-      <View style={styles.explainContainer}>
-        {!!text && (
-          <Text style={styles.explainText}>{text}</Text>
-        )}
-        <View style={styles.svgContainer}>
-          {parsedSVG || (
-            <View style={styles.svgPlaceholder}>
-              <Text style={styles.svgPlaceholderText}>SVG</Text>
-            </View>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.explainContainer}>
+          {!!text && (
+            <Text style={styles.explainText}>{text}</Text>
           )}
+          <View style={styles.svgContainer}>
+            {parsedSVG || (
+              <View style={styles.svgPlaceholder}>
+                <Text style={styles.svgPlaceholderText}>SVG</Text>
+              </View>
+            )}
+          </View>
         </View>
+      </ScrollView>
+      {showButton && (
         <Pressable
           style={styles.simpleTextButton}
           onPress={onContinue}
@@ -78,7 +88,7 @@ export default function TextWithSVG({
             {submitText}
           </Text>
         </Pressable>
-      </View>
+      )}
     </View>
   );
 }
@@ -86,7 +96,16 @@ export default function TextWithSVG({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
+    flex: 1,
     alignItems: 'center',
+  },
+  scrollView: {
+    width: '100%',
+    flex: 1,
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingBottom: 20,
   },
   explainContainer: {
     width: '92%',
@@ -108,11 +127,11 @@ const styles = StyleSheet.create({
   svgContainer: {
     width: '100%',
     minHeight: 220,
+    maxHeight: 400,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    marginBottom: 16,
     padding: 16,
   },
   svgPlaceholder: {
@@ -129,12 +148,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   simpleTextButton: {
-    marginTop: 20,
     backgroundColor: '#3F9FFF',
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 28,
-    alignSelf: 'center'
+    alignSelf: 'center',
+    marginBottom: 20,
   },
   confirmButtonText: {
     color: '#FFFFFF',

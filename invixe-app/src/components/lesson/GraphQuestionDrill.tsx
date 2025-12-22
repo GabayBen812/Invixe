@@ -53,27 +53,21 @@ export default function GraphQuestionDrill({
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
-  // Active media based on selected choice
+  // Active media - always use the main graph, don't change based on selected choice
   const activeSvgCode = useMemo(() => {
     if (mediaType !== 'svg') return undefined;
-    const selected = choices.find((c) => c.id === selectedChoice);
-    if (selected?.svgCode) return selected.svgCode;
     return svgCode;
-  }, [mediaType, choices, selectedChoice, svgCode]);
+  }, [mediaType, svgCode]);
 
   const activeSvgUrl = useMemo(() => {
     if (mediaType !== 'svg') return undefined;
-    const selected = choices.find((c) => c.id === selectedChoice);
-    if (selected?.svgPublicUrl) return selected.svgPublicUrl || undefined;
     return svgPublicUrl || svgUrl;
-  }, [mediaType, choices, selectedChoice, svgPublicUrl, svgUrl]);
+  }, [mediaType, svgPublicUrl, svgUrl]);
 
   const activePngUrl = useMemo(() => {
     if (mediaType !== 'png') return null;
-    const selected = choices.find((c) => c.id === selectedChoice);
-    if (selected?.pngUrl) return selected.pngUrl;
     return pngUrl || null;
-  }, [mediaType, choices, selectedChoice, pngUrl]);
+  }, [mediaType, pngUrl]);
 
   // Fetch SVG text when only URL is available
   const [svgCache, setSvgCache] = useState<string | null>(null);

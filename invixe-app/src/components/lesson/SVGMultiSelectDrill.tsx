@@ -336,9 +336,6 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       {options && options.length > 0 ? (
         <View style={styles.panel}>
           <View style={[styles.optionsContainer, layout === 'grid' ? styles.grid : styles.list]}> 
-            {/* Center cross between options, purely visual */}
-            <View pointerEvents="none" style={styles.crossHorizontal} />
-            <View pointerEvents="none" style={styles.crossVertical} />
         {options.map((opt) => {
           const picked = !!selected[opt.id];
           const isCorrectAfterSubmit = submitted ? perOptionCorrectness[opt.id] : undefined;
@@ -485,24 +482,6 @@ const styles = StyleSheet.create({
   },
   optionDotWrong: {
     backgroundColor: '#D92D20',
-  },
-  crossHorizontal: {
-    position: 'absolute',
-    left: '14%',
-    right: '14%',
-    top: '50%',
-    height: 6,
-    backgroundColor: '#A0CFFF',
-    borderRadius: 1,
-  },
-  crossVertical: {
-    position: 'absolute',
-    top: '14%',
-    bottom: '14%',
-    left: '50%',
-    width: 6,
-    backgroundColor: '#A0CFFF',
-    borderRadius: 1,
   },
   svgContainer: {
     width: 96,

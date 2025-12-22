@@ -41,8 +41,8 @@ const styles = StyleSheet.create({
     minWidth: 220,
     alignItems: "center",
   },
-  primary: { backgroundColor: "#2196f3" },
-  secondary: { backgroundColor: "#4caf50" },
+  primary: { backgroundColor: "#3372D8" },
+  secondary: { backgroundColor: "#12B76A" },
   danger: { backgroundColor: "#f44336" },
   text: { color: "white", fontSize: 20, fontWeight: "bold" },
 });

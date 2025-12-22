@@ -30,8 +30,10 @@ export default function SpeechBubble({
   disableEnterAnim = false,
   randomPosition = false,
 }: SpeechBubbleProps) {
-  // Don't render speech bubble if message is empty or whitespace-only
-  if (!message || message.trim().length === 0) {
+  // Don't render speech bubble if message is empty or whitespace-only - NEVER render if no text
+  // Check multiple conditions to be absolutely sure
+  const trimmedMessage = typeof message === 'string' ? message.trim() : '';
+  if (!message || typeof message !== 'string' || trimmedMessage.length === 0 || message === '' || message === ' ') {
     return null;
   }
 

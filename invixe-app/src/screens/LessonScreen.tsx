@@ -108,6 +108,13 @@ export default function LessonScreen({ navigation, route }: Props) {
   const questionSvgSubmitRef = useRef<(() => void) | null>(null);
   const [graphQuestionCanSubmit, setGraphQuestionCanSubmit] = useState(false);
   const graphQuestionSubmitRef = useRef<(() => void) | null>(null);
+  const carouselSubmitRef = useRef<(() => void) | null>(null);
+  const [dragMatchCanSubmit, setDragMatchCanSubmit] = useState(false);
+  const dragMatchSubmitRef = useRef<(() => void) | null>(null);
+  const [sequenceBuildCanSubmit, setSequenceBuildCanSubmit] = useState(false);
+  const sequenceBuildSubmitRef = useRef<(() => void) | null>(null);
+  const [speechBubbleHeight, setSpeechBubbleHeight] = useState<number>(0);
+  const speechBubbleContainerRef = useRef<View | null>(null);
   const [pathSelectViewingOption, setPathSelectViewingOption] = useState<string | null>(null);
   const [pathSelectViewingScreenIndex, setPathSelectViewingScreenIndex] = useState<number>(0);
   const [pathSelectCompletedOptions, setPathSelectCompletedOptions] = useState<Set<string>>(new Set());
@@ -296,8 +303,8 @@ export default function LessonScreen({ navigation, route }: Props) {
     const rewards = result.rewards || result.numCorrectSelections || (result.correct ? 1 : 0) || (result.numCorrect || 0);
     const isCorrect = result.isCorrect || result.correct || false;
     
-     // For simple_question, questionWithSVG and graphQuestion, show bottom sheet instead of generic explanation
-     if (isSimpleQuestion || isQuestionWithSVGActivity) {
+     // For simple_question, questionWithSVG, graphQuestion, and sequenceBuild, show bottom sheet instead of generic explanation
+     if (isSimpleQuestion || isQuestionWithSVGActivity || step.activity === 'sequenceBuild') {
       setSimpleQuestionIsCorrect(isCorrect);
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
@@ -565,34 +572,176 @@ export default function LessonScreen({ navigation, route }: Props) {
         {step.showInventory && step.inventory && (
           <Inventory inventory={step.inventory} />
         )}
-        {/* Text with image explanation activity - outside bubbleWrapper for proper flex layout */}
-        {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && (
-          <View style={styles.textWithImageWrapper}>
-            {/* Only show speech bubble if there's a message */}
-            {step.message && step.message.trim() !== '' && (
-              <SpeechBubble 
-                message={step.message}
-                position={step.bubblePosition || 'topRight'}
+        
+        {/* Fixed Speech Bubble Container at Top */}
+        <View 
+          ref={speechBubbleContainerRef}
+          style={styles.speechBubbleContainer}
+          onLayout={(e) => {
+            const height = e.nativeEvent.layout.height;
+            setSpeechBubbleHeight(height);
+          }}
+        >
+          {/* Text with image explain speech bubble */}
+          {step.activity === 'textWithImageExplain' && step.message && step.message.trim() !== '' && (
+            <SpeechBubble 
+              message={step.message}
+              position={step.bubblePosition || 'topRight'}
+              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              disableTyping
+              disableEnterAnim
+            />
+          )}
+          
+          {/* Graph question speech bubbles */}
+          {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && (() => {
+            const bubbleMessage = showingDrillExplanation
+              ? (drillExplanation || step.message)
+              : step.message;
+            if (!bubbleMessage || bubbleMessage.trim() === '') return null;
+            return (
+              <SpeechBubble
+                message={bubbleMessage}
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                position={step.bubblePosition || 'bottomLeft'}
                 align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
                 disableTyping
                 disableEnterAnim
               />
-            )}
-            {(step.activityConfig.questionWithImage.uploadedImagePublicUrl || step.activityConfig.questionWithImage.uploadedImageUrl || step.activityConfig.questionWithImage.uploadedImage) && (
-              <View style={styles.textWithImageContainer}>
-                <Image
-                  source={{ 
-                    uri: step.activityConfig.questionWithImage.uploadedImagePublicUrl 
-                      || step.activityConfig.questionWithImage.uploadedImageUrl
-                      || step.activityConfig.questionWithImage.uploadedImage 
-                  }}
-                  style={styles.textWithImageImage}
-                  resizeMode="contain"
-                />
-              </View>
-            )}
-          </View>
-        )}
+            );
+          })()}
+          
+          {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (() => {
+            const bubbleMessage = showingDrillExplanation
+              ? (drillExplanation || step.message)
+              : step.message;
+            if (!bubbleMessage || bubbleMessage.trim() === '') return null;
+            return (
+              <SpeechBubble
+                message={bubbleMessage}
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                disableTyping
+                disableEnterAnim
+              />
+            );
+          })()}
+          
+          {/* SVG MultiSelect speech bubble */}
+          {step.activity === 'svgMultiSelect' && (step.activityConfig?.svgOptions || step.activityConfig?.svgMultiSelect?.options) && (
+            <SpeechBubble 
+              message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
+              characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
+              position={step.bubblePosition || 'bottomLeft'}
+              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+              disableTyping
+              disableEnterAnim
+            />
+          )}
+          
+          {/* Drag-match speech bubble */}
+          {(step.activity as any) === 'dragMatch' && step.activityConfig?.dragMatch && (() => {
+            const bubbleMessage = showingDrillExplanation
+              ? (drillExplanation || step.message)
+              : step.message;
+            if (!bubbleMessage || bubbleMessage.trim() === '') return null;
+            return (
+              <SpeechBubble
+                message={bubbleMessage}
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                disableTyping
+                disableEnterAnim
+                randomPosition={true}
+              />
+            );
+          })()}
+          
+          {/* Generic speech bubble for other drills */}
+          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || activityType === 'questionWithSVG' || activityType === 'questionWithImage' || isGraphQuestionActivity || step.activity === 'textWithSVG' || step.activity === 'textWithImageExplain' || step.activity === 'dragMatch') && (() => {
+            const bubbleMessage = showingDrillExplanation
+              ? (drillExplanation || step.message)
+              : step.message;
+            if (!bubbleMessage || typeof bubbleMessage !== 'string' || bubbleMessage.trim() === '') return null;
+            return (
+              <SpeechBubble 
+                message={bubbleMessage} 
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                randomPosition={step.activity?.includes('question') || step.activity?.includes('drill') || step.activity?.includes('Drill')}
+                buttonText={
+                  step.activity === 'multiSelect' ||
+                  step.activity === 'svgMultiSelect' ||
+                  step.activity === 'carouselSelect' ||
+                  step.activity === 'sequenceBuild' ||
+                  (step.activity as any) === 'dragMatch' ||
+                  step.activity === 'pathSelect'
+                    ? undefined
+                    : (showingDrillExplanation
+                        ? 'המשך'
+                        : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined))
+                }
+                onButtonPress={
+                  step.activity === 'multiSelect' ||
+                  step.activity === 'svgMultiSelect' ||
+                  step.activity === 'carouselSelect' ||
+                  step.activity === 'sequenceBuild' ||
+                  (step.activity as any) === 'dragMatch' ||
+                  step.activity === 'pathSelect'
+                    ? undefined
+                    : (showingDrillExplanation
+                        ? handleExplanationContinue
+                        : (choices && choices.length === 1 && step.id !== 'simple_text_step'
+                            ? () => handleChoice(choices[0].nextStep)
+                            : undefined))
+                }
+              />
+            );
+          })()}
+          
+          {/* Simple question speech bubble */}
+          {isSimpleQuestion && (() => {
+            const bubbleMessage = showingDrillExplanation
+              ? (drillExplanation || step.message)
+              : step.message;
+            if (!bubbleMessage || bubbleMessage.trim() === '') return null;
+            return (
+              <SpeechBubble 
+                message={bubbleMessage} 
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
+                position={step.bubblePosition || 'bottomLeft'}
+                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
+                randomPosition={true}
+                disableTyping
+                disableEnterAnim
+              />
+            );
+          })()}
+        </View>
+        
+        {/* Drill Content Area - fills space between speech bubble and button */}
+        <View style={styles.drillContentArea}>
+          {/* Text with image explanation activity - content only */}
+          {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && (
+            <View style={styles.textWithImageWrapper}>
+              {(step.activityConfig.questionWithImage.uploadedImagePublicUrl || step.activityConfig.questionWithImage.uploadedImageUrl || step.activityConfig.questionWithImage.uploadedImage) && (
+                <View style={styles.textWithImageContainer}>
+                  <Image
+                    source={{ 
+                      uri: step.activityConfig.questionWithImage.uploadedImagePublicUrl 
+                        || step.activityConfig.questionWithImage.uploadedImageUrl
+                        || step.activityConfig.questionWithImage.uploadedImage 
+                    }}
+                    style={styles.textWithImageImage}
+                    resizeMode="contain"
+                  />
+                </View>
+              )}
+            </View>
+          )}
         
         <View style={styles.bubbleWrapper}>
           {/* Dialog activity */}
@@ -612,23 +761,27 @@ export default function LessonScreen({ navigation, route }: Props) {
 
           {/* Text with SVG explanation activity */}
           {step.activity === 'textWithSVG' && step.activityConfig?.questionWithImage && (
-            <TextWithSVG
-              text={step.message}
-              svgCode={step.activityConfig.questionWithImage.svgCode}
-              svgUrl={step.activityConfig.questionWithImage.svgUrl}
-              svgPublicUrl={step.activityConfig.questionWithImage.svgPublicUrl}
-              submitText={step.activityConfig.questionWithImage.submitText || 'המשך'}
-              onContinue={() => {
-                if (choices && choices.length >= 1) {
-                  handleChoice(choices[0].nextStep);
-                }
-              }}
-            />
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%' }}>
+              <TextWithSVG
+                text={step.message}
+                svgCode={step.activityConfig.questionWithImage.svgCode}
+                svgUrl={step.activityConfig.questionWithImage.svgUrl}
+                svgPublicUrl={step.activityConfig.questionWithImage.svgPublicUrl}
+                submitText={step.activityConfig.questionWithImage.submitText || 'המשך'}
+                onContinue={() => {
+                  if (choices && choices.length >= 1) {
+                    handleChoice(choices[0].nextStep);
+                  }
+                }}
+                showButton={false}
+              />
+            </View>
           )}
 
           {/* Question with image drill */}
           {step.activity === 'questionWithImage' && step.activityConfig?.questionWithImage && (
-            <QuestionWithImage
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%', marginTop: 30 }}>
+              <QuestionWithImage
               question={step.activityConfig.questionWithImage.question || ''}
               imageSource={step.activityConfig.questionWithImage.uploadedImage 
                 ? { uri: step.activityConfig.questionWithImage.uploadedImage }
@@ -646,44 +799,39 @@ export default function LessonScreen({ navigation, route }: Props) {
                 });
               }}
             />
+            </View>
           )}
 
           {/* Question with SVG drill */}
           {(activityType === 'questionWithSVG') && step.activityConfig?.questionWithImage && (
-            <QuestionWithSVG
-              question={step.activityConfig.questionWithImage.question || ''}
-              svgCode={step.activityConfig.questionWithImage.svgCode}
-              svgUrl={step.activityConfig.questionWithImage.svgUrl}
-              svgPublicUrl={step.activityConfig.questionWithImage.svgPublicUrl}
-              choices={step.activityConfig.questionWithImage.choices || []}
-              submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
-              correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
-              wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
-              onSubmit={(result) => {
-                const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
-                handleDrillComplete({
-                  ...result,
-                  rewards
-                });
-              }}
-              onSubmitTriggerRef={questionSvgSubmitRef}
-              onStateChange={(state) => {
-                setQuestionSvgCanSubmit(state.canSubmit);
-              }}
-            />
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%', marginTop: 30 }}>
+              <QuestionWithSVG
+                question={step.activityConfig.questionWithImage.question || ''}
+                svgCode={step.activityConfig.questionWithImage.svgCode}
+                svgUrl={step.activityConfig.questionWithImage.svgUrl}
+                svgPublicUrl={step.activityConfig.questionWithImage.svgPublicUrl}
+                choices={step.activityConfig.questionWithImage.choices || []}
+                submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
+                correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
+                wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
+                onSubmit={(result) => {
+                  const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
+                  handleDrillComplete({
+                    ...result,
+                    rewards
+                  });
+                }}
+                onSubmitTriggerRef={questionSvgSubmitRef}
+                onStateChange={(state) => {
+                  setQuestionSvgCanSubmit(state.canSubmit);
+                }}
+              />
+            </View>
           )}
 
           {/* Graph question (SVG-based) drill */}
           {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && (
-            <>
-              <SpeechBubble
-                message={showingDrillExplanation ? (drillExplanation || step.message) : step.message}
-                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
-                position={step.bubblePosition || 'bottomLeft'}
-                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-                disableTyping
-                disableEnterAnim
-              />
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%', marginTop: 30 }}>
               <GraphQuestionDrill
                 mediaType="svg"
                 svgCode={(step.activityConfig as any).graphQuestion.svgCode}
@@ -705,20 +853,12 @@ export default function LessonScreen({ navigation, route }: Props) {
                   setGraphQuestionCanSubmit(state.canSubmit);
                 }}
               />
-            </>
+            </View>
           )}
 
           {/* Graph question (PNG-based) drill */}
           {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (
-            <>
-              <SpeechBubble
-                message={showingDrillExplanation ? (drillExplanation || step.message) : step.message}
-                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
-                position={step.bubblePosition || 'bottomLeft'}
-                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-                disableTyping
-                disableEnterAnim
-              />
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%', marginTop: 30 }}>
               <GraphQuestionDrill
                 mediaType="png"
                 pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
@@ -738,34 +878,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                   setGraphQuestionCanSubmit(state.canSubmit);
                 }}
               />
-            </>
+            </View>
           )}
 
-          {/* Hide bubble when dialog, explain, textWithSVG, simpleQuestion, questionWithSVG, questionWithImage, svgMultiSelect or graphQuestion is active */}
-          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || activityType === 'questionWithSVG' || activityType === 'questionWithImage' || isGraphQuestionActivity) && (
-            <SpeechBubble 
-              message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
-              characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
-              position={step.bubblePosition || 'bottomLeft'}
-              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-              randomPosition={step.activity?.includes('question') || step.activity?.includes('drill') || step.activity?.includes('Drill')}
-              buttonText={showingDrillExplanation ? 'המשך' : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? choices[0].text : undefined)}
-              onButtonPress={showingDrillExplanation ? handleExplanationContinue : (choices && choices.length === 1 && step.id !== 'simple_text_step' ? () => handleChoice(choices[0].nextStep) : undefined)}
-            />
-          )}
-
-          {/* Simple question - show speech bubble with message/explanation */}
-          {isSimpleQuestion && (
-            <SpeechBubble 
-              message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
-              characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
-              position={step.bubblePosition || 'bottomLeft'}
-              align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-              randomPosition={true}
-              disableTyping
-              disableEnterAnim
-            />
-          )}
           {/* Render candlestick SVG if visual is set */}
           {step.visual === 'hammer' && (
             <View style={styles.candleSvgWrapper}><HammerCandleSVG width={60} height={120} /></View>
@@ -866,7 +981,8 @@ export default function LessonScreen({ navigation, route }: Props) {
           )}
           {/* MultiSelect drill */}
           {step.activity === 'multiSelect' && step.activityConfig?.options && (
-            <MultiSelectDrill
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%' }}>
+              <MultiSelectDrill
               options={step.activityConfig.options.map(o => ({
                 id: o.id,
                 label: o.label,
@@ -879,20 +995,12 @@ export default function LessonScreen({ navigation, route }: Props) {
               wrongExplanation={step.activityConfig.wrongExplanation}
               onSubmit={handleDrillComplete}
             />
+            </View>
           )}
 
           {/* SVG MultiSelect drill */}
           {step.activity === 'svgMultiSelect' && (step.activityConfig?.svgOptions || step.activityConfig?.svgMultiSelect?.options) && (
-            <>
-              <SpeechBubble 
-                message={showingDrillExplanation ? (drillExplanation || step.message) : step.message} 
-                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
-                position={step.bubblePosition || 'bottomLeft'}
-                align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-                disableTyping
-                disableEnterAnim
-              />
-              <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 10 }}>
+            <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 10, flex: 1 }}>
                 <SVGMultiSelectDrill
                   options={(step.activityConfig.svgOptions || step.activityConfig.svgMultiSelect?.options || []).map((o: any) => ({
                     id: o.id,
@@ -928,58 +1036,83 @@ export default function LessonScreen({ navigation, route }: Props) {
                   }}
                 />
               </View>
-            </>
           )}
 
           {/* Carousel select drill */}
           {step.activity === 'carouselSelect' && step.activityConfig?.carousel && (
-            <CarouselSelectDrill
-              items={step.activityConfig.carousel.items.map(i => ({
-                id: i.id,
-                imageSource: i.imageKey ? characterImages[i.imageKey] : undefined,
-                label: i.label,
-              }))}
-              correctId={step.activityConfig.carousel.correctId}
-              submitText={step.activityConfig.carousel.submitText || 'אישור'}
-              correctExplanation={step.activityConfig.carousel.correctExplanation}
-              wrongExplanation={step.activityConfig.carousel.wrongExplanation}
-              onSubmit={handleDrillComplete}
-            />
+            <View style={{ flex: 1, justifyContent: 'center', width: '100%', marginTop: 30 }}>
+              <CarouselSelectDrill
+                items={step.activityConfig.carousel.items.map((i: any) => ({
+                  id: i.id,
+                  label: i.label,
+                  imageKey: i.imageKey,
+                  // Use character images when the key matches, otherwise rely on SVG fields
+                  imageSource: i.imageKey && characterImages[i.imageKey] ? characterImages[i.imageKey] : undefined,
+                  svgCode: i.svgCode || undefined,
+                  svgUrl: i.svgUrl || undefined,
+                  svgPublicUrl: i.svgPublicUrl || undefined,
+                  svgPath: i.svgPath || undefined,
+                }))}
+                correctId={step.activityConfig.carousel.correctId}
+                submitText={step.activityConfig.carousel.submitText || 'אישור'}
+                correctExplanation={step.activityConfig.carousel.correctExplanation}
+                wrongExplanation={step.activityConfig.carousel.wrongExplanation}
+                onSubmit={handleDrillComplete}
+                showSubmitButton={false}
+                onSubmitTriggerRef={carouselSubmitRef}
+              />
+            </View>
           )}
 
           {/* Drag-match drill */}
-          {step.activity === 'dragMatch' && step.activityConfig?.dragMatch && (
-            <DragMatchDrill
-              slots={step.activityConfig.dragMatch.slots.map(s => ({
-                id: s.id,
-                drawKey: s.drawKey as any,
-                imageSource: s.imageKey ? characterImages[s.imageKey] : undefined,
-                labelBelow: s.labelBelow,
-                svgCode: s.svgCode,
-                svgUrl: s.svgUrl,
-                svgPublicUrl: s.svgPublicUrl,
-                svgPath: s.svgPath,
-              }))}
-              tokens={step.activityConfig.dragMatch.tokens}
-              submitText={step.activityConfig.dragMatch.submitText || 'אישור'}
-              correctExplanation={step.activityConfig.dragMatch.correctExplanation}
-              wrongExplanation={step.activityConfig.dragMatch.wrongExplanation}
-              onSubmit={handleDrillComplete}
-            />
+          {(step.activity as any) === 'dragMatch' && step.activityConfig?.dragMatch && (
+            <View style={{ marginTop: 30, flex: 1, justifyContent: 'center' }}>
+                <DragMatchDrill
+                slots={step.activityConfig.dragMatch.slots.map(s => ({
+                  id: s.id,
+                  drawKey: s.drawKey as any,
+                  imageSource: s.imageKey ? characterImages[s.imageKey] : undefined,
+                  labelBelow: s.labelBelow,
+                  svgCode: s.svgCode,
+                  svgUrl: s.svgUrl,
+                  svgPublicUrl: s.svgPublicUrl,
+                  svgPath: s.svgPath,
+                }))}
+                tokens={step.activityConfig.dragMatch.tokens}
+                submitText={step.activityConfig.dragMatch.submitText || 'אישור'}
+                correctExplanation={step.activityConfig.dragMatch.correctExplanation}
+                wrongExplanation={step.activityConfig.dragMatch.wrongExplanation}
+                onSubmit={(result) => {
+                  handleDrillComplete(result);
+                }}
+                onSubmitTriggerRef={dragMatchSubmitRef}
+                onStateChange={(state) => {
+                  setDragMatchCanSubmit(state.canSubmit);
+                  // showingExplanation is handled by handleDrillComplete setting showingDrillExplanation
+                }}
+              />
+              </View>
           )}
 
           {/* Sequence build drill */}
           {step.activity === 'sequenceBuild' && step.activityConfig?.sequenceBuild && (
-            <SequenceBuildDrill
-              slotsCount={step.activityConfig.sequenceBuild.slotsCount}
-              options={step.activityConfig.sequenceBuild.options}
-              correctSequence={step.activityConfig.sequenceBuild.correctSequence}
-              correctSequences={step.activityConfig.sequenceBuild.correctSequences}
-              submitText={step.activityConfig.sequenceBuild.submitText || 'אישור'}
-              correctExplanation={step.activityConfig.sequenceBuild.correctExplanation}
-              wrongExplanation={step.activityConfig.sequenceBuild.wrongExplanation}
-              onSubmit={handleDrillComplete}
-            />
+            <View style={{ marginTop: 30, flex: 1, justifyContent: 'center' }}>
+              <SequenceBuildDrill
+                slotsCount={step.activityConfig.sequenceBuild.slotsCount}
+                options={step.activityConfig.sequenceBuild.options}
+                correctSequence={step.activityConfig.sequenceBuild.correctSequence}
+                correctSequences={step.activityConfig.sequenceBuild.correctSequences}
+                submitText={step.activityConfig.sequenceBuild.submitText || 'אישור'}
+                correctExplanation={step.activityConfig.sequenceBuild.correctExplanation}
+                wrongExplanation={step.activityConfig.sequenceBuild.wrongExplanation}
+                onSubmit={handleDrillComplete}
+                onSubmitTriggerRef={sequenceBuildSubmitRef}
+                onStateChange={(state) => {
+                  setSequenceBuildCanSubmit(state.canSubmit);
+                  setShowingDrillExplanation(state.showingExplanation);
+                }}
+              />
+            </View>
           )}
 
           {/* Path Select drill */}
@@ -1101,6 +1234,7 @@ export default function LessonScreen({ navigation, route }: Props) {
             </>
           )}
         </View>
+        </View>
         {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect to reduce clutter */}
         {!(isDialog || isExplain || isTextWithSVG || step.activity === 'pathSelect') && (
           <View style={styles.choices}>
@@ -1186,7 +1320,17 @@ export default function LessonScreen({ navigation, route }: Props) {
                 )}
               </>
             )}
-            {!isSimpleQuestion && !isSVGMultiSelect && step.activity !== 'questionWithSVG' && step.activity !== 'dragMatch' && choices && choices.length === 1 && step.id !== 'simple_text_step' && (
+            {!isSimpleQuestion &&
+              !isSVGMultiSelect &&
+              step.activity !== 'questionWithSVG' &&
+              (step.activity as any) !== 'dragMatch' &&
+              step.activity !== 'carouselSelect' &&
+              step.activity !== 'multiSelect' &&
+              step.activity !== 'sequenceBuild' &&
+              activityType !== 'graphQuestion' &&
+              choices &&
+              choices.length === 1 &&
+              step.id !== 'simple_text_step' && (
               <Pressable
                 style={styles.primaryButton}
                 onPress={() => handleChoice(choices[0].nextStep)}
@@ -1255,8 +1399,8 @@ export default function LessonScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       )}
-      {/* Button sheet for simple_question */}
-      {showSimpleQuestionButtonSheet && (isSimpleQuestion || isQuestionWithSVGActivity) && (
+      {/* Button sheet for simple_question, questionWithSVG, and sequenceBuild */}
+      {showSimpleQuestionButtonSheet && (isSimpleQuestion || isQuestionWithSVGActivity || step.activity === 'sequenceBuild') && (
         <View style={styles.buttonSheetContainer}>
           <View style={styles.buttonSheet}>
             <Text style={[styles.buttonSheetTitle, simpleQuestionIsCorrect ? styles.buttonSheetTitleCorrect : styles.buttonSheetTitleWrong]}>
@@ -1273,7 +1417,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                   styles.continueButton,
                   simpleQuestionIsCorrect ? styles.continueButtonCorrect : styles.continueButtonWrong
                 ]}
-                onPress={isQuestionWithSVGActivity ? handleExplanationContinue : handleSimpleQuestionButtonSheetContinue}
+                onPress={(isQuestionWithSVGActivity || step.activity === 'sequenceBuild') ? handleExplanationContinue : handleSimpleQuestionButtonSheetContinue}
               >
                 <Text style={styles.continueButtonText}>המשך</Text>
               </Pressable>
@@ -1283,6 +1427,23 @@ export default function LessonScreen({ navigation, route }: Props) {
       )}
       {/* Absolute continue button for textWithImageExplain */}
       {step.activity === 'textWithImageExplain' && step.activityConfig?.questionWithImage && !showCorrectOverlay && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (choices && choices.length >= 1) {
+                handleChoice(choices[0].nextStep);
+              }
+            }}
+          >
+            <Text style={styles.continueButtonText}>
+              {step.activityConfig.questionWithImage.submitText || 'המשך'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Absolute continue button for textWithSVG */}
+      {step.activity === 'textWithSVG' && step.activityConfig?.questionWithImage && !showCorrectOverlay && (
         <View style={styles.absoluteContinueButton}>
           <Pressable
             style={styles.continueButton}
@@ -1316,6 +1477,95 @@ export default function LessonScreen({ navigation, route }: Props) {
           >
             <Text style={styles.continueButtonText}>
               {showingDrillExplanation ? 'המשך' : (step.activityConfig.submitText || 'בדוק')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for graphQuestion drill using the shared absolute pattern */}
+      {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (graphQuestionCanSubmit || showingDrillExplanation) && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                // After showing explanation, continue to next step
+                handleExplanationContinue();
+              } else if (graphQuestionSubmitRef.current && graphQuestionCanSubmit) {
+                // Trigger submit from graph question drill component
+                graphQuestionSubmitRef.current();
+              }
+            }}
+            disabled={!showingDrillExplanation && !graphQuestionCanSubmit}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation
+                ? 'המשך'
+                : ((step.activityConfig as any).graphQuestion.submitText || 'בדוק')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for carouselSelect drill using the shared absolute pattern */}
+      {step.activity === 'carouselSelect' && step.activityConfig?.carousel && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                // Continue to next step after explanation
+                handleExplanationContinue();
+              } else if (carouselSubmitRef.current) {
+                // Trigger submit from carousel drill component
+                carouselSubmitRef.current();
+              }
+            }}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation ? 'המשך' : (step.activityConfig.carousel.submitText || 'אישור')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for dragMatch drill using the shared absolute pattern */}
+      {(step.activity as any) === 'dragMatch' && step.activityConfig?.dragMatch && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                // Continue to next step after explanation
+                handleExplanationContinue();
+              } else if (dragMatchSubmitRef.current) {
+                // Trigger submit from dragMatch drill component
+                dragMatchSubmitRef.current();
+              }
+            }}
+            disabled={!showingDrillExplanation && !dragMatchCanSubmit}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation ? 'המשך' : (step.activityConfig.dragMatch.submitText || 'אישור')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for sequenceBuild drill using the shared absolute pattern */}
+      {step.activity === 'sequenceBuild' && step.activityConfig?.sequenceBuild && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                // Continue to next step after explanation
+                handleExplanationContinue();
+              } else if (sequenceBuildSubmitRef.current) {
+                // Trigger submit from sequenceBuild drill component
+                sequenceBuildSubmitRef.current();
+              }
+            }}
+            disabled={!showingDrillExplanation && !sequenceBuildCanSubmit}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation ? 'המשך' : (step.activityConfig.sequenceBuild.submitText || 'אישור')}
             </Text>
           </Pressable>
         </View>
@@ -1376,26 +1626,57 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     marginTop: 16,
     alignItems: "center",
-    paddingBottom: 150,
     width: "100%",
     paddingHorizontal: 8,
     // backgroundColor: 'red'
   },
+  speechBubbleContainer: {
+    width: '100%',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+  },
+  drillContentArea: {
+    width: '100%',
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   bubbleWrapper: {
     width: '100%',
+    flex: 1,
     alignItems: 'center',
     alignSelf: 'center',
     flexDirection: 'column',
     marginBottom: 0,
-    paddingBottom: 90,
     // backgroundColor: 'blue'
   },
   textWithImageWrapper: {
-    flex: 1,
     width: '100%',
+    flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
     paddingHorizontal: 16,
+  },
+  textWithImageContainer: {
+    width: '95%',
+    maxWidth: 700,
+    alignSelf: 'center',
+    flex: 1,
+    minHeight: 350,
+    maxHeight: '85%',
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+    padding: 24,
+  },
+  textWithImageImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
   },
   choices: {
     width: "100%",
@@ -1518,24 +1799,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#0D2033',
     marginBottom: 16,
-  },
-  textWithImageContainer: {
-    width: '94%',
-    maxWidth: 480,
-    alignSelf: 'center',
-    flex: 1,
-    minHeight: 180,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
-    marginBottom: 14,
-    overflow: 'hidden',
-    maxHeight: '100%',
-  },
-  textWithImageImage: {
-    width: '100%',
-    height: '100%',
   },
   absoluteContinueButton: {
     position: 'absolute',

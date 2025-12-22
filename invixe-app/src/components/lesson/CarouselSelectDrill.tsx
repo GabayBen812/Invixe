@@ -25,13 +25,29 @@ interface Props {
     isCorrect: boolean;
     explanation: string;
   }) => void;
+  /**
+   * When provided, allows the parent screen to trigger submit programmatically
+   * so we can reuse a single global "continue" button for all drills.
+   */
+  onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  /**
+   * Whether to render the local submit button inside the drill.
+   * For in‑app usage we hide it and use the global button instead.
+   */
+  showSubmitButton?: boolean;
 }
 
-export default function CarouselSelectDrill({ items, correctId, submitText = 'אישור', correctExplanation, wrongExplanation, onSubmit }: Props) {
+export default function CarouselSelectDrill({ 
+  items, 
+  correctId, 
+  submitText = 'אישור', 
+  correctExplanation, 
+  wrongExplanation, 
+  onSubmit,
+  onSubmitTriggerRef,
+  showSubmitButton = true,
+}: Props) {
   const [index, setIndex] = useState(0);
-  const [submitted, setSubmitted] = useState(false);
-  const [showingExplanation, setShowingExplanation] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
   const [svgCache, setSvgCache] = useState<Record<string, string>>({});
   const parsedCacheRef = useRef<Record<string, React.ReactElement>>({});
 
@@ -107,30 +123,28 @@ export default function CarouselSelectDrill({ items, correctId, submitText = 'א
   };
 
   const goLeft = () => {
-    if (submitted) return;
     setIndex(prev => (prev - 1 + normalizedItems.length) % normalizedItems.length);
   };
   const goRight = () => {
-    if (submitted) return;
     setIndex(prev => (prev + 1) % normalizedItems.length);
   };
 
-  const handleSubmit = () => {
-    setSubmitted(true);
+  const submitOnce = () => {
     const correct = selected?.id === correctId;
-    setIsCorrect(correct);
-    setShowingExplanation(true);
-  };
-
-  const handleContinue = () => {
-    const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
+    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
     onSubmit({ 
-      correct: isCorrect, 
+      correct, 
       selectedId: selected?.id, 
-      isCorrect,
+      isCorrect: correct,
       explanation
     });
   };
+
+  // Expose programmatic submit trigger for the shared global button
+  useEffect(() => {
+    if (!onSubmitTriggerRef) return;
+    onSubmitTriggerRef.current = submitOnce;
+  }, [onSubmitTriggerRef, submitOnce, selected, correctId, correctExplanation, wrongExplanation]);
 
   if (normalizedItems.length === 0) return null;
 
@@ -150,9 +164,11 @@ export default function CarouselSelectDrill({ items, correctId, submitText = 'א
           <Text style={styles.arrowText}>›</Text>
         </Pressable>
       </View>
-      <Pressable style={styles.submitButton} onPress={showingExplanation ? handleContinue : handleSubmit}>
-        <Text style={styles.submitText}>{showingExplanation ? 'המשך' : submitText}</Text>
-      </Pressable>
+      {showSubmitButton && (
+        <Pressable style={styles.submitButton} onPress={submitOnce}>
+          <Text style={styles.submitText}>{submitText}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

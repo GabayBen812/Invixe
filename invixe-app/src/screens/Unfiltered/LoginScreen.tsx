@@ -112,7 +112,9 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   card: {
-    backgroundColor: "rgba(255,255,255,0.95)",
+    backgroundColor: "#E3EEF9",
+    borderWidth: 1,
+    borderColor: "rgba(51, 114, 216, 0.12)",
     borderRadius: theme.radius.xl,
     padding: theme.spacing.xl,
     marginHorizontal: theme.spacing.lg,
