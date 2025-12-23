@@ -54,19 +54,23 @@ router.get('/:code/steps', async (req, res) => {
     const supabase = getSupabase(req);
     const code = Number(req.params.code);
     if (!Number.isFinite(code)) return res.status(400).json({ error: 'Invalid code' });
-    const { data: lesson, error: lErr } = await supabase
+    const { data: lessonRows, error: lErr } = await supabase
       .from('Lesson')
       .select('id')
       .eq('code', code)
-      .maybeSingle();
+      .order('id', { ascending: true })
+      .limit(1);
     if (lErr) throw lErr;
+    const lesson = (lessonRows || [])[0];
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
-    const { data: stepsDoc, error: sErr } = await supabase
+    const { data: stepsRows, error: sErr } = await supabase
       .from('LessonStepsV2')
       .select('steps')
       .eq('lessonid', lesson.id)
-      .maybeSingle();
+      .order('id', { ascending: true })
+      .limit(1);
     if (sErr) throw sErr;
+    const stepsDoc = (stepsRows || [])[0];
     if (!stepsDoc) return res.status(404).json({ error: 'Lesson steps not found' });
     return res.json(stepsDoc.steps);
   } catch (err) {

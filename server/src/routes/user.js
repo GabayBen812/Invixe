@@ -237,11 +237,27 @@ router.get('/portfolio', async (req, res) => {
     
     const supabase = req.app.get('supabase');
     if (supabase) {
-      const { data: portfolio, error } = await supabase
+      let portfolio = null;
+      let error = null;
+      // Prefer updated_at, fall back to updatedat, then no order to avoid 42703 crashing the server
+      ({ data: portfolio, error } = await supabase
         .from('Portfolio')
         .select('*')
         .eq('userid', user.id)
-        .order('updatedat', { ascending: false });
+        .order('updated_at', { ascending: false }));
+      if (error && error.code === '42703') {
+        ({ data: portfolio, error } = await supabase
+          .from('Portfolio')
+          .select('*')
+          .eq('userid', user.id)
+          .order('updatedat', { ascending: false }));
+      }
+      if (error && error.code === '42703') {
+        ({ data: portfolio, error } = await supabase
+          .from('Portfolio')
+          .select('*')
+          .eq('userid', user.id));
+      }
       if (error) throw error;
       return res.json({ portfolio });
     }

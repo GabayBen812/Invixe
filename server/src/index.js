@@ -31,9 +31,22 @@ app.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Global error handler: log and keep server alive
+app.use((err, req, res, next) => {
+  console.error('Unhandled error middleware:', err);
+  if (res.headersSent) return next(err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
+// Prevent crashes on unhandled promise rejections / exceptions
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
 
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
-}); 
+});
