@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   },
   choiceText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
     color: '#374151',
     textAlign: 'center',
     lineHeight: 22,
@@ -298,6 +298,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
+
 
 
 

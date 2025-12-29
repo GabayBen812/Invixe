@@ -17,8 +17,8 @@ interface Props {
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
-  onStateChange?: (state: { showingExplanation: boolean; canSubmit: boolean }) => void;
   onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  onStateChange?: (state: { showingExplanation: boolean; canSubmit: boolean }) => void;
   onSubmit: (result: { 
     correct: boolean; 
     selectedChoiceId: string;
@@ -36,8 +36,8 @@ export default function QuestionWithSVG({
   submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
-  onStateChange,
   onSubmitTriggerRef,
+  onStateChange,
   onSubmit 
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
@@ -54,6 +54,7 @@ export default function QuestionWithSVG({
       setIsCorrect(correct);
       setShowingExplanation(true);
 
+      // Call onSubmit immediately to trigger bottom sheet
       const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
       onSubmit({ 
         correct,
@@ -95,7 +96,7 @@ export default function QuestionWithSVG({
     fetchSVG();
   }, [svgPublicUrl, svgUrl, svgCode, svgCache]);
 
-  // Expose internal submit handler so parent can trigger it (for absolute button)
+  // Expose internal submit handler so parent can trigger it (for global button)
   useEffect(() => {
     if (onSubmitTriggerRef) {
       onSubmitTriggerRef.current = handleSubmit;
@@ -117,25 +118,28 @@ export default function QuestionWithSVG({
     }
   }, [onStateChange, showingExplanation, selectedChoice]);
 
+
   // Memoize SVG parsing to avoid re-parsing on every render
   const parsedSVG = useMemo(() => {
     const svgToParse = svgCode || svgCache;
-    if (!svgToParse) return null;
+    if (!svgToParse) {
+      console.log('QuestionWithSVG: No SVG code to parse');
+      return null;
+    }
     
+    console.log('QuestionWithSVG: Parsing SVG, length:', svgToParse.length);
     const parsed = parseSVGCode(svgToParse);
+    console.log('QuestionWithSVG: Parsed SVG result:', parsed ? 'success' : 'failed');
     return parsed;
   }, [svgCode, svgCache]);
 
   return (
     <View style={styles.container}>
-      {/* Question card */}
-      <View style={styles.questionCard}>
-        <Text style={styles.questionText}>{question}</Text>
-      </View>
-
       {/* SVG */}
       <View style={styles.svgContainer}>
-        {parsedSVG || (
+        {parsedSVG ? (
+          parsedSVG
+        ) : (
           <View style={styles.svgPlaceholder}>
             <Text style={styles.svgPlaceholderText}>SVG</Text>
           </View>
@@ -144,10 +148,14 @@ export default function QuestionWithSVG({
 
       {/* Choices */}
       <View style={styles.choicesContainer}>
-        {choices.map((choice) => {
+        {choices && Array.isArray(choices) && choices.map((choice) => {
+          if (!choice || !choice.id) {
+            console.warn('QuestionWithSVG: Invalid choice object:', choice);
+            return null;
+          }
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
-          let buttonStyle: any = styles.choiceButton;
+          let buttonStyle: any[] = [styles.choiceButton];
           
           if (submitted) {
             if (isSelected && isCorrectChoice) {
@@ -182,49 +190,28 @@ export default function QuestionWithSVG({
         })}
       </View>
 
-      {/* No inline submit button – submit is triggered via absolute button in LessonScreen */}
+      {/* Reserve space for global continue button (always reserve space even if not visible) */}
+      <View style={styles.buttonArea} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  questionCard: {
-    width: '94%',
-    maxWidth: 480,
-    borderRadius: 22,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  questionText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#0D2033',
-    textAlign: 'right',
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   svgContainer: {
-    width: '94%',
-    maxWidth: 480,
-    marginBottom: 16,
+    marginBottom: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#E5EDF7',
-    borderRadius: 18,
-    padding: 12,
-    height: 260,
-    maxHeight: 260,
+    width: '100%',
+    height: 400,
+    backgroundColor: '#1F2937',
+    borderRadius: 12,
+    padding: 16,
   },
   svgPlaceholder: {
     width: '100%',
@@ -240,9 +227,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   choicesContainer: {
-    width: '94%',
-    maxWidth: 480,
-    marginBottom: 16,
+    marginBottom: 24,
   },
   choiceButton: {
     backgroundColor: '#FFFFFF',
@@ -259,12 +244,12 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   choiceButtonSelected: {
-    borderColor: '#3372D8',
-    backgroundColor: '#3372D8',
+    borderColor: '#3F9FFF',
+    backgroundColor: '#EBF4FF',
   },
   choiceButtonCorrect: {
-    borderColor: '#12B76A',
-    backgroundColor: '#12B76A',
+    borderColor: '#62D24C',
+    backgroundColor: '#EEF7EE',
   },
   choiceButtonWrong: {
     borderColor: '#FF6B6B',
@@ -272,35 +257,18 @@ const styles = StyleSheet.create({
   },
   choiceText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
     color: '#374151',
     textAlign: 'center',
     lineHeight: 22,
   },
   choiceTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: '#1E40AF',
+    fontWeight: '600',
   },
-  submitButton: {
-    backgroundColor: '#3F9FFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
+  buttonArea: {
+    minHeight: 120,
     width: '100%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  submitText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: '800',
   },
 });
 

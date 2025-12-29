@@ -60,7 +60,9 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
   }, [draggingTokenId]);
 
   const slotRefs = useRef<Record<string, View | null>>({});
+  const slotDropZoneRefs = useRef<Record<string, View | null>>({});
   const slotLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
+  const slotDropZoneLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
   const tokenInitialPositions = useRef<Record<string, { x: number; y: number }>>({});
   const tokenRefs = useRef<Record<string, View | null>>({});
   const tokenLayouts = useRef<Record<string, { x: number; y: number; width: number; height: number }>>({});
@@ -178,14 +180,18 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
   };
 
   // Detect which zone a point is in: 'slot', 'bank', or 'middle'
+  // Uses the entire slotBox for detection (SVG + drop zone), but snaps to drop zone center
   const detectDropZone = (screenX: number, screenY: number): { zone: 'slot' | 'bank' | 'middle'; slotId?: string; slotCenter?: { x: number; y: number } } => {
-    // Check if over any slot
+    // Check if over any slot (using the entire slotBox area - SVG + drop zone)
     for (const [slotId, layout] of Object.entries(slotLayouts.current)) {
       if (!layout || !layout.width) continue;
       const within = screenX >= layout.x && screenX <= layout.x + layout.width && 
                     screenY >= layout.y && screenY <= layout.y + layout.height;
       if (within) {
-        return { zone: 'slot', slotId, slotCenter: getCenter(layout) };
+        // Use the drop zone center for snapping (visual placement), but accept drops anywhere in slotBox
+        const dropZoneLayout = slotDropZoneLayouts.current[slotId];
+        const snapCenter = dropZoneLayout ? getCenter(dropZoneLayout) : getCenter(layout);
+        return { zone: 'slot', slotId, slotCenter: snapCenter };
       }
     }
 
@@ -299,11 +305,20 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
         const screenY = gesture.moveY;
         const initialPos = tokenInitialPositions.current[token.id];
         
-        // Re-measure all layouts immediately
+        // Re-measure all slotBox layouts (for drop detection - entire area)
         Object.entries(slotRefs.current).forEach(([slotId, ref]) => {
           if (ref) {
             (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
               slotLayouts.current[slotId] = { x, y, width, height };
+            });
+          }
+        });
+        
+        // Re-measure all drop zone layouts (for visual snapping - white round area)
+        Object.entries(slotDropZoneRefs.current).forEach(([slotId, ref]) => {
+          if (ref) {
+            (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+              slotDropZoneLayouts.current[slotId] = { x, y, width, height };
             });
           }
         });
@@ -372,31 +387,29 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
   };
 
   const handleSubmit = () => {
-    if (showingExplanation) {
-      // Continue to next step
-      let numCorrect = 0;
-      tokens.forEach(t => {
-        if (tokenToSlot[t.id] === t.targetSlotId) numCorrect += 1;
-      });
-      const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
-      onSubmit({ 
-        numCorrect, 
-        total: tokens.length, 
-        mapping: tokenToSlot,
-        isCorrect,
-        explanation
-      });
-    } else {
-      // Submit and show explanation
-      setSubmitted(true);
-      let numCorrect = 0;
-      tokens.forEach(t => {
-        if (tokenToSlot[t.id] === t.targetSlotId) numCorrect += 1;
-      });
-      const correct = numCorrect === tokens.length;
-      setIsCorrect(correct);
-      setShowingExplanation(true);
+    // If already submitted, don't allow re-submission
+    if (submitted || showingExplanation) {
+      return;
     }
+    
+    // Submit and show explanation (bottom sheet will be shown by parent)
+    setSubmitted(true);
+    let numCorrect = 0;
+    tokens.forEach(t => {
+      if (tokenToSlot[t.id] === t.targetSlotId) numCorrect += 1;
+    });
+    const correct = numCorrect === tokens.length;
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+    
+    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
+    onSubmit({ 
+      numCorrect, 
+      total: tokens.length, 
+      mapping: tokenToSlot,
+      isCorrect: correct,
+      explanation
+    });
   };
 
   // Expose submit handler via ref
@@ -427,10 +440,13 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
     <View style={styles.container}>
       <View style={styles.topRow}>
         {slots.slice(0, 2).map(s => (
-          <View key={s.id} ref={(ref: any) => (slotRefs.current[s.id] = ref)}
+          <View 
+            key={s.id} 
+            ref={(ref: any) => (slotRefs.current[s.id] = ref)}
+            style={styles.slotBox}
             onLayout={(e) => {
               const layout = e.nativeEvent.layout;
-              // Store layout first
+              // Store layout first (for drop detection - entire slotBox area)
               slotLayouts.current[s.id] = { 
                 x: layout.x, 
                 y: layout.y, 
@@ -445,18 +461,41 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
                 });
               }
             }}
-            style={styles.slotBox}>
+          >
             {renderSlotContent(s)}
-            <View style={styles.slotUnderline} />
+            <View 
+              ref={(ref: any) => (slotDropZoneRefs.current[s.id] = ref)}
+              style={styles.slotUnderline}
+              onLayout={(e) => {
+                const layout = e.nativeEvent.layout;
+                // Store drop zone layout (for visual snapping - white round area)
+                slotDropZoneLayouts.current[s.id] = { 
+                  x: layout.x, 
+                  y: layout.y, 
+                  width: layout.width, 
+                  height: layout.height 
+                };
+                // Then try to get window coordinates
+                const ref = slotDropZoneRefs.current[s.id];
+                if (ref) {
+                  (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                    slotDropZoneLayouts.current[s.id] = { x, y, width, height };
+                  });
+                }
+              }}
+            />
           </View>
         ))}
       </View>
       <View style={styles.topRow}>
         {slots.slice(2, 4).map(s => (
-          <View key={s.id} ref={(ref: any) => (slotRefs.current[s.id] = ref)}
+          <View 
+            key={s.id} 
+            ref={(ref: any) => (slotRefs.current[s.id] = ref)}
+            style={styles.slotBox}
             onLayout={(e) => {
               const layout = e.nativeEvent.layout;
-              // Store layout first
+              // Store layout first (for drop detection - entire slotBox area)
               slotLayouts.current[s.id] = { 
                 x: layout.x, 
                 y: layout.y, 
@@ -471,9 +510,29 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
                 });
               }
             }}
-            style={styles.slotBox}>
+          >
             {renderSlotContent(s)}
-            <View style={styles.slotUnderline} />
+            <View 
+              ref={(ref: any) => (slotDropZoneRefs.current[s.id] = ref)}
+              style={styles.slotUnderline}
+              onLayout={(e) => {
+                const layout = e.nativeEvent.layout;
+                // Store drop zone layout (for visual snapping - white round area)
+                slotDropZoneLayouts.current[s.id] = { 
+                  x: layout.x, 
+                  y: layout.y, 
+                  width: layout.width, 
+                  height: layout.height 
+                };
+                // Then try to get window coordinates
+                const ref = slotDropZoneRefs.current[s.id];
+                if (ref) {
+                  (ref as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+                    slotDropZoneLayouts.current[s.id] = { x, y, width, height };
+                  });
+                }
+              }}
+            />
           </View>
         ))}
       </View>

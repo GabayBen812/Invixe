@@ -339,21 +339,50 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
         {options.map((opt) => {
           const picked = !!selected[opt.id];
           const isCorrectAfterSubmit = submitted ? perOptionCorrectness[opt.id] : undefined;
+          // Explicitly convert to boolean - handle undefined, null, string "true"/"false", etc.
+          // Check if this option is marked as correct in the options array
+          const isCorrectAnswer = opt.correct === true || opt.correct === 'true' || opt.correct === 1; // Whether this option is a correct answer
 
           // Base (neutral) state – white card like in Figma
           let backgroundColor = opt.backgroundColor || '#FFFFFF';
-          let borderColor = '#D0D5DD';
+          let borderColor = 'transparent';
+          let borderWidth = 0;
           let textColor = '#0D2033';
+          let shadowStyle: any = {
+            shadowColor: 'transparent',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0,
+            shadowRadius: 0,
+            elevation: 0,
+          };
 
           if (!submitted) {
             if (picked) {
               // Selected before submit – blue highlight
               backgroundColor = '#E0EDFF';
               borderColor = '#3372D8';
+              borderWidth = 1;
+              shadowStyle = {
+                shadowColor: '#101828',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+                elevation: 2,
+              };
             }
           } else {
-            // After submit – green for correct, red for wrong (like result sheet)
-            if (isCorrectAfterSubmit) {
+            // After submit – show actual correct/wrong answers
+            borderWidth = 1;
+            shadowStyle = {
+              shadowColor: '#101828',
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.08,
+              shadowRadius: 4,
+              elevation: 2,
+            };
+            // Green if this is a correct answer (regardless of whether it was selected)
+            // Red if this is a wrong answer (regardless of whether it was selected)
+            if (isCorrectAnswer) {
               backgroundColor = '#D1FADF'; // soft green
               borderColor = '#12B76A';
             } else {
@@ -369,15 +398,20 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
               onPress={() => toggle(opt.id)}
               style={[
                 styles.optionCard,
-                { backgroundColor, borderColor },
+                { 
+                  backgroundColor, 
+                  borderColor, 
+                  borderWidth,
+                },
+                shadowStyle,
               ]}
             > 
               <View
                 style={[
                   styles.optionDot,
                   !submitted && picked && styles.optionDotSelected,
-                  submitted && isCorrectAfterSubmit && styles.optionDotCorrect,
-                  submitted && !isCorrectAfterSubmit && styles.optionDotWrong,
+                  submitted && isCorrectAnswer && styles.optionDotCorrect,
+                  submitted && !isCorrectAnswer && styles.optionDotWrong,
                 ]}
               />
               {renderSVG(opt)}
@@ -457,13 +491,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: 100,
-    borderWidth: 1,
-    borderColor: '#D0D5DD',
-    shadowColor: '#101828',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    // Shadow and border properties are set dynamically based on selection state
   },
   optionDot: {
     position: 'absolute',

@@ -1,5 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet, Image, ImageSourcePropType, TouchableOpacity, Animated, Easing, I18nManager } from "react-native";
+import Svg, { Path } from "react-native-svg";
 import CharacterPrimarySVG from './CharacterPrimarySVG';
 
 interface SpeechBubbleProps {
@@ -16,7 +17,8 @@ interface SpeechBubbleProps {
 }
 
 // Threshold after which we consider the message "very long" and hide the avatar
-const LONG_MESSAGE_THRESHOLD = 200;
+// Lower threshold to prevent speech bubble from becoming too tall
+const LONG_MESSAGE_THRESHOLD = 100;
 
 export default function SpeechBubble({
   message,
@@ -164,6 +166,21 @@ export default function SpeechBubble({
     </View>
   );
 
+  // Determine tail position based on bubble position
+  // Tail should be at bottom corner, pointing down and slightly angled toward character
+  const getTailStyle = () => {
+    if (isLeft) {
+      // Character on left, bubble on right - tail at bottom-left pointing down-left
+      return { style: styles.tailBottomLeft, path: "M 0 0 L 12 0 L 2 14 Z" };
+    } else if (isRight) {
+      // Character on right, bubble on left - tail at bottom-right pointing down-right
+      return { style: styles.tailBottomRight, path: "M 0 0 L 12 0 L 10 14 Z" };
+    } else {
+      // Center bubble - tail at bottom center pointing down
+      return { style: styles.tailBottomCenter, path: "M 0 0 L 12 0 L 6 14 Z" };
+    }
+  };
+
   const bubbleNode = (
     <Animated.View
       style={[
@@ -181,11 +198,27 @@ export default function SpeechBubble({
         )}
         {messageArea}
       </View>
+      {/* Speech bubble tail */}
+      {(() => {
+        const tailConfig = getTailStyle();
+        if (!tailConfig) return null;
+        return (
+          <View style={[styles.tailContainer, tailConfig.style]}>
+            <Svg width={12} height={14}>
+              <Path
+                d={tailConfig.path}
+                fill="#FFFFFF"
+              />
+            </Svg>
+          </View>
+        );
+      })()}
     </Animated.View>
   );
 
   if (isRight) {
     // For very long messages, don't show the avatar at all – just use the full-width bubble
+    // This overrides any character display settings to prevent the bubble from becoming too tall
     if (isVeryLongMessage) {
       return bubbleNode;
     }
@@ -278,7 +311,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 18,
     color: '#1e355e',
-    fontWeight: '800',
     textAlign: 'right',
     marginBottom: 8,
     flexWrap: 'wrap',
@@ -332,5 +364,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.08)',
     borderRadius: 6,
     transform: [{ rotate: '8deg' }],
+  },
+  tailContainer: {
+    position: 'absolute',
+    bottom: -12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tailBottomLeft: {
+    left: 20,
+  },
+  tailBottomRight: {
+    right: 20,
+  },
+  tailBottomCenter: {
+    left: '50%',
+    marginLeft: -8,
   },
 });

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ImageSourcePropType, ActivityIndicator } from 'react-native';
-import SpeechBubble from './SpeechBubble';
 
 interface Choice {
   id: string;
@@ -15,7 +14,6 @@ interface Props {
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
-  characterImg?: ImageSourcePropType;
   onSubmit: (result: { 
     correct: boolean; 
     selectedChoiceId: string;
@@ -31,7 +29,6 @@ export default function QuestionWithImage({
   submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
-  characterImg,
   onSubmit 
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
@@ -75,16 +72,6 @@ export default function QuestionWithImage({
 
   return (
     <View style={styles.container}>
-      {/* Question Text in Speech Bubble */}
-      <SpeechBubble
-        message={question}
-        characterImg={characterImg}
-        position="bottomLeft"
-        randomPosition={true}
-        disableTyping={true}
-        disableEnterAnim={false}
-      />
-
       {/* Image */}
       <View style={styles.imageContainer}>
         {imageLoading && (
@@ -107,18 +94,18 @@ export default function QuestionWithImage({
         {choices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
-          let buttonStyle = styles.choiceButton;
+          let buttonStyle: any[] = [styles.choiceButton];
           
           if (submitted) {
             if (isSelected && isCorrectChoice) {
-              buttonStyle = styles.choiceButtonCorrect;
+              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
             } else if (isSelected && !isCorrectChoice) {
-              buttonStyle = styles.choiceButtonWrong;
+              buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
             } else if (!isSelected && isCorrectChoice) {
-              buttonStyle = styles.choiceButtonCorrect;
+              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
             }
           } else if (isSelected) {
-            buttonStyle = styles.selectedChoice;
+            buttonStyle = [styles.choiceButton, styles.selectedChoice];
           }
 
           return (
@@ -225,7 +212,7 @@ const styles = StyleSheet.create({
   },
   choiceText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: 'bold',
     color: '#374151',
     textAlign: 'center',
     lineHeight: 22,
