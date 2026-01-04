@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, ImageSourcePropType, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
 
 interface Choice {
   id: string;
@@ -20,6 +20,8 @@ interface Props {
     isCorrect: boolean;
     explanation: string;
   }) => void;
+  onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  onStateChange?: (state: { showingExplanation: boolean; canSubmit: boolean }) => void;
 }
 
 export default function QuestionWithImage({ 
@@ -29,7 +31,9 @@ export default function QuestionWithImage({
   submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
-  onSubmit 
+  onSubmit,
+  onSubmitTriggerRef,
+  onStateChange
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -52,9 +56,17 @@ export default function QuestionWithImage({
     if (selectedChoice) {
       const selectedChoiceData = choices.find(c => c.id === selectedChoice);
       const correct = selectedChoiceData?.correct || false;
+      const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
       setSubmitted(true);
       setIsCorrect(correct);
       setShowingExplanation(true);
+      // Immediately call onSubmit to show bottom sheet
+      onSubmit({ 
+        correct,
+        selectedChoiceId: selectedChoice || '',
+        isCorrect: correct,
+        explanation
+      });
     }
   };
 
@@ -69,6 +81,34 @@ export default function QuestionWithImage({
       explanation
     });
   };
+
+  // Expose submit handler for global button
+  useEffect(() => {
+    if (onSubmitTriggerRef) {
+      onSubmitTriggerRef.current = () => {
+        // Only handle submit if we haven't submitted yet
+        // After submission, the bottom sheet will handle continuation
+        if (!showingExplanation && selectedChoice) {
+          handleSubmit();
+        }
+      };
+    }
+    return () => {
+      if (onSubmitTriggerRef) {
+        onSubmitTriggerRef.current = null;
+      }
+    };
+  }, [onSubmitTriggerRef, showingExplanation, selectedChoice, correctExplanation, wrongExplanation]);
+
+  // Notify parent about state changes
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange({
+        showingExplanation,
+        canSubmit: !!selectedChoice && !showingExplanation,
+      });
+    }
+  }, [onStateChange, showingExplanation, selectedChoice]);
 
   return (
     <View style={styles.container}>
@@ -95,17 +135,25 @@ export default function QuestionWithImage({
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
           let buttonStyle: any[] = [styles.choiceButton];
+          let textStyle: any[] = [styles.choiceText];
           
           if (submitted) {
             if (isSelected && isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              textStyle = [styles.choiceText, styles.choiceTextCorrect];
             } else if (isSelected && !isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
+              textStyle = [styles.choiceText, styles.choiceTextWrong];
             } else if (!isSelected && isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              textStyle = [styles.choiceText, styles.choiceTextCorrect];
+            } else {
+              buttonStyle = [styles.choiceButton, styles.choiceButtonDisabled];
+              textStyle = [styles.choiceText, styles.choiceTextDisabled];
             }
           } else if (isSelected) {
-            buttonStyle = [styles.choiceButton, styles.selectedChoice];
+            buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
+            textStyle = [styles.choiceText, styles.choiceTextSelected];
           }
 
           return (
@@ -118,30 +166,13 @@ export default function QuestionWithImage({
                 }
               }}
             >
-              <Text style={[
-                styles.choiceText,
-                (submitted || isSelected) && styles.selectedChoiceText
-              ]}>
+              <Text style={textStyle}>
                 {choice.text}
               </Text>
             </Pressable>
           );
         })}
       </View>
-
-      {/* Submit Button */}
-      <Pressable 
-        style={[
-          styles.submitButton,
-          !selectedChoice && !showingExplanation && styles.submitButtonDisabled
-        ]} 
-        onPress={showingExplanation ? handleContinue : handleSubmit}
-        disabled={!selectedChoice && !showingExplanation}
-      >
-        <Text style={styles.submitText}>
-          {showingExplanation ? 'המשך' : submitText}
-        </Text>
-      </Pressable>
     </View>
   );
 }
@@ -155,18 +186,15 @@ const styles = StyleSheet.create({
   imageContainer: {
     marginBottom: 24,
     alignItems: 'center',
-    backgroundColor: '#1F2937',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
   image: {
     width: '100%',
-    height: 200,
+    maxWidth: 400,
+    height: 250,
+    maxHeight: 300,
   },
   imageHidden: {
     opacity: 0,
@@ -179,66 +207,56 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#1F2937',
+    backgroundColor: 'transparent',
   },
   choicesContainer: {
     marginBottom: 24,
   },
   choiceButton: {
+    width: '90%',
+    maxWidth: 420,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
     paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+    marginVertical: 10,
+    alignItems: 'center',
+    alignSelf: 'center',
   },
-  selectedChoice: {
-    borderColor: '#3F9FFF',
-    backgroundColor: '#EBF4FF',
+  choiceButtonSelected: {
+    backgroundColor: '#3372D8',
+    shadowColor: '#3F9FFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
   choiceButtonCorrect: {
-    borderColor: '#62D24C',
-    backgroundColor: '#EEF7EE',
+    backgroundColor: '#12B76A',
   },
   choiceButtonWrong: {
-    borderColor: '#FF6B6B',
-    backgroundColor: '#FFEEEE',
+    backgroundColor: '#FF6B6B',
+  },
+  choiceButtonDisabled: {
+    backgroundColor: '#F3F4F6',
+    opacity: 0.6,
   },
   choiceText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  selectedChoiceText: {
-    color: '#1E40AF',
-    fontWeight: '600',
-  },
-  submitButton: {
-    backgroundColor: '#3F9FFF',
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  submitButtonDisabled: {
-    backgroundColor: '#9CA3AF',
-  },
-  submitText: {
-    color: '#FFFFFF',
+    color: '#0D2033',
+    fontWeight: '700',
     fontSize: 18,
-    fontWeight: '800',
+    textAlign: 'center',
+  },
+  choiceTextSelected: {
+    color: '#FFFFFF',
+  },
+  choiceTextCorrect: {
+    color: '#FFFFFF',
+  },
+  choiceTextWrong: {
+    color: '#FFFFFF',
+  },
+  choiceTextDisabled: {
+    color: '#9CA3AF',
   },
 });

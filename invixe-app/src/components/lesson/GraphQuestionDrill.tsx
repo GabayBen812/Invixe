@@ -220,8 +220,9 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   mediaContainer: {
     width: '94%',

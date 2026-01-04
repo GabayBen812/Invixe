@@ -144,6 +144,8 @@ export default function LessonScreen({ navigation, route }: Props) {
   const svgMultiSelectSubmitRef = useRef<(() => void) | null>(null);
   const [questionSvgCanSubmit, setQuestionSvgCanSubmit] = useState(false);
   const questionSvgSubmitRef = useRef<(() => void) | null>(null);
+  const [questionWithImageCanSubmit, setQuestionWithImageCanSubmit] = useState(false);
+  const questionWithImageSubmitRef = useRef<(() => void) | null>(null);
   const [graphQuestionCanSubmit, setGraphQuestionCanSubmit] = useState(false);
   const graphQuestionSubmitRef = useRef<(() => void) | null>(null);
   const carouselSubmitRef = useRef<(() => void) | null>(null);
@@ -314,11 +316,13 @@ export default function LessonScreen({ navigation, route }: Props) {
     setSimpleQuestionIsCorrect(false);
     setSvgMultiSelectCanSubmit(false);
     setQuestionSvgCanSubmit(false);
+    setQuestionWithImageCanSubmit(false);
     setGraphQuestionCanSubmit(false);
     setPathSelectViewingOption(null);
     setPathSelectCompletedOptions(new Set());
     svgMultiSelectSubmitRef.current = null;
     questionSvgSubmitRef.current = null;
+    questionWithImageSubmitRef.current = null;
     graphQuestionSubmitRef.current = null;
   }, [stepId]);
 
@@ -353,8 +357,8 @@ export default function LessonScreen({ navigation, route }: Props) {
     const rewards = result.rewards || result.numCorrectSelections || (result.correct ? 1 : 0) || (result.numCorrect || 0);
     const isCorrect = result.isCorrect || result.correct || false;
     
-     // For simple_question, questionWithSVG, graphQuestion, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
-     if (isSimpleQuestion || isQuestionWithSVGActivity || step.activity === 'sequenceBuild' || (step.activity as any) === 'dragMatch' || step.activity === 'svgMultiSelect') {
+     // For simple_question, questionWithSVG, questionWithImage, graphQuestion, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
+     if (isSimpleQuestion || isQuestionWithSVGActivity || step.activity === 'questionWithImage' || step.activity === 'sequenceBuild' || (step.activity as any) === 'dragMatch' || step.activity === 'svgMultiSelect') {
       setSimpleQuestionIsCorrect(isCorrect);
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
@@ -757,7 +761,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           {activityType === 'questionWithImage' && step.activityConfig?.questionWithImage && (() => {
             const bubbleMessage = showingDrillExplanation
               ? (drillExplanation || step.message)
-              : (step.activityConfig.questionWithImage.question || step.message);
+              : (step.message || step.activityConfig.questionWithImage.question);
             if (!bubbleMessage || typeof bubbleMessage !== 'string' || bubbleMessage.trim() === '') return null;
             return (
               <SpeechBubble
@@ -846,11 +850,13 @@ export default function LessonScreen({ navigation, route }: Props) {
           return (
             <View style={styles.textWithImageFullScreen}>
               {imageUrl ? (
-                <ImageWithFallback 
-                  uri={imageUrl} 
-                  style={styles.textWithImageFullScreenImage} 
-                  stepId={step.id || 'unknown'}
-                />
+                <View style={styles.textWithImageFullScreenImageWrapper}>
+                  <ImageWithFallback 
+                    uri={imageUrl} 
+                    style={styles.textWithImageFullScreenImage} 
+                    stepId={step.id || 'unknown'}
+                  />
+                </View>
               ) : (
                 <View style={styles.textWithImageFullScreen}>
                   <Text style={{ color: '#999', textAlign: 'center', padding: 20, fontSize: 14 }}>
@@ -862,9 +868,36 @@ export default function LessonScreen({ navigation, route }: Props) {
           );
         })()}
         
+        {/* Graph question (PNG-based) drill - outside ScrollView */}
+        {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (
+          <View style={styles.drillContentArea}>
+            <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+              <GraphQuestionDrill
+                mediaType="png"
+                pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
+                choices={(step.activityConfig as any).graphQuestionPNG.choices || []}
+                submitText={(step.activityConfig as any).graphQuestionPNG.submitText || 'בדוק'}
+                correctExplanation={(step.activityConfig as any).graphQuestionPNG.correctExplanation}
+                wrongExplanation={(step.activityConfig as any).graphQuestionPNG.wrongExplanation}
+                onSubmit={(result) => {
+                  const rewards = result.isCorrect ? ((step.activityConfig as any)?.graphQuestionPNG?.rewards || 0) : 0;
+                  handleDrillComplete({
+                    ...result,
+                    rewards,
+                  });
+                }}
+                onSubmitTriggerRef={graphQuestionSubmitRef}
+                onStateChange={(state) => {
+                  setGraphQuestionCanSubmit(state.canSubmit);
+                }}
+              />
+            </View>
+          </View>
+        )}
+        
         {/* Drill Content Area - fills space between speech bubble and button */}
         
-        {!(step.activity === 'textWithImageExplain' && !step.message?.trim()) && (
+        {!(step.activity === 'textWithImageExplain' && !step.message?.trim()) && !(activityType === 'graphQuestionPNG') && (
         <ScrollView 
           style={styles.drillContentArea}
           contentContainerStyle={styles.drillContentScrollContainer}
@@ -958,24 +991,34 @@ export default function LessonScreen({ navigation, route }: Props) {
 
           {/* Question with image drill */}
           {step.activity === 'questionWithImage' && step.activityConfig?.questionWithImage && (
-            <View style={{ width: '100%', alignItems: 'center', paddingBottom: 120 }}>
+            <View style={{ width: '100%', flex: 1, justifyContent: 'center' }}>
               <QuestionWithImage
-              question={step.activityConfig.questionWithImage.question || ''}
-              imageSource={step.activityConfig.questionWithImage.uploadedImage 
-                ? { uri: step.activityConfig.questionWithImage.uploadedImage }
-                : require('../assets/DefaultBlankBackground.png')}
-              choices={step.activityConfig.questionWithImage.choices || []}
-              submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
-              correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
-              wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
-              onSubmit={(result) => {
-                const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
-                handleDrillComplete({
-                  ...result,
-                  rewards
-                });
-              }}
-            />
+                question={step.activityConfig.questionWithImage.question || ''}
+                imageSource={
+                  step.activityConfig.questionWithImage.uploadedImagePublicUrl
+                    ? { uri: step.activityConfig.questionWithImage.uploadedImagePublicUrl }
+                    : step.activityConfig.questionWithImage.uploadedImageUrl
+                    ? { uri: step.activityConfig.questionWithImage.uploadedImageUrl }
+                    : step.activityConfig.questionWithImage.uploadedImage
+                    ? { uri: step.activityConfig.questionWithImage.uploadedImage }
+                    : require('../assets/DefaultBlankBackground.png')
+                }
+                choices={step.activityConfig.questionWithImage.choices || []}
+                submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
+                correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
+                wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
+                onSubmit={(result) => {
+                  const rewards = result.isCorrect ? (step.activityConfig?.questionWithImage?.rewards || 0) : 0;
+                  handleDrillComplete({
+                    ...result,
+                    rewards
+                  });
+                }}
+                onSubmitTriggerRef={questionWithImageSubmitRef}
+                onStateChange={(state) => {
+                  setQuestionWithImageCanSubmit(state.canSubmit);
+                }}
+              />
             </View>
           )}
 
@@ -1048,30 +1091,6 @@ export default function LessonScreen({ navigation, route }: Props) {
             </View>
           )}
 
-          {/* Graph question (PNG-based) drill */}
-          {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (
-            <View style={{ flex: 1, justifyContent: 'center', width: '100%', marginTop: 30 }}>
-              <GraphQuestionDrill
-                mediaType="png"
-                pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
-                choices={(step.activityConfig as any).graphQuestionPNG.choices || []}
-                submitText={(step.activityConfig as any).graphQuestionPNG.submitText || 'בדוק'}
-                correctExplanation={(step.activityConfig as any).graphQuestionPNG.correctExplanation}
-                wrongExplanation={(step.activityConfig as any).graphQuestionPNG.wrongExplanation}
-                onSubmit={(result) => {
-                  const rewards = result.isCorrect ? ((step.activityConfig as any)?.graphQuestionPNG?.rewards || 0) : 0;
-                  handleDrillComplete({
-                    ...result,
-                    rewards,
-                  });
-                }}
-                onSubmitTriggerRef={graphQuestionSubmitRef}
-                onStateChange={(state) => {
-                  setGraphQuestionCanSubmit(state.canSubmit);
-                }}
-              />
-            </View>
-          )}
 
           {/* Render candlestick SVG if visual is set */}
           {step.visual === 'hammer' && (
@@ -1467,8 +1486,8 @@ export default function LessonScreen({ navigation, route }: Props) {
         </View>
         </ScrollView>
         )}
-        {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect to reduce clutter */}
-        {!(isDialog || isExplain || isTextWithSVG || step.activity === 'pathSelect') && !isSimpleQuestion && (
+        {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect/questionWithImage to reduce clutter */}
+        {!(isDialog || isExplain || isTextWithSVG || step.activity === 'pathSelect' || activityType === 'questionWithImage') && !isSimpleQuestion && (
           <View style={styles.choices}>
             {choices && choices.length > 1 && (
               <>
@@ -1583,8 +1602,8 @@ export default function LessonScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       )}
-      {/* Button sheet for simple_question, questionWithSVG, sequenceBuild, dragMatch, and svgMultiSelect */}
-      {showSimpleQuestionButtonSheet && (isSimpleQuestion || isQuestionWithSVGActivity || step.activity === 'sequenceBuild' || (step.activity as any) === 'dragMatch' || step.activity === 'svgMultiSelect') && (
+      {/* Button sheet for simple_question, questionWithSVG, questionWithImage, sequenceBuild, dragMatch, and svgMultiSelect */}
+      {showSimpleQuestionButtonSheet && (isSimpleQuestion || isQuestionWithSVGActivity || step.activity === 'questionWithImage' || step.activity === 'sequenceBuild' || (step.activity as any) === 'dragMatch' || step.activity === 'svgMultiSelect') && (
         <View style={styles.buttonSheetContainer}>
           <View style={styles.buttonSheet}>
             <Text style={[styles.buttonSheetTitle, simpleQuestionIsCorrect ? styles.buttonSheetTitleCorrect : styles.buttonSheetTitleWrong]}>
@@ -1605,7 +1624,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                   console.log('Bottom sheet continue button pressed');
                   console.log('isQuestionWithSVGActivity:', isQuestionWithSVGActivity);
                   console.log('step.activity:', step.activity);
-                  if (isQuestionWithSVGActivity || step.activity === 'sequenceBuild' || (step.activity as any) === 'dragMatch' || step.activity === 'svgMultiSelect') {
+                  if (isQuestionWithSVGActivity || step.activity === 'questionWithImage' || step.activity === 'sequenceBuild' || (step.activity as any) === 'dragMatch' || step.activity === 'svgMultiSelect') {
                     handleExplanationContinue();
                   } else {
                     handleSimpleQuestionButtonSheetContinue();
@@ -1759,6 +1778,28 @@ export default function LessonScreen({ navigation, route }: Props) {
           >
             <Text style={styles.continueButtonText}>
               {showingDrillExplanation ? 'המשך' : (step.activityConfig.sequenceBuild.submitText || 'אישור')}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for questionWithImage */}
+      {activityType === 'questionWithImage' && step.activityConfig?.questionWithImage && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (questionWithImageCanSubmit || showingDrillExplanation) && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (showingDrillExplanation) {
+                // Continue to next step after explanation
+                handleExplanationContinue();
+              } else if (questionWithImageSubmitRef.current && questionWithImageCanSubmit) {
+                // Trigger submit from questionWithImage drill component
+                questionWithImageSubmitRef.current();
+              }
+            }}
+            disabled={!showingDrillExplanation && !questionWithImageCanSubmit}
+          >
+            <Text style={styles.continueButtonText}>
+              {showingDrillExplanation ? 'המשך' : (step.activityConfig.questionWithImage.submitText || 'בדוק')}
             </Text>
           </Pressable>
         </View>
@@ -1952,18 +1993,29 @@ const styles = StyleSheet.create({
   },
   textWithImageFullScreen: {
     position: 'absolute',
-    top: 0,
-    left: 0,
+    display: 'flex',
+    top: 5,
+    left: 5,
     right: 0,
     bottom: 120, // Space for button (70px position + ~50px button height)
     width: '100%',
     padding: 4,
     zIndex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  textWithImageFullScreenImageWrapper: {
+    display: 'flex',
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textWithImageFullScreenImage: {
     width: '100%',
     height: '100%',
     resizeMode: 'contain',
+    alignSelf: 'center',
   },
   choices: {
     width: "100%",
