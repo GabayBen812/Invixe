@@ -78,12 +78,6 @@ export default function PathSelectDrill({
           );
         })}
       </View>
-      
-      {allCompleted && (
-        <Pressable style={styles.continueButton} onPress={onContinue}>
-          <Text style={styles.continueButtonText}>{submitText}</Text>
-        </Pressable>
-      )}
     </View>
   );
 }
@@ -132,18 +126,6 @@ const styles = StyleSheet.create({
     right: 16,
     fontSize: 20,
     color: '#62D24C',
-    fontWeight: '800',
-  },
-  continueButton: {
-    marginTop: 24,
-    backgroundColor: '#3F9FFF',
-    borderRadius: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-  },
-  continueButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
     fontWeight: '800',
   },
 });

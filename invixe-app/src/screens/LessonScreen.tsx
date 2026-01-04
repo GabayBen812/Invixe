@@ -192,7 +192,7 @@ export default function LessonScreen({ navigation, route }: Props) {
       console.log(`Visited step: "${stepId}". Total visited: ${Array.from(visitedStepsRef.current).join(', ')}`);
       
       // Calculate and animate progress
-      const currentIndex = currentLessonSteps.findIndex(s => s.id === stepId);
+      const currentIndex = currentLessonSteps.findIndex(s => s && s.id === stepId);
       const progress = currentIndex >= 0 ? (currentIndex + 1) / currentLessonSteps.length : 0;
       
       Animated.timing(progressAnim, {
@@ -208,7 +208,7 @@ export default function LessonScreen({ navigation, route }: Props) {
   useEffect(() => {
     if (!stepId || currentLessonSteps.length === 0) return;
     
-    const currentStep = currentLessonSteps.find((s: LessonStep) => s.id === stepId) || currentLessonSteps[0];
+    const currentStep = currentLessonSteps.find((s: LessonStep) => s && s.id === stepId) || (currentLessonSteps[0] || null);
     if (!currentStep) return;
     
     // Preload image for current step if it has one
@@ -257,7 +257,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     // Preload image and SVGs for next step if available
     if (currentStep.choices && currentStep.choices[0] && currentStep.choices[0].nextStep) {
       const nextStepId = currentStep.choices[0].nextStep;
-      const nextStep = currentLessonSteps.find(s => s.id === nextStepId);
+      const nextStep = currentLessonSteps.find(s => s && s.id === nextStepId);
       if (nextStep) {
         const nextImageUrl = nextStep.activityConfig?.questionWithImage?.uploadedImagePublicUrl 
           || nextStep.activityConfig?.questionWithImage?.uploadedImageUrl;
@@ -323,8 +323,15 @@ export default function LessonScreen({ navigation, route }: Props) {
   }, [stepId]);
 
   const step: LessonStep =
-    currentLessonSteps.find((s: LessonStep) => s.id === stepId) ||
-    currentLessonSteps[0];
+    currentLessonSteps.find((s: LessonStep) => s && s.id === stepId) ||
+    (currentLessonSteps[0] || { 
+      id: 'intro', 
+      activity: 'text', 
+      message: '', 
+      choices: [],
+      backgroundImage: 'bg1',
+      activityConfig: {}
+    } as unknown as LessonStep);
 
   // Log current step details for debugging
   console.log(`📍 Current step: "${step.id}", activity: "${step.activity}"`);
@@ -436,9 +443,9 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
     
     // Find current step index and next step index to detect backwards navigation (loops)
-    const currentStepIndex = currentLessonSteps.findIndex(s => s.id === stepId);
+    const currentStepIndex = currentLessonSteps.findIndex(s => s && s.id === stepId);
     const nextStepIndices = currentLessonSteps
-      .map((s, idx) => s.id === nextStep ? idx : -1)
+      .map((s, idx) => s && s.id === nextStep ? idx : -1)
       .filter(idx => idx !== -1);
     
     console.log('Current step index:', currentStepIndex, 'Next step indices:', nextStepIndices);
@@ -470,7 +477,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
     
     // Check if nextStep exists in steps
-    const nextStepExists = currentLessonSteps.find(s => s.id === nextStep);
+    const nextStepExists = currentLessonSteps.find(s => s && s.id === nextStep);
     
     // If nextStep doesn't exist in steps, complete the lesson
     if (!nextStepExists && nextStep !== "map") {
@@ -531,7 +538,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
     
     // Check if this step has points (correct answer) and should show bottom sheet
-    const nextStepData = currentLessonSteps.find(s => s.id === nextStep);
+    const nextStepData = currentLessonSteps.find(s => s && s.id === nextStep);
     if (nextStepData && nextStepData.points && nextStepData.points > 0) {
       // Show overlay but DON'T advance to next step yet - wait for bottom sheet interaction
       setShowCorrectOverlay(true);
@@ -828,7 +835,36 @@ export default function LessonScreen({ navigation, route }: Props) {
           })()}
         </View>
         
+        {/* Text with image explanation - full screen when no message - positioned absolutely */}
+        {step.activity === 'textWithImageExplain' && !step.message?.trim() && (() => {
+          if (!step.activityConfig?.questionWithImage) return null;
+          
+          const imageUrl = step.activityConfig.questionWithImage.uploadedImagePublicUrl 
+            || step.activityConfig.questionWithImage.uploadedImageUrl
+            || step.activityConfig.questionWithImage.uploadedImage;
+          
+          return (
+            <View style={styles.textWithImageFullScreen}>
+              {imageUrl ? (
+                <ImageWithFallback 
+                  uri={imageUrl} 
+                  style={styles.textWithImageFullScreenImage} 
+                  stepId={step.id || 'unknown'}
+                />
+              ) : (
+                <View style={styles.textWithImageFullScreen}>
+                  <Text style={{ color: '#999', textAlign: 'center', padding: 20, fontSize: 14 }}>
+                    Image not available
+                  </Text>
+                </View>
+              )}
+            </View>
+          );
+        })()}
+        
         {/* Drill Content Area - fills space between speech bubble and button */}
+        
+        {!(step.activity === 'textWithImageExplain' && !step.message?.trim()) && (
         <ScrollView 
           style={styles.drillContentArea}
           contentContainerStyle={styles.drillContentScrollContainer}
@@ -859,6 +895,11 @@ export default function LessonScreen({ navigation, route }: Props) {
               console.log('textWithImageExplain: Rendering step', step.id, 'with image URL:', imageUrl.substring(0, 50) + '...');
             }
             
+            // Only render here if there's a message (no message is handled above)
+            if (!step.message || !step.message.trim()) {
+              return null;
+            }
+            
             return (
               <View style={styles.textWithImageWrapper}>
                 {imageUrl ? (
@@ -870,7 +911,6 @@ export default function LessonScreen({ navigation, route }: Props) {
                     />
                   </View>
                 ) : (
-                  // Show placeholder if no image URL - but still render the drill
                   <View style={styles.textWithImageContainer}>
                     <Text style={{ color: '#999', textAlign: 'center', padding: 20, fontSize: 14 }}>
                       Image not available
@@ -941,10 +981,16 @@ export default function LessonScreen({ navigation, route }: Props) {
 
           {/* Question with SVG drill */}
           {(activityType === 'questionWithSVG') && step.activityConfig?.questionWithImage && (() => {
-            console.log('QuestionWithSVG: Rendering step', step.id, 'with choices:', step.activityConfig.questionWithImage.choices);
+            const rawChoices = step.activityConfig.questionWithImage.choices;
+            console.log('QuestionWithSVG: Rendering step', step.id, 'with raw choices:', rawChoices);
             
-            if (!step.activityConfig.questionWithImage.choices || step.activityConfig.questionWithImage.choices.length === 0) {
-              console.error('QuestionWithSVG: No choices found for step', step.id);
+            // Filter out any invalid choices (null, undefined, or missing id)
+            const validChoices = Array.isArray(rawChoices) 
+              ? rawChoices.filter(c => c && c.id && c.text)
+              : [];
+            
+            if (validChoices.length === 0) {
+              console.error('QuestionWithSVG: No valid choices found for step', step.id, 'rawChoices:', rawChoices);
               return null;
             }
             
@@ -955,7 +1001,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                   svgCode={step.activityConfig.questionWithImage.svgCode}
                   svgUrl={step.activityConfig.questionWithImage.svgUrl}
                   svgPublicUrl={step.activityConfig.questionWithImage.svgPublicUrl}
-                  choices={step.activityConfig.questionWithImage.choices || []}
+                  choices={validChoices}
                   submitText={step.activityConfig.questionWithImage.submitText || 'בדוק'}
                   correctExplanation={step.activityConfig.questionWithImage.correctExplanation}
                   wrongExplanation={step.activityConfig.questionWithImage.wrongExplanation}
@@ -1214,7 +1260,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           {(step.activity as any) === 'dragMatch' && step.activityConfig?.dragMatch && (
             <View style={{ marginTop: 30, flex: 1, justifyContent: 'center' }}>
                 <DragMatchDrill
-                slots={step.activityConfig.dragMatch.slots.map(s => ({
+                slots={step.activityConfig.dragMatch.slots.filter(s => s && s.id).map(s => ({
                   id: s.id,
                   drawKey: s.drawKey as any,
                   imageSource: s.imageKey ? characterImages[s.imageKey] : undefined,
@@ -1312,16 +1358,25 @@ export default function LessonScreen({ navigation, route }: Props) {
                   const currentScreen =
                     allScreens[pathSelectViewingScreenIndex] || allScreens[0];
                   
+                  // Debug logging
+                  console.log('PathSelectExplanation - currentScreen:', {
+                    explanation: currentScreen?.explanation,
+                    imageUrl: currentScreen?.imageUrl,
+                    hasImageUrl: !!currentScreen?.imageUrl,
+                    svgCode: currentScreen?.svgCode ? `exists (${currentScreen.svgCode.length} chars)` : 'none',
+                    svgUrl: currentScreen?.svgUrl,
+                    svgPublicUrl: currentScreen?.svgPublicUrl,
+                    selectedOption: {
+                      explanationImageUrl: selectedOption?.explanationImageUrl,
+                      explanationImagePath: selectedOption?.explanationImagePath,
+                      explanationSvgCode: selectedOption?.explanationSvgCode ? `exists (${selectedOption.explanationSvgCode.length} chars)` : 'none',
+                      explanationSvgUrl: selectedOption?.explanationSvgUrl,
+                      explanationSvgPublicUrl: selectedOption?.explanationSvgPublicUrl,
+                    }
+                  });
+                  
                   return (
                     <>
-                      <SpeechBubble 
-                        message={step.message || ''} 
-                        characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
-                        position={step.bubblePosition || 'bottomLeft'}
-                        align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-                        disableTyping
-                        disableEnterAnim
-                      />
                       <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 10 }}>
                         <PathSelectExplanation
                           explanation={currentScreen?.explanation || ''}
@@ -1329,23 +1384,6 @@ export default function LessonScreen({ navigation, route }: Props) {
                           svgCode={currentScreen?.svgCode}
                           svgUrl={currentScreen?.svgUrl}
                           svgPublicUrl={currentScreen?.svgPublicUrl}
-                          continueText="המשך"
-                          onContinue={() => {
-                            // If there are more screens, advance to the next one.
-                            if (allScreens.length > 0 && pathSelectViewingScreenIndex < allScreens.length - 1) {
-                              setPathSelectViewingScreenIndex(idx => idx + 1);
-                              return;
-                            }
-
-                            // Otherwise, mark this option as completed and return to main drill
-                            setPathSelectCompletedOptions(prev => {
-                              const newSet = new Set(prev);
-                              newSet.add(pathSelectViewingOption);
-                              return newSet;
-                            });
-                            setPathSelectViewingScreenIndex(0);
-                            setPathSelectViewingOption(null);
-                          }}
                         />
                       </View>
                     </>
@@ -1354,14 +1392,6 @@ export default function LessonScreen({ navigation, route }: Props) {
               ) : (
                 // Show main path selection drill
                 <>
-                      <SpeechBubble 
-                        message={step.message || 'בחר נושא שמעניין אותך להרחיב עליו'} 
-                        characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
-                        position={step.bubblePosition || 'bottomLeft'}
-                    align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
-                    disableTyping
-                    disableEnterAnim
-                  />
                   <View style={{ width: '100%', paddingHorizontal: 16, marginTop: 10 }}>
                     <PathSelectDrill
                       options={step.activityConfig.pathSelect.choices || []}
@@ -1436,6 +1466,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           )}
         </View>
         </ScrollView>
+        )}
         {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect to reduce clutter */}
         {!(isDialog || isExplain || isTextWithSVG || step.activity === 'pathSelect') && !isSimpleQuestion && (
           <View style={styles.choices}>
@@ -1762,6 +1793,77 @@ export default function LessonScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       )}
+      {/* Global button for pathSelect - when all options completed */}
+      {step.activity === 'pathSelect' && 
+       step.activityConfig?.pathSelect && 
+       pathSelectViewingOption === null && 
+       !showCorrectOverlay && 
+       (() => {
+         const options = step.activityConfig.pathSelect.choices || [];
+         const allCompleted = options.length > 0 && options.every((opt: any) => pathSelectCompletedOptions.has(opt.id));
+         return allCompleted;
+       })() && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              // Proceed to next step
+              if (choices && choices.length > 0 && choices[0].nextStep) {
+                setStepId(choices[0].nextStep);
+              }
+            }}
+          >
+            <Text style={styles.continueButtonText}>
+              {step.activityConfig.pathSelect.submitText || 'המשך'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Global button for pathSelect explanation screens */}
+      {step.activity === 'pathSelect' && pathSelectViewingOption !== null && !showCorrectOverlay && (
+        <View style={styles.absoluteContinueButton}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              // Get all screens for the current option
+              const selectedOption = step.activityConfig?.pathSelect?.choices?.find(
+                (opt: any) => opt.id === pathSelectViewingOption
+              );
+              const baseScreen = selectedOption ? {
+                explanation: selectedOption.explanation,
+                imageUrl: selectedOption.explanationImageUrl,
+                explanationImagePath: selectedOption.explanationImagePath,
+                svgCode: selectedOption.explanationSvgCode,
+                svgUrl: selectedOption.explanationSvgUrl,
+                svgPublicUrl: selectedOption.explanationSvgPublicUrl,
+                explanationSvgPath: selectedOption.explanationSvgPath,
+              } : null;
+              const extraScreens = selectedOption?.extraExplanations || [];
+              const allScreens = [
+                ...(baseScreen ? [baseScreen] : []),
+                ...extraScreens,
+              ];
+
+              // If there are more screens, advance to the next one.
+              if (allScreens.length > 0 && pathSelectViewingScreenIndex < allScreens.length - 1) {
+                setPathSelectViewingScreenIndex(idx => idx + 1);
+                return;
+              }
+
+              // Otherwise, mark this option as completed and return to main drill
+              setPathSelectCompletedOptions(prev => {
+                const newSet = new Set(prev);
+                newSet.add(pathSelectViewingOption);
+                return newSet;
+              });
+              setPathSelectViewingScreenIndex(0);
+              setPathSelectViewingOption(null);
+            }}
+          >
+            <Text style={styles.continueButtonText}>המשך</Text>
+          </Pressable>
+        </View>
+      )}
       <View style={styles.progressContainer}>
         {/* <Text style={styles.progressText}>
           {`${currentLessonSteps.findIndex(s => s.id === stepId) + 1}/${currentLessonSteps.length}`}
@@ -1827,6 +1929,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 16,
   },
+  textWithImageWrapperNoText: {
+    paddingHorizontal: 0,
+  },
   textWithImageContainer: {
     width: '95%',
     maxWidth: 700,
@@ -1841,6 +1946,21 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   textWithImageImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain',
+  },
+  textWithImageFullScreen: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 120, // Space for button (70px position + ~50px button height)
+    width: '100%',
+    padding: 4,
+    zIndex: 1,
+  },
+  textWithImageFullScreenImage: {
     width: '100%',
     height: '100%',
     resizeMode: 'contain',

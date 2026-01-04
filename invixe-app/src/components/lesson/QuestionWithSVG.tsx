@@ -47,8 +47,8 @@ export default function QuestionWithSVG({
   const [svgCache, setSvgCache] = useState<string | null>(null);
 
   const handleSubmit = () => {
-    if (selectedChoice) {
-      const selectedChoiceData = choices.find(c => c.id === selectedChoice);
+    if (selectedChoice && choices && Array.isArray(choices)) {
+      const selectedChoiceData = choices.find(c => c && c.id === selectedChoice);
       const correct = selectedChoiceData?.correct || false;
       setSubmitted(true);
       setIsCorrect(correct);
@@ -106,7 +106,7 @@ export default function QuestionWithSVG({
         onSubmitTriggerRef.current = null;
       }
     };
-  }, [onSubmitTriggerRef, handleSubmit, selectedChoice, choices, correctExplanation, wrongExplanation]);
+  }, [onSubmitTriggerRef, selectedChoice, correctExplanation, wrongExplanation]);
 
   // Notify parent about state changes (e.g., whether user selected an option)
   useEffect(() => {
