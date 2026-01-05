@@ -871,7 +871,7 @@ export default function LessonScreen({ navigation, route }: Props) {
         {/* Graph question (PNG-based) drill - outside ScrollView */}
         {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (
           <View style={styles.drillContentArea}>
-            <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', flex: 1, paddingBottom: 120 }}>
               <GraphQuestionDrill
                 mediaType="png"
                 pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
@@ -1486,8 +1486,8 @@ export default function LessonScreen({ navigation, route }: Props) {
         </View>
         </ScrollView>
         )}
-        {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect/questionWithImage to reduce clutter */}
-        {!(isDialog || isExplain || isTextWithSVG || step.activity === 'pathSelect' || activityType === 'questionWithImage') && !isSimpleQuestion && (
+        {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect/questionWithImage/graphQuestionPNG to reduce clutter */}
+        {!(isDialog || isExplain || isTextWithSVG || step.activity === 'pathSelect' || activityType === 'questionWithImage' || isGraphQuestionActivity) && !isSimpleQuestion && (
           <View style={styles.choices}>
             {choices && choices.length > 1 && (
               <>
@@ -1530,7 +1530,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               step.activity !== 'carouselSelect' &&
               step.activity !== 'multiSelect' &&
               step.activity !== 'sequenceBuild' &&
-              activityType !== 'graphQuestion' &&
+              !isGraphQuestionActivity &&
               choices &&
               choices.length === 1 &&
               step.id !== 'simple_text_step' && (
@@ -1805,7 +1805,7 @@ export default function LessonScreen({ navigation, route }: Props) {
         </View>
       )}
       {/* Static button for questionWithSVG and graphQuestion using same absolute pattern */}
-      {(activityType === 'questionWithSVG' || isGraphQuestionActivity) && (activityType === 'questionWithSVG' ? step.activityConfig?.questionWithImage : (activityType === 'graphQuestion' ? (step.activityConfig as any)?.graphQuestion : (step.activityConfig as any)?.graphQuestionPNG)) && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && ((activityType === 'questionWithSVG' ? questionSvgCanSubmit : graphQuestionCanSubmit) || showingDrillExplanation) && (
+      {(activityType === 'questionWithSVG' || isGraphQuestionActivity) && (activityType === 'questionWithSVG' ? step.activityConfig?.questionWithImage : (activityType === 'graphQuestion' ? (step.activityConfig as any)?.graphQuestion : (step.activityConfig as any)?.graphQuestionPNG)) && !showSimpleQuestionButtonSheet && !showCorrectOverlay && ((activityType === 'questionWithSVG' ? questionSvgCanSubmit : graphQuestionCanSubmit) || showingDrillExplanation) && (
         <View style={styles.absoluteContinueButton}>
           <Pressable
             style={styles.continueButton}

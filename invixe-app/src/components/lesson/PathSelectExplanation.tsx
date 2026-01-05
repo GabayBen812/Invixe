@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 import { parseSVGCode } from '../../utils/svgParser';
 
 interface Props {
@@ -19,6 +20,7 @@ export default function PathSelectExplanation({
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = React.useRef<React.ReactElement | null>(null);
+  const cacheUrlRef = React.useRef<string | null>(null); // Track which URL the cache came from
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
@@ -33,101 +35,114 @@ export default function PathSelectExplanation({
 
   // Fetch SVG from URL if available - ALWAYS prioritize svgPublicUrl
   useEffect(() => {
+    // Determine which URL to use (priority: svgPublicUrl > svgUrl)
+    const urlToUse = svgPublicUrl || svgUrl;
+    
+    // If we have no URL, clear cache and return
+    if (!urlToUse) {
+      if (cacheUrlRef.current) {
+        console.log('PathSelectExplanation: No URL provided, clearing cache');
+        setSvgCache(null);
+        cacheUrlRef.current = null;
+        parsedCacheRef.current = null;
+      }
+      return;
+    }
+
+    // If cache URL doesn't match current URL, clear cache
+    if (cacheUrlRef.current && cacheUrlRef.current !== urlToUse) {
+      console.log('PathSelectExplanation: URL changed, clearing old cache. Old URL:', cacheUrlRef.current, 'New URL:', urlToUse);
+      setSvgCache(null);
+      cacheUrlRef.current = null;
+      parsedCacheRef.current = null;
+    }
+
+    // If we already have cache for this URL (check ref, not state), don't fetch again
+    if (cacheUrlRef.current === urlToUse && svgCache) {
+      console.log('PathSelectExplanation: Using existing cache for URL:', urlToUse);
+      return;
+    }
+
+    // Fetch the SVG
+    let cancelled = false;
     const fetchSVG = async () => {
-      // ALWAYS prioritize svgPublicUrl if it exists, regardless of svgCode
-      const url = svgPublicUrl || svgUrl;
-      
-      // Log what we have
-      console.log('PathSelectExplanation: SVG props:', {
-        svgPublicUrl,
-        svgUrl,
-        svgCode: svgCode ? `exists (${svgCode.length} chars)` : 'none',
-        svgCache: svgCache ? `exists (${svgCache.length} chars)` : 'none',
-        urlToFetch: url || 'none',
-        willFetch: url && !svgCache ? 'YES' : 'NO'
-      });
-      
-      // If we have svgPublicUrl, ALWAYS use it (highest priority)
-      // Otherwise, fetch from svgUrl if no cache exists
-      if (svgPublicUrl && !svgCache) {
-        console.log('PathSelectExplanation: Fetching SVG from svgPublicUrl (priority):', svgPublicUrl);
-        try {
-          const response = await fetch(svgPublicUrl);
-          if (response.ok) {
-            const svgText = await response.text();
-            console.log('PathSelectExplanation: SVG fetched successfully from svgPublicUrl, length:', svgText.length);
-            setSvgCache(svgText);
-            parsedCacheRef.current = null; // Clear parsed cache so it will be re-parsed
-          } else {
-            console.error('PathSelectExplanation: Failed to fetch SVG from svgPublicUrl, status:', response.status);
-          }
-        } catch (error) {
-          console.error('PathSelectExplanation: Failed to fetch SVG from svgPublicUrl:', error);
+      console.log('PathSelectExplanation: Fetching SVG from URL:', urlToUse);
+      try {
+        const response = await fetch(urlToUse);
+        if (!cancelled && response.ok) {
+          const svgText = await response.text();
+          console.log('PathSelectExplanation: SVG fetched successfully, length:', svgText.length);
+          setSvgCache(svgText);
+          cacheUrlRef.current = urlToUse; // Track which URL this cache is for
+          parsedCacheRef.current = null; // Clear parsed cache so it will be re-parsed
+        } else if (!cancelled) {
+          console.error('PathSelectExplanation: Failed to fetch SVG, status:', response.status);
+          setSvgCache(null);
+          cacheUrlRef.current = null;
         }
-      } else if (svgUrl && !svgPublicUrl && !svgCache) {
-        console.log('PathSelectExplanation: Fetching SVG from svgUrl:', svgUrl);
-        try {
-          const response = await fetch(svgUrl);
-          if (response.ok) {
-            const svgText = await response.text();
-            console.log('PathSelectExplanation: SVG fetched successfully from svgUrl, length:', svgText.length);
-            setSvgCache(svgText);
-            parsedCacheRef.current = null; // Clear parsed cache so it will be re-parsed
-          } else {
-            console.error('PathSelectExplanation: Failed to fetch SVG from svgUrl, status:', response.status);
-          }
-        } catch (error) {
-          console.error('PathSelectExplanation: Failed to fetch SVG from svgUrl:', error);
+      } catch (error) {
+        if (!cancelled) {
+          console.error('PathSelectExplanation: Failed to fetch SVG:', error);
+          setSvgCache(null);
+          cacheUrlRef.current = null;
         }
-      } else if (svgCache) {
-        console.log('PathSelectExplanation: Using cached SVG');
-      } else if (svgCode && svgCode.trim()) {
-        console.log('PathSelectExplanation: Using svgCode (no URL available)');
       }
     };
+    
     fetchSVG();
-  }, [svgPublicUrl, svgUrl, svgCode, svgCache]);
+    
+    // Cleanup: cancel fetch if URL changes or component unmounts
+    return () => {
+      cancelled = true;
+    };
+  }, [svgPublicUrl, svgUrl]); // Only depend on URLs, not cache state
 
-  // Memoize SVG parsing to avoid re-parsing on every render
-  // Priority: svgCache (from URL) > svgCode
-  const parsedSVG = useMemo(() => {
-    console.log('PathSelectExplanation: useMemo running', {
-      hasSvgCache: !!svgCache,
-      hasSvgCode: !!svgCode,
-      svgCacheLength: svgCache?.length || 0,
-      svgCodeLength: svgCode?.length || 0,
-      hasParsedCache: !!parsedCacheRef.current
-    });
+  // Render SVG - use SvgUri for URLs (native, reliable), parse for svgCode
+  const renderSVG = () => {
+    const currentUrl = svgPublicUrl || svgUrl;
     
-    // Prioritize svgCache (from svgPublicUrl/svgUrl) over svgCode
-    const svgToParse = svgCache || svgCode;
-    if (!svgToParse || !svgToParse.trim()) {
-      console.log('PathSelectExplanation: No SVG code to parse');
-      return null;
+    // If we have a URL, use SvgUri (native component, handles all SVG features)
+    if (currentUrl) {
+      return (
+        <SvgUri
+          uri={currentUrl}
+          width="100%"
+          height="100%"
+          preserveAspectRatio="xMidYMid meet"
+        />
+      );
     }
     
-    console.log('PathSelectExplanation: Parsing SVG, length:', svgToParse.length, 'source:', svgCache ? 'cache (from URL)' : 'svgCode');
-    
-    // Check parsed cache first
-    if (parsedCacheRef.current) {
-      console.log('PathSelectExplanation: Using cached parsed SVG');
-      return parsedCacheRef.current;
+    // Fallback to parsing svgCode if provided
+    if (svgCode && svgCode.trim()) {
+      // Check parsed cache first
+      if (parsedCacheRef.current) {
+        return parsedCacheRef.current;
+      }
+      
+      // Parse the SVG
+      console.log('PathSelectExplanation: Parsing SVG code, length:', svgCode.length);
+      const startTime = Date.now();
+      const parsed = parseSVGCode(svgCode);
+      const parseTime = Date.now() - startTime;
+      
+      if (parsed) {
+        console.log(`PathSelectExplanation: SVG parsed successfully in ${parseTime}ms`);
+        parsedCacheRef.current = parsed;
+        return parsed;
+      } else {
+        console.error(`PathSelectExplanation: SVG parsing failed after ${parseTime}ms`);
+        return (
+          <View style={styles.svgPlaceholder}>
+            <Text style={styles.svgPlaceholderText}>SVG Error</Text>
+          </View>
+        );
+      }
     }
     
-    console.log('PathSelectExplanation: Calling parseSVGCode...');
-    const startTime = Date.now();
-    const parsed = parseSVGCode(svgToParse);
-    const parseTime = Date.now() - startTime;
-    
-    if (parsed) {
-      console.log(`PathSelectExplanation: SVG parsed successfully in ${parseTime}ms`);
-      parsedCacheRef.current = parsed;
-    } else {
-      console.error(`PathSelectExplanation: SVG parsing failed after ${parseTime}ms - parseSVGCode returned null`);
-      console.error('PathSelectExplanation: SVG preview (first 500 chars):', svgToParse.substring(0, 500));
-    }
-    return parsed;
-  }, [svgCode, svgCache]);
+    // No SVG available
+    return null;
+  };
 
   return (
     <View style={styles.container}>
@@ -170,30 +185,9 @@ export default function PathSelectExplanation({
           </View>
         )}
         
-        {(parsedSVG || svgCode || svgUrl || svgPublicUrl || svgCache) && (
+        {(svgCode || svgUrl || svgPublicUrl || svgCache) && (
           <View style={styles.svgContainer}>
-            {parsedSVG ? (
-              <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-                {parsedSVG}
-              </View>
-            ) : (svgCode || svgCache) ? (
-              // We have SVG code but parsing failed or is in progress
-              <View style={styles.svgPlaceholder}>
-                <ActivityIndicator size="small" color="#3372D8" />
-                <Text style={styles.svgPlaceholderText}>
-                  {svgCache ? 'Parsing SVG...' : 'Loading SVG...'}
-                </Text>
-                <Text style={[styles.svgPlaceholderText, { fontSize: 12, marginTop: 4 }]}>
-                  {svgCache ? `(${Math.round((svgCache.length / 1024))}KB)` : ''}
-                </Text>
-              </View>
-            ) : (svgUrl || svgPublicUrl) ? (
-              // We have URLs but haven't fetched yet
-              <View style={styles.svgPlaceholder}>
-                <ActivityIndicator size="small" color="#3372D8" />
-                <Text style={styles.svgPlaceholderText}>Loading...</Text>
-              </View>
-            ) : null}
+            {renderSVG()}
           </View>
         )}
       </View>
@@ -239,12 +233,12 @@ const styles = StyleSheet.create({
   },
   svgContainer: {
     width: '100%',
-    minHeight: 200,
-    maxHeight: 300,
+    height: 300,          // ❗ חובה
     marginBottom: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+    padding: 8,
+  },  
   svgPlaceholder: {
     width: 200,
     height: 200,

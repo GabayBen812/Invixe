@@ -1,5 +1,5 @@
 import React from 'react';
-import Svg, { Path, Circle, Rect, Ellipse, Line, Polygon } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, Ellipse, Line, Polygon, Image } from 'react-native-svg';
 
 // Simple SVG parser that can handle basic SVG elements
 // This is a basic implementation - for production use, consider using a more robust parser
@@ -13,7 +13,7 @@ export function parseSVGCode(svgCode: string): React.ReactElement | null {
 
     // Extract viewBox
     const viewBoxMatch = cleanCode.match(/viewBox="([^"]*)"/);
-    const viewBox = viewBoxMatch ? viewBoxMatch[1] : '0 0 100 100';
+    const viewBox = viewBoxMatch?.[1] ?? '0 0 1000 1000';
 
     // Extract width and height
     const widthMatch = cleanCode.match(/width="([^"]*)"/);
@@ -140,6 +140,41 @@ function parseSVGElements(svgCode: string): React.ReactElement[] {
         strokeWidth={ellipseProps['stroke-width'] || ellipseProps.strokeWidth}
       />
     );
+  }
+
+  // Parse image elements (including embedded base64 images)
+  const imageMatches = Array.from(svgCode.matchAll(/<image[^>]*>/g));
+  for (const match of imageMatches) {
+    const imageProps = parseAttributes(match[0]);
+    const href = imageProps.href || imageProps['xlink:href'] || imageProps['xmlns:xlink'] || '';
+    if (href) {
+      elements.push(
+        <Image
+          key={`image-${elements.length}`}
+          x={imageProps.x || '0'}
+          y={imageProps.y || '0'}
+          width={imageProps.width || '100'}
+          height={imageProps.height || '100'}
+          href={href}
+          preserveAspectRatio={imageProps.preserveAspectRatio || 'xMidYMid meet'}
+        />
+      );
+    }
+  }
+
+  // Parse use elements (for referencing defs)
+  const useMatches = Array.from(svgCode.matchAll(/<use[^>]*>/g));
+  for (const match of useMatches) {
+    const useProps = parseAttributes(match[0]);
+    const href = useProps.href || useProps['xlink:href'] || '';
+    // Note: <use> elements are complex and may reference defs - for now we'll skip them
+    // as they require more sophisticated parsing
+    if (href && href.startsWith('#')) {
+      // Try to find the referenced element in defs
+      const id = href.substring(1);
+      // This is a simplified implementation - full support would require parsing defs
+      console.log('SVG parser: <use> element found referencing:', id, '- not fully supported');
+    }
   }
 
   return elements;

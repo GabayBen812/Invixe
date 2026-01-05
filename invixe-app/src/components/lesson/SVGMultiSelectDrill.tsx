@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Image } from 'react-native';
-import Svg, { SvgProps } from 'react-native-svg';
+import Svg, { SvgProps, SvgUri } from 'react-native-svg';
 import { parseSVGCode } from '../../utils/svgParser';
 
 export interface SVGMultiSelectOption {
@@ -188,52 +188,8 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   }, [onSubmitTriggerRef, handleSubmit]);
 
 
-  const [svgCache, setSvgCache] = useState<Record<string, string>>({});
-  const fetchingRef = useRef<Set<string>>(new Set());
+  // Cache for parsed SVG code (only used for svgCode prop, not URLs)
   const parsedCacheRef = useRef<Record<string, React.ReactElement | null>>({});
-
-  // Fetch SVG from URL if available - fetch all in parallel for speed
-  useEffect(() => {
-    const fetchSVGs = async () => {
-      // Collect all URLs to fetch
-      const fetchPromises = options.map(async (option) => {
-        const url = option.svgPublicUrl || option.svgUrl;
-        if (url && !svgCache[option.id] && !option.svgCode && !fetchingRef.current.has(url)) {
-          fetchingRef.current.add(url);
-          try {
-            const response = await fetch(url);
-            if (response.ok) {
-              const svgText = await response.text();
-              return { id: option.id, svgText };
-            }
-          } catch (error) {
-            console.error(`Failed to fetch SVG for option ${option.id}:`, error);
-          } finally {
-            fetchingRef.current.delete(url);
-          }
-        }
-        return null;
-      });
-
-      // Fetch all SVGs in parallel
-      const results = await Promise.all(fetchPromises);
-      
-      // Update cache with all results at once
-      setSvgCache(prev => {
-        const newCache = { ...prev };
-        results.forEach(result => {
-          if (result && !newCache[result.id]) {
-            newCache[result.id] = result.svgText;
-            // Clear parsed cache for this SVG so it gets re-parsed
-            delete parsedCacheRef.current[result.id];
-          }
-        });
-        return newCache;
-      });
-    };
-    fetchSVGs();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.map(o => o.svgPublicUrl || o.svgUrl || o.id).join(',')]); // Fetch when URLs change
 
   const renderSVG = (option: SVGMultiSelectOption) => {
     // Handle PNG images
@@ -257,26 +213,33 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       );
     }
 
-    // Handle SVG
+    // Handle SVG component
     if (option.svgComponent) {
       const SvgComponent = option.svgComponent;
       return <SvgComponent width={60} height={60} />;
     }
     
-    // Priority: 1) svgPublicUrl (fetch from cache), 2) svgCode (legacy), 3) svgUrl (fetch)
-    let svgCodeToParse: string | undefined;
+    // Priority: 1) svgPublicUrl/svgUrl (use SvgUri), 2) svgCode (parse)
+    const svgUrl = option.svgPublicUrl || option.svgUrl;
     
-    if (option.svgPublicUrl && svgCache[option.id]) {
-      svgCodeToParse = svgCache[option.id];
-    } else if (option.svgCode) {
-      svgCodeToParse = option.svgCode;
-    } else if (option.svgUrl && svgCache[option.id]) {
-      svgCodeToParse = svgCache[option.id];
+    // If we have a URL, use SvgUri (native, reliable)
+    if (svgUrl) {
+      return (
+        <View style={styles.svgContainer}>
+          <SvgUri
+            uri={svgUrl}
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </View>
+      );
     }
     
-    if (svgCodeToParse) {
+    // Fallback to parsing svgCode if provided
+    if (option.svgCode && option.svgCode.trim()) {
       // Check parsed cache first to avoid re-parsing
-      const cacheKey = `${option.id}-${svgCodeToParse.substring(0, 50)}`; // Use first 50 chars as hash
+      const cacheKey = `${option.id}-${option.svgCode.substring(0, 50)}`; // Use first 50 chars as hash
       if (parsedCacheRef.current[cacheKey]) {
         return (
           <View style={styles.svgContainer}>
@@ -288,7 +251,7 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       }
       
       // Parse and render the SVG code using react-native-svg
-      const parsedSVG = parseSVGCode(svgCodeToParse);
+      const parsedSVG = parseSVGCode(option.svgCode);
       if (parsedSVG) {
         // Cache the parsed result
         parsedCacheRef.current[cacheKey] = parsedSVG;
@@ -304,15 +267,6 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       return (
         <View style={styles.svgPlaceholder}>
           <Text style={styles.svgPlaceholderText}>SVG</Text>
-        </View>
-      );
-    }
-    
-    // If we have a URL but haven't fetched it yet, show loading
-    if (option.svgPublicUrl || option.svgUrl) {
-      return (
-        <View style={styles.svgPlaceholder}>
-          <Text style={styles.svgPlaceholderText}>...</Text>
         </View>
       );
     }
