@@ -448,15 +448,9 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
 
   const handleSubmit = () => {
     if (showingExplanation) {
-      // Continue to next step
-      const correct = isSequenceCorrect(placed);
-      const explanation = isCorrect ? (correctExplanation || '') : (wrongExplanation || '');
-      onSubmit({ 
-        correct, 
-        placedIds: placed,
-        isCorrect,
-        explanation
-      });
+      // Don't call onSubmit again - LessonScreen's button will handle navigation
+      // This just resets the internal state (though LessonScreen handles it)
+      return;
     } else {
       // Submit and show explanation
       setSubmitted(true);
@@ -567,6 +561,7 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
           }
         }}
       >
+        <View style={styles.optionsInnerWrapper}>
         {options.map(o => {
           const pan = panValues[o.id] || new Animated.ValueXY({ x: 0, y: 0 });
           if (!panValues[o.id]) panValues[o.id] = pan;
@@ -642,6 +637,7 @@ export default function SequenceBuildDrill({ slotsCount, options, correctSequenc
             </React.Fragment>
           );
         })}
+        </View>
       </View>
     </View>
   );
@@ -676,16 +672,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEF3F2',
   },
   optionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
     width: '100%',
-    paddingHorizontal: 16,
     marginTop: 4,
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  optionsInnerWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
   },
   optionCandle: {
-    marginHorizontal: 6,
   },
   optionShadow: {
     backgroundColor: 'transparent',
@@ -693,7 +691,6 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(61, 159, 255, 0.4)',
     borderStyle: 'dashed',
     borderRadius: 16,
-    marginHorizontal: 6,
   },
 });
 

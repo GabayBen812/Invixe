@@ -50,6 +50,9 @@ export default function CarouselSelectDrill({
   const [index, setIndex] = useState(0);
   const [svgCache, setSvgCache] = useState<Record<string, string>>({});
   const parsedCacheRef = useRef<Record<string, React.ReactElement>>({});
+  const [submitted, setSubmitted] = useState(false);
+  const [showingExplanation, setShowingExplanation] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
 
   const normalizedItems = useMemo(() => items.length > 0 ? items : [], [items]);
   const selected = normalizedItems[index] || normalizedItems[0];
@@ -123,13 +126,23 @@ export default function CarouselSelectDrill({
   };
 
   const goLeft = () => {
+    if (submitted) return; // Disable navigation after submit
     setIndex(prev => (prev - 1 + normalizedItems.length) % normalizedItems.length);
   };
   const goRight = () => {
+    if (submitted) return; // Disable navigation after submit
     setIndex(prev => (prev + 1) % normalizedItems.length);
   };
 
-  const submitOnce = () => {
+  const handleSubmit = () => {
+    if (submitted) return;
+    const correct = selected?.id === correctId;
+    setSubmitted(true);
+    setIsCorrect(correct);
+    setShowingExplanation(true);
+  };
+
+  const handleContinue = () => {
     const correct = selected?.id === correctId;
     const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
     onSubmit({ 
@@ -140,33 +153,68 @@ export default function CarouselSelectDrill({
     });
   };
 
+  const submitOnce = showingExplanation ? handleContinue : handleSubmit;
+
   // Expose programmatic submit trigger for the shared global button
   useEffect(() => {
     if (!onSubmitTriggerRef) return;
     onSubmitTriggerRef.current = submitOnce;
-  }, [onSubmitTriggerRef, submitOnce, selected, correctId, correctExplanation, wrongExplanation]);
+  }, [onSubmitTriggerRef, submitOnce, selected, correctId, correctExplanation, wrongExplanation, submitted, showingExplanation]);
 
   if (normalizedItems.length === 0) return null;
+
+  // Determine card background color based on state
+  const cardBgColor = submitted
+    ? (isCorrect ? '#12B76A' : '#D92D20') // Green if correct, red if wrong
+    : '#EAF3FF'; // Default light blue
 
   return (
     <View style={styles.container}>
       <View style={styles.carouselRow}>
-        <Pressable onPress={goLeft} style={[styles.arrowButton, styles.arrowLeft]} hitSlop={12}>
-          <Text style={styles.arrowText}>‹</Text>
+        <Pressable 
+          onPress={goLeft} 
+          style={[
+            styles.arrowButton, 
+            styles.arrowLeft,
+            submitted && styles.arrowDisabled
+          ]} 
+          hitSlop={12}
+          disabled={submitted}
+        >
+          <Text style={[styles.arrowText, submitted && styles.arrowTextDisabled]}>‹</Text>
         </Pressable>
-        <View style={styles.centerCard}>
+        <View style={[styles.centerCard, { backgroundColor: cardBgColor }]}>
+          {/* Correct/Wrong indicator badge */}
+          {submitted && (
+            <View style={styles.feedbackBadge}>
+              <Text style={styles.feedbackText}>
+                {isCorrect ? '✓ נכון' : '✗ שגוי'}
+              </Text>
+            </View>
+          )}
           {selected ? renderItemContent(selected) : null}
           {selected?.label ? (
-            <Text style={styles.label}>{selected.label}</Text>
+            <Text style={[styles.label, submitted && styles.labelLight]}>{selected.label}</Text>
           ) : null}
         </View>
-        <Pressable onPress={goRight} style={[styles.arrowButton, styles.arrowRight]} hitSlop={12}>
-          <Text style={styles.arrowText}>›</Text>
+        <Pressable 
+          onPress={goRight} 
+          style={[
+            styles.arrowButton, 
+            styles.arrowRight,
+            submitted && styles.arrowDisabled
+          ]} 
+          hitSlop={12}
+          disabled={submitted}
+        >
+          <Text style={[styles.arrowText, submitted && styles.arrowTextDisabled]}>›</Text>
         </Pressable>
       </View>
       {showSubmitButton && (
         <Pressable style={styles.submitButton} onPress={submitOnce}>
-          <Text style={styles.submitText}>{submitText}</Text>
+          <Text style={styles.submitText}>
+            {showingExplanation ? 'המשך' : submitText}
+          </Text>
         </Pressable>
       )}
     </View>
@@ -194,12 +242,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginHorizontal: 10,
   },
+  arrowDisabled: {
+    opacity: 0.4,
+  },
   arrowLeft: {},
   arrowRight: {},
   arrowText: {
     fontSize: 28,
     fontWeight: '800',
     color: '#0D2033',
+  },
+  arrowTextDisabled: {
+    color: '#999999',
   },
   centerCard: {
     width: 210,
@@ -217,6 +271,29 @@ const styles = StyleSheet.create({
   label: {
     marginTop: 8,
     fontSize: 16,
+    fontWeight: '700',
+    color: '#0D2033',
+  },
+  labelLight: {
+    color: '#FFFFFF',
+  },
+  feedbackBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  feedbackText: {
+    fontSize: 14,
     fontWeight: '700',
     color: '#0D2033',
   },

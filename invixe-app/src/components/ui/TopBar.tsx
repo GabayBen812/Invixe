@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import Svg, {
   Path,
   G,
@@ -12,6 +12,7 @@ import Svg, {
   SvgXml,
 } from "react-native-svg";
 import { useUser } from "../../context/UserContext";
+import { useDictionary } from "../../context/DictionaryContext";
 
 // Invixe logo SVG (converted)
 const InvixeLogo = () => (
@@ -110,8 +111,50 @@ const LightningIcon = () => (
   </Svg>
 );
 
+// Dictionary/Book Icon SVG
+const DictionaryIcon = () => (
+  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M19 2H5C3.89543 2 3 2.89543 3 4V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V4C21 2.89543 20.1046 2 19 2Z"
+      stroke="#3F9FFF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M8 2V22"
+      stroke="#3F9FFF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M12 7H16"
+      stroke="#3F9FFF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M12 11H16"
+      stroke="#3F9FFF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M12 15H16"
+      stroke="#3F9FFF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
 export default function TopBar() {
   const { coins, lightnings } = useUser();
+  const { openDictionary } = useDictionary();
 
   return (
     <View style={styles.container}>
@@ -125,6 +168,9 @@ export default function TopBar() {
           <LightningIcon />
           <Text style={styles.count}>{lightnings}</Text>
         </View>
+        <Pressable onPress={() => openDictionary()} style={styles.dictionaryButton}>
+          <DictionaryIcon />
+        </Pressable>
       </View>
     </View>
   );
@@ -144,6 +190,10 @@ const styles = StyleSheet.create({
   rightSection: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  dictionaryButton: {
+    marginLeft: 16,
+    padding: 4,
   },
   iconWithText: {
     flexDirection: "row",

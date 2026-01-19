@@ -303,7 +303,6 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
         
         const screenX = gesture.moveX;
         const screenY = gesture.moveY;
-        const initialPos = tokenInitialPositions.current[token.id];
         
         // Re-measure all slotBox layouts (for drop detection - entire area)
         Object.entries(slotRefs.current).forEach(([slotId, ref]) => {
@@ -329,11 +328,26 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
           });
         }
         
-        // Process drop - use requestAnimationFrame for better timing
-        requestAnimationFrame(() => {
+        // Measure current token position to calculate offset correctly
+        const tokenRef = tokenRefs.current[token.id];
+        if (!tokenRef) {
+          // No token ref - force return to 0,0
+          tokenAnimated[token.id].setValue({ x: 0, y: 0 });
+          draggingTokenIdRef.current = null;
+          setDraggingTokenId(null);
+          return;
+        }
+        
+        (tokenRef as any).measureInWindow((x: number, y: number, width: number, height: number) => {
+          const currentCenter = {
+            x: x + width / 2,
+            y: y + height / 2,
+          };
+          
+          // Process drop after measurement completes
           requestAnimationFrame(() => {
-            if (!initialPos) {
-              // No initial position - force return to 0,0
+            if (!currentCenter) {
+              // No current position - force return to 0,0
               tokenAnimated[token.id].setValue({ x: 0, y: 0 });
               draggingTokenIdRef.current = null;
               setDraggingTokenId(null);
@@ -347,8 +361,16 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
               // Valid drop: on a slot - snap to center
               handleSlotReplacement(dropZone.slotId, token.id);
               
-              const targetX = dropZone.slotCenter.x - initialPos.x;
-              const targetY = dropZone.slotCenter.y - initialPos.y;
+              // Calculate offset from current center position to slot center
+              const offsetX = dropZone.slotCenter.x - currentCenter.x;
+              const offsetY = dropZone.slotCenter.y - currentCenter.y;
+              
+              // Get current animated values and add the offset
+              const currentX = (tokenAnimated[token.id].x as any)._value || 0;
+              const currentY = (tokenAnimated[token.id].y as any)._value || 0;
+              
+              const targetX = currentX + offsetX;
+              const targetY = currentY + offsetY;
               
               Animated.spring(tokenAnimated[token.id], {
                 toValue: { x: targetX, y: targetY },
@@ -367,21 +389,21 @@ export default function DragMatchDrill({ slots, tokens, submitText = 'אישור
                 tension: 150,
                 friction: 8,
               }).start(() => {
-              // Double-check: ensure it's exactly at 0,0
-              tokenAnimated[token.id].setValue({ x: 0, y: 0 });
-            });
+                // Double-check: ensure it's exactly at 0,0
+                tokenAnimated[token.id].setValue({ x: 0, y: 0 });
+              });
+              
+              setTokenToSlot(prev => {
+                const next = { ...prev };
+                delete next[token.id];
+                return next;
+              });
+            }
             
-            setTokenToSlot(prev => {
-              const next = { ...prev };
-              delete next[token.id];
-              return next;
-            });
-          }
-          
-          draggingTokenIdRef.current = null;
-          setDraggingTokenId(null);
+            draggingTokenIdRef.current = null;
+            setDraggingTokenId(null);
+          });
         });
-      });
       },
     });
   };

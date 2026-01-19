@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { View, Image, Animated, StyleSheet, Text, Pressable, ActivityIndicator, Easing, ScrollView } from "react-native";
+import { SvgUri } from 'react-native-svg';
+import { parseSVGCode } from '../utils/svgParser';
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep } from "../modules/lessons/types";
@@ -158,6 +160,10 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [pathSelectViewingOption, setPathSelectViewingOption] = useState<string | null>(null);
   const [pathSelectViewingScreenIndex, setPathSelectViewingScreenIndex] = useState<number>(0);
   const [pathSelectCompletedOptions, setPathSelectCompletedOptions] = useState<Set<string>>(new Set());
+  const [graphQuestionViewingExplanation, setGraphQuestionViewingExplanation] = useState<boolean>(false);
+  const [graphQuestionSelectedChoiceId, setGraphQuestionSelectedChoiceId] = useState<string | null>(null);
+  const [graphQuestionPNGViewingExplanation, setGraphQuestionPNGViewingExplanation] = useState<boolean>(false);
+  const [graphQuestionPNGSelectedChoiceId, setGraphQuestionPNGSelectedChoiceId] = useState<string | null>(null);
   const visitedStepsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -203,6 +209,12 @@ export default function LessonScreen({ navigation, route }: Props) {
         easing: Easing.out(Easing.cubic),
         useNativeDriver: false, // width animation doesn't support native driver
       }).start();
+      
+      // Reset graphQuestion state when step changes
+      setGraphQuestionViewingExplanation(false);
+      setGraphQuestionSelectedChoiceId(null);
+      setGraphQuestionPNGViewingExplanation(false);
+      setGraphQuestionPNGSelectedChoiceId(null);
     }
   }, [stepId, currentLessonSteps]);
 
@@ -398,15 +410,10 @@ export default function LessonScreen({ navigation, route }: Props) {
         return;
       }
       
-      // If nextStep is "intro" and we're not at intro, we've completed the lesson (looping back)
-      if (nextStep === "intro" && stepId !== "intro") {
-        // Complete the lesson instead of going back to intro
-        console.log('handleExplanationContinue - Navigating to map (lesson complete)');
-        handleChoice("map");
-      } else {
-        console.log('handleExplanationContinue - Navigating to nextStep:', nextStep);
-        handleChoice(nextStep);
-      }
+      // Always navigate to the nextStep - let the natural flow handle lesson completion
+      // Don't skip any steps just because nextStep is "intro"
+      console.log('handleExplanationContinue - Navigating to nextStep:', nextStep);
+      handleChoice(nextStep);
     } else {
       console.error('handleExplanationContinue - No step.choices found for step:', step.id);
       console.error('step object:', JSON.stringify(step, null, 2));
@@ -419,13 +426,8 @@ export default function LessonScreen({ navigation, route }: Props) {
     if (selectedChoiceIdx !== null && step.choices && step.choices[selectedChoiceIdx]) {
       const next = step.choices[selectedChoiceIdx].nextStep;
       setSelectedChoiceIdx(null);
-      // If nextStep is "intro" and we're not at intro, we've completed the lesson (looping back)
-      if (next === "intro" && stepId !== "intro") {
-        // Complete the lesson instead of going back to intro
-        handleChoice("map");
-      } else {
-        handleChoice(next);
-      }
+      // Always navigate to the next step - let handleChoice's loop detection handle completion
+      handleChoice(next);
     }
   };
 
@@ -459,24 +461,12 @@ export default function LessonScreen({ navigation, route }: Props) {
       const lastNextStepIndex = nextStepIndices[nextStepIndices.length - 1]; // Get the LAST occurrence
       const firstNextStepIndex = nextStepIndices[0]; // Get the FIRST occurrence
       
-      // If we're going to a step that appears BEFORE our current position, it's a loop
-      // OR if we're going to the first occurrence but we've already visited that step ID
-      if (currentStepIndex >= 0 && firstNextStepIndex < currentStepIndex) {
-        console.log(`Loop detected: going backwards from step ${currentStepIndex} ("${stepId}") to step ${firstNextStepIndex} ("${nextStep}")`);
-        nextStep = "map";
-      } else if (visitedStepsRef.current.has(nextStep) && nextStep !== stepId && firstNextStepIndex < currentStepIndex) {
-        // Also check if we've visited this step before and we're going backwards
+      // ONLY detect as a loop if we've ACTUALLY visited that step AND we're going backwards
+      // Don't just skip based on array position - that breaks lessons that reuse step IDs
+      if (visitedStepsRef.current.has(nextStep) && nextStep !== stepId && currentStepIndex >= 0 && firstNextStepIndex < currentStepIndex) {
+        // We've visited this step before AND we're going backwards in the array
         console.log(`Loop detected: trying to go to "${nextStep}" from "${stepId}", but we've already visited "${nextStep}" and going backwards`);
         nextStep = "map";
-      } else if (lastNextStepIndex >= 0) {
-        // Check if the LAST occurrence of this step ID has an empty nextStep
-        const lastStepWithId = currentLessonSteps[lastNextStepIndex];
-        if (lastStepWithId.choices && lastStepWithId.choices[0] && 
-            (!lastStepWithId.choices[0].nextStep || lastStepWithId.choices[0].nextStep === "")) {
-          // This is the last step with this ID and it has empty nextStep - complete lesson
-          console.log(`Last step "${nextStep}" has empty nextStep, completing lesson`);
-          nextStep = "map";
-        }
       }
     }
     
@@ -777,7 +767,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           })()}
           
           {/* Generic speech bubble for other drills */}
-          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || activityType === 'questionWithSVG' || activityType === 'questionWithImage' || isGraphQuestionActivity || step.activity === 'textWithSVG' || step.activity === 'textWithImageExplain' || step.activity === 'dragMatch') && (() => {
+          {!(isDialog || isExplain || isTextWithSVG || isSimpleQuestion || isSVGMultiSelect || activityType === 'questionWithSVG' || activityType === 'questionWithImage' || isGraphQuestionActivity || step.activity === 'textWithSVG' || step.activity === 'textWithImageExplain' || step.activity === 'dragMatch' || (step.activity === 'pathSelect' && pathSelectViewingOption !== null) || (activityType === 'graphQuestionPNG' && graphQuestionPNGViewingExplanation)) && (() => {
             const bubbleMessage = showingDrillExplanation
               ? (drillExplanation || step.message)
               : step.message;
@@ -785,7 +775,8 @@ export default function LessonScreen({ navigation, route }: Props) {
             return (
               <SpeechBubble 
                 message={bubbleMessage} 
-                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                showCharacter={step.showCharacter !== false}
                 position={step.bubblePosition || 'bottomLeft'}
                 align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
                 randomPosition={step.activity?.includes('question') || step.activity?.includes('drill') || step.activity?.includes('Drill')}
@@ -828,7 +819,8 @@ export default function LessonScreen({ navigation, route }: Props) {
             return (
               <SpeechBubble 
                 message={bubbleMessage} 
-                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined} 
+                characterImg={step.showCharacter !== false ? getCharacterImg(step.characterImg) : undefined}
+                showCharacter={step.showCharacter !== false}
                 position={step.bubblePosition || 'bottomLeft'}
                 align={step.bubblePosition?.includes('Right') ? 'flex-end' : step.bubblePosition?.includes('Left') ? 'flex-start' : 'center'}
                 randomPosition={true}
@@ -869,8 +861,8 @@ export default function LessonScreen({ navigation, route }: Props) {
         })()}
         
         {/* Graph question (PNG-based) drill - outside ScrollView */}
-        {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && (
-          <View style={styles.drillContentArea}>
+        {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && !graphQuestionPNGViewingExplanation && (
+          <View style={[styles.drillContentArea, { paddingBottom: 100 }]}>
             <View style={{ width: '100%', alignItems: 'center', justifyContent: 'center', flex: 1, paddingBottom: 120 }}>
               <GraphQuestionDrill
                 mediaType="png"
@@ -880,11 +872,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                 correctExplanation={(step.activityConfig as any).graphQuestionPNG.correctExplanation}
                 wrongExplanation={(step.activityConfig as any).graphQuestionPNG.wrongExplanation}
                 onSubmit={(result) => {
-                  const rewards = result.isCorrect ? ((step.activityConfig as any)?.graphQuestionPNG?.rewards || 0) : 0;
-                  handleDrillComplete({
-                    ...result,
-                    rewards,
-                  });
+                  // Set state to show explanation screen instead of calling handleDrillComplete immediately
+                  setGraphQuestionPNGSelectedChoiceId(result.selectedChoiceId);
+                  setGraphQuestionPNGViewingExplanation(true);
                 }}
                 onSubmitTriggerRef={graphQuestionSubmitRef}
                 onStateChange={(state) => {
@@ -892,6 +882,112 @@ export default function LessonScreen({ navigation, route }: Props) {
                 }}
               />
             </View>
+          </View>
+        )}
+
+        {/* Graph question PNG explanation screen */}
+        {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && graphQuestionPNGViewingExplanation && (
+          <View style={[styles.drillContentArea, { paddingBottom: 100 }]}>
+            {(() => {
+              const selectedChoice = ((step.activityConfig as any).graphQuestionPNG.choices || []).find(
+                (c: any) => c.id === graphQuestionPNGSelectedChoiceId
+              );
+              if (!selectedChoice) return null;
+
+              const isCorrect = selectedChoice.correct || false;
+              const imageUrl = selectedChoice.explanationImageUrl || selectedChoice.explanationImagePath || selectedChoice.pngUrl || selectedChoice.pngPath;
+
+              return (
+                  <View style={{ width: '100%', flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 10, paddingBottom: 100, pointerEvents: 'box-none' }}>
+                    {/* Image/SVG container with indicator inside */}
+                    {(imageUrl || selectedChoice.explanationSvgCode || selectedChoice.explanationSvgUrl || selectedChoice.explanationSvgPublicUrl) && (
+                      <View style={{ 
+                        width: '100%', 
+                        flex: 1,
+                        maxHeight: '75%',
+                        position: 'relative',
+                        borderRadius: 12,
+                        overflow: 'hidden',
+                        backgroundColor: '#f5f5f5',
+                      }}>
+                        {/* Show correct/wrong indicator inside container */}
+                        <View style={{ 
+                          position: 'absolute',
+                          top: 16,
+                          right: 16,
+                          zIndex: 10,
+                        }}>
+                          {!isCorrect && (
+                            <View style={{ 
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 12,
+                            }}>
+                              <Text style={{ color: '#0D2033', fontWeight: '700', fontSize: 18 }}>
+                                לא בדיוק
+                              </Text>
+                              <View style={{ 
+                                backgroundColor: '#D92D20',
+                                borderRadius: 20,
+                                paddingHorizontal: 16,
+                                paddingVertical: 8,
+                              }}>
+                                <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                  ✗ שגוי
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+                          {isCorrect && (
+                            <View style={{ 
+                              backgroundColor: '#12B76A',
+                              borderRadius: 20,
+                              paddingHorizontal: 16,
+                              paddingVertical: 8,
+                            }}>
+                              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                ✓ נכון
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        {/* Image/SVG - fill available space */}
+                        {imageUrl && (
+                          <Image
+                            source={{ uri: imageUrl }}
+                            style={{ width: '100%', height: '100%' }}
+                            resizeMode="contain"
+                          />
+                        )}
+                        {(selectedChoice.explanationSvgCode || selectedChoice.explanationSvgUrl || selectedChoice.explanationSvgPublicUrl) && (() => {
+                          const svgUrl = selectedChoice.explanationSvgPublicUrl || selectedChoice.explanationSvgUrl;
+                          const svgCode = selectedChoice.explanationSvgCode;
+                          
+                          return (
+                            <View style={{ 
+                              width: '100%', 
+                              height: '100%',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}>
+                              {svgUrl ? (
+                                <SvgUri
+                                  uri={svgUrl}
+                                  width="100%"
+                                  height="100%"
+                                  preserveAspectRatio="xMidYMid meet"
+                                />
+                              ) : svgCode ? (
+                                parseSVGCode(svgCode)
+                              ) : null}
+                            </View>
+                          );
+                        })()}
+                      </View>
+                    )}
+                  </View>
+                );
+            })()}
           </View>
         )}
         
@@ -1064,8 +1160,8 @@ export default function LessonScreen({ navigation, route }: Props) {
             );
           })()}
 
-          {/* Graph question (SVG-based) drill */}
-          {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && (
+          {/* Graph question (SVG-based) drill - Main Screen */}
+          {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && !graphQuestionViewingExplanation && (
             <View style={{ width: '100%', alignItems: 'center', paddingBottom: 120 }}>
               <GraphQuestionDrill
                 mediaType="svg"
@@ -1077,11 +1173,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                 correctExplanation={(step.activityConfig as any).graphQuestion.correctExplanation}
                 wrongExplanation={(step.activityConfig as any).graphQuestion.wrongExplanation}
                 onSubmit={(result) => {
-                  const rewards = result.isCorrect ? ((step.activityConfig as any)?.graphQuestion?.rewards || 0) : 0;
-                  handleDrillComplete({
-                    ...result,
-                    rewards,
-                  });
+                  // Set state to show explanation screen instead of calling handleDrillComplete immediately
+                  setGraphQuestionSelectedChoiceId(result.selectedChoiceId);
+                  setGraphQuestionViewingExplanation(true);
                 }}
                 onSubmitTriggerRef={graphQuestionSubmitRef}
                 onStateChange={(state) => {
@@ -1089,6 +1183,120 @@ export default function LessonScreen({ navigation, route }: Props) {
                 }}
               />
             </View>
+          )}
+
+          {/* Graph question SVG explanation screen */}
+          {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && graphQuestionViewingExplanation && (
+            (() => {
+              const selectedChoice = ((step.activityConfig as any).graphQuestion.choices || []).find(
+                (c: any) => c.id === graphQuestionSelectedChoiceId
+              );
+              if (!selectedChoice) return null;
+
+              const isCorrect = selectedChoice.correct || false;
+              const imageUrl = selectedChoice.explanationImageUrl || selectedChoice.explanationImagePath;
+              
+              // Fallback to main graph SVG if no explanation SVG is provided
+              const explanationSvgCode = selectedChoice.explanationSvgCode || (step.activityConfig as any).graphQuestion.svgCode;
+              const explanationSvgUrl = selectedChoice.explanationSvgUrl || (step.activityConfig as any).graphQuestion.svgUrl;
+              const explanationSvgPublicUrl = selectedChoice.explanationSvgPublicUrl || (step.activityConfig as any).graphQuestion.svgPublicUrl;
+              
+              console.log('GraphQuestion Explanation - selectedChoice:', selectedChoice);
+              console.log('GraphQuestion Explanation - imageUrl:', imageUrl);
+              console.log('GraphQuestion Explanation - SVG Code:', explanationSvgCode ? 'exists' : 'missing');
+              console.log('GraphQuestion Explanation - SVG URL:', explanationSvgUrl || explanationSvgPublicUrl);
+              
+              return (
+                <View style={{ width: '100%', flex: 1, justifyContent: 'flex-start', alignItems: 'center', paddingTop: 10, paddingBottom: 100, pointerEvents: 'box-none' }}>
+                  {/* Image/SVG container with indicator inside */}
+                  {(imageUrl || explanationSvgCode || explanationSvgUrl || explanationSvgPublicUrl) && (
+                    <View style={{ 
+                      width: '100%', 
+                      flex: 1,
+                      maxHeight: '75%',
+                      position: 'relative',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      backgroundColor: '#f5f5f5',
+                    }}>
+                      {/* Show correct/wrong indicator inside container */}
+                      <View style={{ 
+                        position: 'absolute',
+                        top: 16,
+                        right: 16,
+                        zIndex: 10,
+                      }}>
+                        {!isCorrect && (
+                          <View style={{ 
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 12,
+                          }}>
+                            <Text style={{ color: '#0D2033', fontWeight: '700', fontSize: 18 }}>
+                              לא בדיוק
+                            </Text>
+                            <View style={{ 
+                              backgroundColor: '#D92D20',
+                              borderRadius: 20,
+                              paddingHorizontal: 16,
+                              paddingVertical: 8,
+                            }}>
+                              <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                                ✗ שגוי
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+                        {isCorrect && (
+                          <View style={{ 
+                            backgroundColor: '#12B76A',
+                            borderRadius: 20,
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                          }}>
+                            <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 14 }}>
+                              ✓ נכון
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      {/* Image/SVG - fill available space */}
+                      {imageUrl && (
+                        <Image
+                          source={{ uri: imageUrl }}
+                          style={{ width: '100%', height: '100%' }}
+                          resizeMode="contain"
+                        />
+                      )}
+                      {(explanationSvgCode || explanationSvgUrl || explanationSvgPublicUrl) && (() => {
+                        const svgUrl = explanationSvgPublicUrl || explanationSvgUrl;
+                        const svgCode = explanationSvgCode;
+                        
+                        return (
+                          <View style={{ 
+                            width: '100%', 
+                            height: '100%',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            {svgUrl ? (
+                              <SvgUri
+                                uri={svgUrl}
+                                width="100%"
+                                height="100%"
+                                preserveAspectRatio="xMidYMid meet"
+                              />
+                            ) : svgCode ? (
+                              parseSVGCode(svgCode)
+                            ) : null}
+                          </View>
+                        );
+                      })()}
+                    </View>
+                  )}
+                </View>
+              );
+            })()
           )}
 
 
@@ -1693,24 +1901,88 @@ export default function LessonScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
       )}
-      {/* Static button for graphQuestion drill using the shared absolute pattern */}
-      {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && !showSimpleQuestionButtonSheet && !showCorrectOverlay && choices && choices.length === 1 && (graphQuestionCanSubmit || showingDrillExplanation) && (
-        <View style={styles.absoluteContinueButton}>
+      {/* Static button for graphQuestionPNG drill using the shared absolute pattern */}
+      {activityType === 'graphQuestionPNG' && (step.activityConfig as any)?.graphQuestionPNG && !showSimpleQuestionButtonSheet && !showCorrectOverlay && (
+        <View style={[styles.absoluteContinueButton, { zIndex: 1000 }]}>
           <Pressable
             style={styles.continueButton}
             onPress={() => {
-              if (showingDrillExplanation) {
+              console.log('Button pressed, graphQuestionPNGViewingExplanation:', graphQuestionPNGViewingExplanation);
+              if (graphQuestionPNGViewingExplanation) {
                 // After showing explanation, continue to next step
-                handleExplanationContinue();
+                const selectedChoice = ((step.activityConfig as any).graphQuestionPNG.choices || []).find(
+                  (c: any) => c.id === graphQuestionPNGSelectedChoiceId
+                );
+                const isCorrect = selectedChoice?.correct || false;
+                const rewards = isCorrect ? ((step.activityConfig as any)?.graphQuestionPNG?.rewards || 0) : 0;
+                const explanation = selectedChoice?.explanation || selectedChoice?.speechbubbleText || 
+                  (isCorrect 
+                    ? ((step.activityConfig as any).graphQuestionPNG.correctExplanation || '')
+                    : ((step.activityConfig as any).graphQuestionPNG.wrongExplanation || ''));
+                
+                handleDrillComplete({
+                  isCorrect,
+                  correct: isCorrect,
+                  explanation,
+                  rewards,
+                });
+                
+                // Reset state
+                setGraphQuestionPNGViewingExplanation(false);
+                setGraphQuestionPNGSelectedChoiceId(null);
               } else if (graphQuestionSubmitRef.current && graphQuestionCanSubmit) {
                 // Trigger submit from graph question drill component
                 graphQuestionSubmitRef.current();
               }
             }}
-            disabled={!showingDrillExplanation && !graphQuestionCanSubmit}
+            disabled={graphQuestionPNGViewingExplanation ? false : !graphQuestionCanSubmit}
           >
             <Text style={styles.continueButtonText}>
-              {showingDrillExplanation
+              {(() => {
+                const viewing = graphQuestionPNGViewingExplanation;
+                console.log('Button text check - viewing:', viewing);
+                return viewing ? 'המשך' : ((step.activityConfig as any).graphQuestionPNG.submitText || 'בדוק');
+              })()}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+      {/* Static button for graphQuestion drill using the shared absolute pattern */}
+      {activityType === 'graphQuestion' && (step.activityConfig as any)?.graphQuestion && !showSimpleQuestionButtonSheet && !showCorrectOverlay && (
+        <View style={[styles.absoluteContinueButton, { zIndex: 1000 }]}>
+          <Pressable
+            style={styles.continueButton}
+            onPress={() => {
+              if (graphQuestionViewingExplanation) {
+                // After showing explanation, continue to next step
+                const selectedChoice = ((step.activityConfig as any).graphQuestion.choices || []).find(
+                  (c: any) => c.id === graphQuestionSelectedChoiceId
+                );
+                const isCorrect = selectedChoice?.correct || false;
+                const rewards = isCorrect ? ((step.activityConfig as any)?.graphQuestion?.rewards || 0) : 0;
+                const explanation = isCorrect 
+                  ? ((step.activityConfig as any).graphQuestion.correctExplanation || '')
+                  : ((step.activityConfig as any).graphQuestion.wrongExplanation || '');
+                
+                handleDrillComplete({
+                  isCorrect,
+                  correct: isCorrect,
+                  explanation,
+                  rewards,
+                });
+                
+                // Reset state
+                setGraphQuestionViewingExplanation(false);
+                setGraphQuestionSelectedChoiceId(null);
+              } else if (graphQuestionSubmitRef.current && graphQuestionCanSubmit) {
+                // Trigger submit from graph question drill component
+                graphQuestionSubmitRef.current();
+              }
+            }}
+            disabled={!graphQuestionViewingExplanation && !graphQuestionCanSubmit}
+          >
+            <Text style={styles.continueButtonText}>
+              {graphQuestionViewingExplanation
                 ? 'המשך'
                 : ((step.activityConfig as any).graphQuestion.submitText || 'בדוק')}
             </Text>

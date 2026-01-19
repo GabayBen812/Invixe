@@ -6,6 +6,7 @@ import CharacterPrimarySVG from './CharacterPrimarySVG';
 interface SpeechBubbleProps {
   message: string;
   characterImg?: ImageSourcePropType;
+  showCharacter?: boolean; // Explicitly control whether to show character and tail
   position?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight' | 'center';
   align?: 'flex-start' | 'flex-end' | 'center';
   buttonText?: string;
@@ -23,6 +24,7 @@ const LONG_MESSAGE_THRESHOLD = 100;
 export default function SpeechBubble({
   message,
   characterImg,
+  showCharacter = true, // Default to true for backward compatibility
   position = 'bottomLeft',
   align = 'center',
   buttonText,
@@ -181,25 +183,38 @@ export default function SpeechBubble({
     }
   };
 
+  // When no character, make it centered and full-width
+  // Check both showCharacter prop and characterImg presence
+  const hasCharacter = showCharacter && !!characterImg;
+  
+  // Determine if character is actually being rendered (visible)
+  // Character is visible when: showCharacter is true, characterImg is provided, and not very long message
+  const isCharacterVisible = hasCharacter && !isVeryLongMessage;
+  
+  // Only show tail when character is actually visible in the bubble
+  const shouldShowTail = isCharacterVisible;
+  
   const bubbleNode = (
     <Animated.View
       style={[
         styles.bubbleContainer,
         { alignSelf, transform: [{ translateY: slideIn }], opacity },
         // Only constrain width for right-side layout when avatar is visible
-        isRight && !isVeryLongMessage && styles.bubbleContainerRight,
+        isRight && isCharacterVisible && styles.bubbleContainerRight,
+        // When no character, make it full-width and centered
+        !isCharacterVisible && styles.bubbleContainerNoCharacter,
       ]}
     >
-      <View style={[styles.row, isRight && styles.rowRight]}>
-        {!isRight && !isVeryLongMessage && (
+      <View style={[styles.row, isRight && styles.rowRight, !isCharacterVisible && styles.rowNoCharacter]}>
+        {!isRight && isCharacterVisible && (
           <View style={styles.avatarWrap}>
             {renderAvatar(false)}
           </View>
         )}
         {messageArea}
       </View>
-      {/* Speech bubble tail */}
-      {(() => {
+      {/* Speech bubble tail - only show when character is actually visible */}
+      {shouldShowTail && (() => {
         const tailConfig = getTailStyle();
         if (!tailConfig) return null;
         return (
@@ -217,9 +232,9 @@ export default function SpeechBubble({
   );
 
   if (isRight) {
-    // For very long messages, don't show the avatar at all – just use the full-width bubble
+    // For very long messages or when no character, don't show the avatar at all – just use the full-width bubble
     // This overrides any character display settings to prevent the bubble from becoming too tall
-    if (isVeryLongMessage) {
+    if (!isCharacterVisible) {
       return bubbleNode;
     }
 
@@ -259,12 +274,20 @@ const styles = StyleSheet.create({
     minWidth: 0,
     maxWidth: '70%',
   },
+  bubbleContainerNoCharacter: {
+    width: '100%',
+    maxWidth: '100%',
+    alignSelf: 'center',
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   rowRight: {
     justifyContent: 'flex-end',
+  },
+  rowNoCharacter: {
+    justifyContent: 'center',
   },
   rightWrapper: {
     flexDirection: 'row',

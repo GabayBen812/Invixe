@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator, Modal } from 'react-native';
 import { SvgUri } from 'react-native-svg';
 import { parseSVGCode } from '../../utils/svgParser';
 
@@ -20,9 +20,10 @@ export default function PathSelectExplanation({
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = React.useRef<React.ReactElement | null>(null);
-  const cacheUrlRef = React.useRef<string | null>(null); // Track which URL the cache came from
+  const cacheUrlRef = useRef<string | null>(null); // Track which URL the cache came from
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
+  const [fullScreenOpen, setFullScreenOpen] = useState(false);
 
   // Reset image loading state when imageUrl changes
   useEffect(() => {
@@ -144,6 +145,8 @@ export default function PathSelectExplanation({
     return null;
   };
 
+  const hasMedia = imageUrl || svgCode || svgUrl || svgPublicUrl || svgCache;
+
   return (
     <View style={styles.container}>
       <View style={styles.explanationContainer}>
@@ -152,7 +155,10 @@ export default function PathSelectExplanation({
         )}
         
         {imageUrl && (
-          <View style={styles.imageContainer}>
+          <Pressable 
+            style={styles.imageContainer}
+            onPress={() => setFullScreenOpen(true)}
+          >
             {imageError ? (
               <View style={[styles.image, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }]}>
                 <Text style={{ color: '#999', textAlign: 'center', padding: 20, fontSize: 14 }}>
@@ -180,17 +186,65 @@ export default function PathSelectExplanation({
                     <ActivityIndicator size="small" color="#3372D8" />
                   </View>
                 )}
+                <View style={styles.fullScreenHint}>
+                  <Text style={styles.fullScreenHintText}>🔍 לחץ להגדלה</Text>
+                </View>
               </>
             )}
-          </View>
+          </Pressable>
         )}
         
         {(svgCode || svgUrl || svgPublicUrl || svgCache) && (
-          <View style={styles.svgContainer}>
+          <Pressable 
+            style={styles.svgContainer}
+            onPress={() => setFullScreenOpen(true)}
+          >
             {renderSVG()}
-          </View>
+            <View style={styles.fullScreenHint}>
+              <Text style={styles.fullScreenHintText}>🔍 לחץ להגדלה</Text>
+            </View>
+          </Pressable>
         )}
       </View>
+
+      {/* Full-screen modal */}
+      <Modal
+        visible={fullScreenOpen}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setFullScreenOpen(false)}
+      >
+        <View style={styles.fullScreenContainer}>
+          <Pressable 
+            style={styles.fullScreenBackdrop}
+            onPress={() => setFullScreenOpen(false)}
+          />
+          <View style={styles.fullScreenContent}>
+            {/* Close button */}
+            <Pressable 
+              style={styles.closeButton}
+              onPress={() => setFullScreenOpen(false)}
+            >
+              <Text style={styles.closeButtonText}>✕</Text>
+            </Pressable>
+
+            {/* Full-screen image/SVG */}
+            {imageUrl && !imageError && (
+              <Image
+                source={{ uri: imageUrl }}
+                style={styles.fullScreenImage}
+                resizeMode="contain"
+              />
+            )}
+            
+            {!imageUrl && (svgCode || svgUrl || svgPublicUrl || svgCache) && (
+              <View style={styles.fullScreenSvgContainer}>
+                {renderSVG()}
+              </View>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -251,6 +305,68 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontWeight: '700',
     fontSize: 16,
+  },
+  fullScreenHint: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  fullScreenHintText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  fullScreenContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullScreenBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  fullScreenContent: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  closeButtonText: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#000',
+  },
+  fullScreenImage: {
+    width: '100%',
+    height: '100%',
+  },
+  fullScreenSvgContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

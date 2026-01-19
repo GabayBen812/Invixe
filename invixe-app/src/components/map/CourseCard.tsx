@@ -10,19 +10,25 @@ export type CourseCardProps = {
   durationChip?: string; // e.g., 'כ-60 דק'
   levelEmphasis?: 'light' | 'filled'; // filled => blue filled chip
   badgeText?: string; // e.g., 'מומלץ להתחלה'
+  comingSoon?: boolean; // Show "coming soon" badge
   disabled?: boolean;
   onPress?: () => void;
 };
 
-export default function CourseCard({ title, subtitle, Icon, levelChip, durationChip, levelEmphasis = 'light', badgeText, disabled, onPress }: CourseCardProps) {
+export default function CourseCard({ title, subtitle, Icon, levelChip, durationChip, levelEmphasis = 'light', badgeText, comingSoon = false, disabled, onPress }: CourseCardProps) {
   return (
     <Pressable
-      disabled={disabled}
+      disabled={disabled || comingSoon}
       onPress={onPress}
-      style={[styles.card, disabled && styles.cardDisabled]}
+      style={[styles.card, (disabled || comingSoon) && styles.cardDisabled]}
     >
       {badgeText ? (
         <View style={styles.badge}><Text style={styles.badgeText}>{badgeText}</Text></View>
+      ) : null}
+      {comingSoon ? (
+        <View style={styles.comingSoonBadge}>
+          <Text style={styles.comingSoonText}>יגיע בקרוב</Text>
+        </View>
       ) : null}
       <View style={styles.iconCircle}>
         <Icon size={64} />
@@ -88,6 +94,26 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   badgeText: {
+    color: '#FFFFFF',
+    fontFamily: theme.font.bold,
+    fontSize: 12,
+  },
+  comingSoonBadge: {
+    position: 'absolute',
+    top: -14,
+    right: 30,
+    backgroundColor: '#475569',
+    borderColor: '#475569',
+    borderWidth: 1,
+    borderRadius: 16,
+    width: 117,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    marginBottom: 12,
+  },
+  comingSoonText: {
     color: '#FFFFFF',
     fontFamily: theme.font.bold,
     fontSize: 12,

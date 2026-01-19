@@ -73,6 +73,7 @@ export default function UnitSelector({ completedLessons, onSelectUnit }: UnitSel
                 ? "אסטרטגיות DCA, פיזור וניהול סיכונים"
                 : "קריאת דוחות, מכפילים ויתרון תחרותי";
             const badge = idx === 0 ? "מומלץ להתחלה" : undefined;
+            const comingSoon = step.step === 4; // "ניתוח פונדמנטלי"
             const level = step.step <= 2 ? "בסיסי" : "מתקדם";
             const duration = step.step === 1 ? "כ-60 דק׳" : step.step === 2 ? "כ-45 דק׳" : "כ-50 דק׳";
             const IconComp =
@@ -90,6 +91,7 @@ export default function UnitSelector({ completedLessons, onSelectUnit }: UnitSel
                 subtitle={subtitle}
                 Icon={IconComp}
                 badgeText={badge}
+                comingSoon={comingSoon}
                 levelChip={level}
                 durationChip={duration}
                 levelEmphasis={"filled"}

@@ -133,21 +133,25 @@ export default function QuestionWithSVG({
     return parsed;
   }, [svgCode, svgCache]);
 
+  // Use grid layout if more than 4 choices
+  const useGridLayout = choices.length > 4;
+
   return (
     <View style={styles.container}>
       {/* SVG */}
-      <View style={styles.svgContainer}>
-        {parsedSVG ? (
-          parsedSVG
-        ) : (
-          <View style={styles.svgPlaceholder}>
-            <Text style={styles.svgPlaceholderText}>SVG</Text>
+      {parsedSVG && (
+        <View style={styles.svgContainer}>
+          <View style={styles.svgWrapper}>
+            {parsedSVG}
           </View>
-        )}
-      </View>
+        </View>
+      )}
 
       {/* Choices */}
-      <View style={styles.choicesContainer}>
+      <View style={[
+        styles.choicesContainer,
+        useGridLayout && styles.choicesGrid
+      ]}>
         {choices && Array.isArray(choices) && choices.map((choice) => {
           if (!choice || !choice.id) {
             console.warn('QuestionWithSVG: Invalid choice object:', choice);
@@ -172,7 +176,10 @@ export default function QuestionWithSVG({
           return (
             <Pressable
               key={choice.id}
-              style={buttonStyle}
+              style={[
+                buttonStyle,
+                useGridLayout && styles.choiceButtonGrid
+              ]}
               onPress={() => {
                 if (!submitted) {
                   setSelectedChoice(choice.id);
@@ -204,14 +211,17 @@ const styles = StyleSheet.create({
     paddingBottom: 0,
   },
   svgContainer: {
-    marginBottom: 24,
+    marginBottom: 16,
+    marginTop: 10,
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    height: 400,
-    backgroundColor: '#1F2937',
-    borderRadius: 12,
-    padding: 16,
+  },
+  svgWrapper: {
+    width: '100%',
+    height: 180,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   svgPlaceholder: {
     width: '100%',
@@ -228,6 +238,12 @@ const styles = StyleSheet.create({
   },
   choicesContainer: {
     marginBottom: 24,
+    width: '100%',
+  },
+  choicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   choiceButton: {
     backgroundColor: '#FFFFFF',
@@ -242,6 +258,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
+    width: '100%',
+  },
+  choiceButtonGrid: {
+    width: '48%',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
   },
   choiceButtonSelected: {
     borderColor: '#3F9FFF',

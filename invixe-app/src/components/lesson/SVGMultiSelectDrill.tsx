@@ -132,6 +132,27 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
     });
   };
 
+  // Check if this is a yes/no question: exactly 2 options and only 1 is correct
+  const isYesNoQuestion = options.length === 2 && options.filter(o => o.correct).length === 1;
+  
+  // For yes/no questions, only allow selecting one option (toggle behavior)
+  const handleYesNoToggle = (id: string) => {
+    if (submitted) return;
+    setSelected(prev => {
+      // If clicking the same option, deselect it; otherwise, select only this one
+      if (prev[id]) {
+        return { ...prev, [id]: false };
+      } else {
+        // Deselect all others and select this one
+        const newSelected: Record<string, boolean> = {};
+        options.forEach(opt => {
+          newSelected[opt.id] = opt.id === id;
+        });
+        return newSelected;
+      }
+    });
+  };
+
   const handleSubmit = React.useCallback(() => {
     if (Object.keys(selected).filter(k => selected[k]).length === 0) return; // Can't submit without selection
     setSubmitted(true);
@@ -191,11 +212,20 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   // Cache for parsed SVG code (only used for svgCode prop, not URLs)
   const parsedCacheRef = useRef<Record<string, React.ReactElement | null>>({});
 
-  const renderSVG = (option: SVGMultiSelectOption) => {
+  const renderSVG = (option: SVGMultiSelectOption, isYesNoMode: boolean = false) => {
     // Handle PNG images
     if (option.inputType === 'png' || option.pngPublicUrl || option.pngUrl) {
       const pngUrl = option.pngPublicUrl || option.pngUrl;
       if (pngUrl) {
+        if (isYesNoMode) {
+          return (
+            <Image
+              source={{ uri: pngUrl }}
+              style={styles.yesNoPngImage}
+              resizeMode="contain"
+            />
+          );
+        }
         return (
           <View style={styles.svgContainer}>
             <Image
@@ -213,10 +243,10 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       );
     }
 
-    // Handle SVG component
+    // Handle SVG component - display as-is without forcing sizes
     if (option.svgComponent) {
       const SvgComponent = option.svgComponent;
-      return <SvgComponent width={60} height={60} />;
+      return <SvgComponent />;
     }
     
     // Priority: 1) svgPublicUrl/svgUrl (use SvgUri), 2) svgCode (parse)
@@ -224,16 +254,8 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
     
     // If we have a URL, use SvgUri (native, reliable)
     if (svgUrl) {
-      return (
-        <View style={styles.svgContainer}>
-          <SvgUri
-            uri={svgUrl}
-            width="100%"
-            height="100%"
-            preserveAspectRatio="xMidYMid meet"
-          />
-        </View>
-      );
+      // Display SVG from URL as-is
+      return <SvgUri uri={svgUrl} />;
     }
     
     // Fallback to parsing svgCode if provided
@@ -241,25 +263,35 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
       // Check parsed cache first to avoid re-parsing
       const cacheKey = `${option.id}-${option.svgCode.substring(0, 50)}`; // Use first 50 chars as hash
       if (parsedCacheRef.current[cacheKey]) {
-        return (
-          <View style={styles.svgContainer}>
-            <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-              {parsedCacheRef.current[cacheKey]}
-            </View>
-          </View>
-        );
+        const cachedSVG = parsedCacheRef.current[cacheKey];
+        // Display parsed SVG as-is
+        return cachedSVG;
       }
       
       // Parse and render the SVG code using react-native-svg
       const parsedSVG = parseSVGCode(option.svgCode);
       if (parsedSVG) {
-        // Cache the parsed result
+        // Cache the original parsed result
         parsedCacheRef.current[cacheKey] = parsedSVG;
+        
+        if (isYesNoMode) {
+          // For yes/no mode, use larger fixed size that fills the container
+          const fixedSVG = React.cloneElement(parsedSVG as React.ReactElement<any>, {
+            width: 120,
+            height: 120,
+            preserveAspectRatio: 'xMidYMid meet',
+          } as any);
+          return fixedSVG;
+        }
+        // For regular mode, use fixed size
+        const fixedSVG = React.cloneElement(parsedSVG as React.ReactElement<any>, {
+          width: 96,
+          height: 96,
+          preserveAspectRatio: 'xMidYMid meet',
+        } as any);
         return (
           <View style={styles.svgContainer}>
-            <View style={{ width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-              {parsedSVG}
-            </View>
+            {fixedSVG}
           </View>
         );
       }
@@ -285,17 +317,143 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, isYesNoQuestion && styles.containerYesNo]}>
       {title ? <Text style={styles.title}>{title}</Text> : null}
       {options && options.length > 0 ? (
-        <View style={styles.panel}>
-          <View style={[styles.optionsContainer, layout === 'grid' ? styles.grid : styles.list]}> 
+        isYesNoQuestion ? (
+          // Yes/No question design with timeline - horizontal layout (no panel)
+          <View style={styles.yesNoContainer}>
+              <View style={[styles.yesNoRow, { position: 'relative' }]}>
+                {/* Left option */}
+                {options[0] && (() => {
+                  const opt = options[0];
+                  const picked = !!selected[opt.id];
+                  const isCorrectAnswer = !!opt.correct;
+                  
+                  let backgroundColor = '#F5F5F5';
+                  let borderColor = '#FFFFFF';
+                  let borderWidth = 1;
+                  
+                  if (!submitted) {
+                    if (picked) {
+                      backgroundColor = '#F5F5F5';
+                      borderColor = '#FFFFFF';
+                      borderWidth = 1;
+                    }
+                  } else {
+                    if (isCorrectAnswer) {
+                      backgroundColor = '#D1FADF';
+                      borderColor = '#12B76A';
+                    } else {
+                      backgroundColor = '#FEE4E2';
+                      borderColor = '#D92D20';
+                    }
+                  }
+                  
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => handleYesNoToggle(opt.id)}
+                      style={[
+                        styles.yesNoBox,
+                        styles.yesNoBoxLeft,
+                        { backgroundColor, borderColor, borderWidth },
+                      ]}
+                    >
+                      {opt.label ? (
+                        <Text style={styles.yesNoLabel} numberOfLines={1}>
+                          {opt.label}
+                        </Text>
+                      ) : null}
+                      <View style={styles.yesNoContent}>
+                        <View style={[
+                          styles.yesNoDot,
+                          picked ? styles.yesNoDotSelected : styles.yesNoDotUnselected,
+                          submitted && isCorrectAnswer && styles.yesNoDotCorrect,
+                          submitted && !isCorrectAnswer && styles.yesNoDotWrong,
+                        ]} />
+                        <View style={styles.yesNoSvgWrapper}>
+                          {renderSVG(opt, true)}
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })()}
+                
+                {/* Timeline in center */}
+                <View style={styles.timelineContainer}>
+                  <View style={[styles.timelineDiamond, styles.timelineDiamondTop]} />
+                  <View style={styles.timelineLine} />
+                  <View style={[styles.timelineDiamond, styles.timelineDiamondBottom]} />
+                </View>
+                
+                {/* Right option */}
+                {options[1] && (() => {
+                  const opt = options[1];
+                  const picked = !!selected[opt.id];
+                  const isCorrectAnswer = !!opt.correct;
+                  
+                  let backgroundColor = '#F5F5F5';
+                  let borderColor = '#FFFFFF';
+                  let borderWidth = 1;
+                  
+                  if (!submitted) {
+                    if (picked) {
+                      backgroundColor = '#F5F5F5';
+                      borderColor = '#FFFFFF';
+                      borderWidth = 1;
+                    }
+                  } else {
+                    if (isCorrectAnswer) {
+                      backgroundColor = '#D1FADF';
+                      borderColor = '#12B76A';
+                    } else {
+                      backgroundColor = '#FEE4E2';
+                      borderColor = '#D92D20';
+                    }
+                  }
+                  
+                  return (
+                    <Pressable
+                      key={opt.id}
+                      onPress={() => handleYesNoToggle(opt.id)}
+                      style={[
+                        styles.yesNoBox,
+                        styles.yesNoBoxRight,
+                        { backgroundColor, borderColor, borderWidth },
+                      ]}
+                    >
+                      {opt.label ? (
+                        <Text style={styles.yesNoLabel} numberOfLines={1}>
+                          {opt.label}
+                        </Text>
+                      ) : null}
+                      <View style={styles.yesNoContent}>
+                        <View style={[
+                          styles.yesNoDot,
+                          picked ? styles.yesNoDotSelected : styles.yesNoDotUnselected,
+                          submitted && isCorrectAnswer && styles.yesNoDotCorrect,
+                          submitted && !isCorrectAnswer && styles.yesNoDotWrong,
+                        ]} />
+                        <View style={styles.yesNoSvgWrapper}>
+                          {renderSVG(opt, true)}
+                        </View>
+                      </View>
+                    </Pressable>
+                  );
+                })()}
+              </View>
+            </View>
+          ) : (
+            // Regular grid/list design
+            <View style={styles.panel}>
+              <View style={[styles.optionsContainer, layout === 'grid' ? styles.grid : styles.list]}> 
         {options.map((opt) => {
           const picked = !!selected[opt.id];
           const isCorrectAfterSubmit = submitted ? perOptionCorrectness[opt.id] : undefined;
           // Explicitly convert to boolean - handle undefined, null, string "true"/"false", etc.
           // Check if this option is marked as correct in the options array
-          const isCorrectAnswer = opt.correct === true || opt.correct === 'true' || opt.correct === 1; // Whether this option is a correct answer
+          const isCorrectAnswer = !!opt.correct; // Whether this option is a correct answer
 
           // Base (neutral) state – white card like in Figma
           let backgroundColor = opt.backgroundColor || '#FFFFFF';
@@ -373,8 +531,9 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
             </Pressable>
           );
         })}
-          </View>
-        </View>
+              </View>
+            </View>
+          )
       ) : (
         <Text style={{ padding: 20, color: '#666' }}>No options available</Text>
       )}
@@ -396,6 +555,14 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     paddingTop: 10,
+  },
+  containerYesNo: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
+    marginTop: -150,
   },
   panel: {
     width: '100%',
@@ -466,12 +633,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#D92D20',
   },
   svgContainer: {
-    width: 96,
-    height: 96,
-    marginBottom: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'visible',
+    marginBottom: 4,
   },
   svgPlaceholder: {
     width: 60,
@@ -509,6 +673,115 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
+  },
+  // Yes/No question styles
+  yesNoContainer: {
+    width: '100%',
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+  },
+  yesNoRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  yesNoBox: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 16,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  yesNoBoxLeft: {
+    marginRight: 12,
+  },
+  yesNoBoxRight: {
+    marginLeft: 12,
+  },
+  yesNoLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0D2033',
+    textAlign: 'center',
+    marginBottom: 12,
+    width: '100%',
+  },
+  yesNoContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  yesNoDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginBottom: 8,
+    alignSelf: 'center',
+  },
+  yesNoSvgWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+    width: '100%',
+    minHeight: 100,
+  },
+  yesNoPngImage: {
+    width: 120,
+    height: 120,
+    resizeMode: 'contain',
+  },
+  yesNoDotUnselected: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+  },
+  yesNoDotSelected: {
+    backgroundColor: '#3372D8',
+    borderWidth: 0,
+  },
+  yesNoDotCorrect: {
+    backgroundColor: '#12B76A',
+    borderWidth: 0,
+  },
+  yesNoDotWrong: {
+    backgroundColor: '#D92D20',
+    borderWidth: 0,
+  },
+  timelineContainer: {
+    width: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -20,
+    top: -40,
+    bottom: -40,
+    zIndex: 0,
+  },
+  timelineLine: {
+    width: 3,
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#3F9FFF',
+    borderRadius: 1.5,
+  },
+  timelineDiamond: {
+    width: 16,
+    height: 16,
+    backgroundColor: '#3F9FFF',
+    transform: [{ rotate: '45deg' }],
+    position: 'absolute',
+    zIndex: 2,
+  },
+  timelineDiamondTop: {
+    top: 0,
+    marginTop: -8,
+  },
+  timelineDiamondBottom: {
+    bottom: 0,
+    marginBottom: -8,
   },
 });
 

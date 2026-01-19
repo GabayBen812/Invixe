@@ -5,6 +5,8 @@ import { Text, TextProps } from 'react-native';
 import React, { useEffect, useState } from 'react';
 import { UserProvider } from './src/context/UserContext';
 import { LessonsProvider } from './src/context/LessonsContext';
+import { DictionaryProvider } from './src/context/DictionaryContext';
+import DictionaryDrawer from './src/components/dictionary/DictionaryDrawer';
 import * as SplashScreen from 'expo-splash-screen';
 
 // Keep the splash screen visible while we fetch resources
@@ -48,7 +50,10 @@ export default function App() {
     <RegistrationProvider>
       <UserProvider>
         <LessonsProvider>
-          <AppNavigator />
+          <DictionaryProvider>
+            <AppNavigator />
+            <DictionaryDrawer />
+          </DictionaryProvider>
         </LessonsProvider>
       </UserProvider>
     </RegistrationProvider>
