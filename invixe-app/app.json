@@ -21,15 +21,13 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.gabayben812.invixeapp"
+      "package": "com.gabayben812.invixeapp",
+      "supportsRtl": false
     },
     "web": {
       "favicon": "./src/assets/favicon.png"
     },
-    "plugins": [
-      "expo-font",
-      "expo-asset"
-    ],
+    "plugins": ["expo-font", "expo-asset"],
     "extra": {
       "eas": {
         "projectId": "c380a02c-446d-4cfc-9f03-b468227a3406"

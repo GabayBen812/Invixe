@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { parseSVGCode } from '../../utils/svgParser';
+import React, { useState, useMemo, useEffect } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
+import { SvgUri } from "react-native-svg";
+import { parseSVGCode } from "../../utils/svgParser";
 
 interface Choice {
   id: string;
@@ -18,27 +19,30 @@ interface Props {
   correctExplanation?: string;
   wrongExplanation?: string;
   onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
-  onStateChange?: (state: { showingExplanation: boolean; canSubmit: boolean }) => void;
-  onSubmit: (result: { 
-    correct: boolean; 
+  onStateChange?: (state: {
+    showingExplanation: boolean;
+    canSubmit: boolean;
+  }) => void;
+  onSubmit: (result: {
+    correct: boolean;
     selectedChoiceId: string;
     isCorrect: boolean;
     explanation: string;
   }) => void;
 }
 
-export default function QuestionWithSVG({ 
-  question, 
+export default function QuestionWithSVG({
+  question,
   svgCode,
   svgUrl,
   svgPublicUrl,
-  choices, 
-  submitText = 'בדוק',
+  choices,
+  submitText = "בדוק",
   correctExplanation,
   wrongExplanation,
   onSubmitTriggerRef,
   onStateChange,
-  onSubmit 
+  onSubmit,
 }: Props) {
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
@@ -48,32 +52,38 @@ export default function QuestionWithSVG({
 
   const handleSubmit = () => {
     if (selectedChoice && choices && Array.isArray(choices)) {
-      const selectedChoiceData = choices.find(c => c && c.id === selectedChoice);
+      const selectedChoiceData = choices.find(
+        (c) => c && c.id === selectedChoice,
+      );
       const correct = selectedChoiceData?.correct || false;
       setSubmitted(true);
       setIsCorrect(correct);
       setShowingExplanation(true);
 
       // Call onSubmit immediately to trigger bottom sheet
-      const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
-      onSubmit({ 
+      const explanation = correct
+        ? correctExplanation || ""
+        : wrongExplanation || "";
+      onSubmit({
         correct,
         selectedChoiceId: selectedChoice,
         isCorrect: correct,
-        explanation
+        explanation,
       });
     }
   };
 
   const handleContinue = () => {
-    const selectedChoiceData = choices.find(c => c.id === selectedChoice);
+    const selectedChoiceData = choices.find((c) => c.id === selectedChoice);
     const correct = selectedChoiceData?.correct || false;
-    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
-    onSubmit({ 
+    const explanation = correct
+      ? correctExplanation || ""
+      : wrongExplanation || "";
+    onSubmit({
       correct,
-      selectedChoiceId: selectedChoice || '',
+      selectedChoiceId: selectedChoice || "",
       isCorrect: correct,
-      explanation
+      explanation,
     });
   };
 
@@ -89,7 +99,7 @@ export default function QuestionWithSVG({
             setSvgCache(svgText);
           }
         } catch (error) {
-          console.error('Failed to fetch SVG:', error);
+          console.error("Failed to fetch SVG:", error);
         }
       }
     };
@@ -106,7 +116,12 @@ export default function QuestionWithSVG({
         onSubmitTriggerRef.current = null;
       }
     };
-  }, [onSubmitTriggerRef, selectedChoice, correctExplanation, wrongExplanation]);
+  }, [
+    onSubmitTriggerRef,
+    selectedChoice,
+    correctExplanation,
+    wrongExplanation,
+  ]);
 
   // Notify parent about state changes (e.g., whether user selected an option)
   useEffect(() => {
@@ -118,20 +133,41 @@ export default function QuestionWithSVG({
     }
   }, [onStateChange, showingExplanation, selectedChoice]);
 
+  // Render SVG using URL or parsed code
+  const renderSVG = () => {
+    const url = svgPublicUrl || svgUrl;
+    const code = svgCode || svgCache;
 
-  // Memoize SVG parsing to avoid re-parsing on every render
-  const parsedSVG = useMemo(() => {
-    const svgToParse = svgCode || svgCache;
-    if (!svgToParse) {
-      console.log('QuestionWithSVG: No SVG code to parse');
-      return null;
+    // 1. Prioritize SvgUri for URLs (most reliable)
+    if (url && !svgCode) {
+      return (
+        <SvgUri
+          uri={url}
+          width="100%"
+          height="100%"
+          preserveAspectRatio="xMidYMid meet"
+        />
+      );
     }
-    
-    console.log('QuestionWithSVG: Parsing SVG, length:', svgToParse.length);
-    const parsed = parseSVGCode(svgToParse);
-    console.log('QuestionWithSVG: Parsed SVG result:', parsed ? 'success' : 'failed');
-    return parsed;
-  }, [svgCode, svgCache]);
+
+    // 2. Parse SVG code if available
+    if (code) {
+      const parsed = parseSVGCode(code);
+      if (parsed) {
+        return React.cloneElement(
+          parsed as React.ReactElement<any>,
+          {
+            width: "100%",
+            height: "100%",
+            preserveAspectRatio: "xMidYMid meet",
+          } as any,
+        );
+      }
+    }
+
+    // 3. No SVG available
+    return null;
+  };
 
   // Use grid layout if more than 4 choices
   const useGridLayout = choices.length > 4;
@@ -139,62 +175,60 @@ export default function QuestionWithSVG({
   return (
     <View style={styles.container}>
       {/* SVG */}
-      {parsedSVG && (
+      {renderSVG() && (
         <View style={styles.svgContainer}>
-          <View style={styles.svgWrapper}>
-            {parsedSVG}
-          </View>
+          <View style={styles.svgWrapper}>{renderSVG()}</View>
         </View>
       )}
 
       {/* Choices */}
-      <View style={[
-        styles.choicesContainer,
-        useGridLayout && styles.choicesGrid
-      ]}>
-        {choices && Array.isArray(choices) && choices.map((choice) => {
-          if (!choice || !choice.id) {
-            console.warn('QuestionWithSVG: Invalid choice object:', choice);
-            return null;
-          }
-          const isSelected = selectedChoice === choice.id;
-          const isCorrectChoice = choice.correct;
-          let buttonStyle: any[] = [styles.choiceButton];
-          
-          if (submitted) {
-            if (isSelected && isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
-            } else if (isSelected && !isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
-            } else if (!isSelected && isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+      <View
+        style={[styles.choicesContainer, useGridLayout && styles.choicesGrid]}
+      >
+        {choices &&
+          Array.isArray(choices) &&
+          choices.map((choice) => {
+            if (!choice || !choice.id) {
+              console.warn("QuestionWithSVG: Invalid choice object:", choice);
+              return null;
             }
-          } else if (isSelected) {
-            buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
-          }
+            const isSelected = selectedChoice === choice.id;
+            const isCorrectChoice = choice.correct;
+            let buttonStyle: any[] = [styles.choiceButton];
 
-          return (
-            <Pressable
-              key={choice.id}
-              style={[
-                buttonStyle,
-                useGridLayout && styles.choiceButtonGrid
-              ]}
-              onPress={() => {
-                if (!submitted) {
-                  setSelectedChoice(choice.id);
-                }
-              }}
-            >
-              <Text style={[
-                styles.choiceText,
-                (submitted || isSelected) && styles.choiceTextSelected
-              ]}>
-                {choice.text}
-              </Text>
-            </Pressable>
-          );
-        })}
+            if (submitted) {
+              if (isSelected && isCorrectChoice) {
+                buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              } else if (isSelected && !isCorrectChoice) {
+                buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
+              } else if (!isSelected && isCorrectChoice) {
+                buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              }
+            } else if (isSelected) {
+              buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
+            }
+
+            return (
+              <Pressable
+                key={choice.id}
+                style={[buttonStyle, useGridLayout && styles.choiceButtonGrid]}
+                onPress={() => {
+                  if (!submitted) {
+                    setSelectedChoice(choice.id);
+                  }
+                }}
+              >
+                <Text
+                  style={[
+                    styles.choiceText,
+                    (submitted || isSelected) && styles.choiceTextSelected,
+                  ]}
+                >
+                  {choice.text}
+                </Text>
+              </Pressable>
+            );
+          })}
       </View>
 
       {/* Reserve space for global continue button (always reserve space even if not visible) */}
@@ -213,84 +247,83 @@ const styles = StyleSheet.create({
   svgContainer: {
     marginBottom: 16,
     marginTop: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
   },
   svgWrapper: {
-    width: '100%',
+    width: "100%",
     height: 180,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   svgPlaceholder: {
-    width: '100%',
+    width: "100%",
     height: 160,
-    backgroundColor: '#D4DDEE',
+    backgroundColor: "#D4DDEE",
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   svgPlaceholderText: {
-    color: '#334155',
-    fontWeight: '700',
+    color: "#334155",
+    fontWeight: "700",
     fontSize: 16,
   },
   choicesContainer: {
     marginBottom: 24,
-    width: '100%',
+    width: "100%",
   },
   choicesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   choiceButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 20,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    width: '100%',
+    width: "100%",
   },
   choiceButtonGrid: {
-    width: '48%',
+    width: "48%",
     paddingVertical: 14,
     paddingHorizontal: 12,
   },
   choiceButtonSelected: {
-    borderColor: '#3F9FFF',
-    backgroundColor: '#EBF4FF',
+    borderColor: "#3F9FFF",
+    backgroundColor: "#EBF4FF",
   },
   choiceButtonCorrect: {
-    borderColor: '#62D24C',
-    backgroundColor: '#EEF7EE',
+    borderColor: "#62D24C",
+    backgroundColor: "#EEF7EE",
   },
   choiceButtonWrong: {
-    borderColor: '#FF6B6B',
-    backgroundColor: '#FFEEEE',
+    borderColor: "#FF6B6B",
+    backgroundColor: "#FFEEEE",
   },
   choiceText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#374151",
+    textAlign: "center",
     lineHeight: 22,
   },
   choiceTextSelected: {
-    color: '#1E40AF',
-    fontWeight: '600',
+    color: "#1E40AF",
+    fontWeight: "600",
   },
   buttonArea: {
     minHeight: 120,
-    width: '100%',
+    width: "100%",
   },
 });
-

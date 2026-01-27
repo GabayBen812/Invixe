@@ -195,6 +195,7 @@ export interface LessonStep {
         explanationSvgUrl?: string; // Optional SVG URL for explanation
         explanationSvgPublicUrl?: string; // Optional SVG public URL
         explanationSvgPath?: string; // Optional SVG path
+        isComplexMedia?: boolean; // If true, enables zoom/expand functionality
         // Optional additional explanation screens for this path choice.
         // The runtime will show the main explanation (fields above) first,
         // then each of these screens in order before marking the option complete.
@@ -207,6 +208,7 @@ export interface LessonStep {
           explanationSvgUrl?: string;
           explanationSvgPublicUrl?: string;
           explanationSvgPath?: string;
+          isComplexMedia?: boolean; // If true, enables zoom/expand functionality
         }>;
       }>;
       submitText?: string; // Text for continue button (default: 'המשך')

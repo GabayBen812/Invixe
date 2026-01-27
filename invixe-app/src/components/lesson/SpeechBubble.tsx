@@ -1,14 +1,24 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, ImageSourcePropType, TouchableOpacity, Animated, Easing, I18nManager } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  ImageSourcePropType,
+  TouchableOpacity,
+  Animated,
+  Easing,
+  I18nManager,
+} from "react-native";
 import Svg, { Path } from "react-native-svg";
-import CharacterPrimarySVG from './CharacterPrimarySVG';
+import CharacterPrimarySVG from "./CharacterPrimarySVG";
 
 interface SpeechBubbleProps {
   message: string;
   characterImg?: ImageSourcePropType;
   showCharacter?: boolean; // Explicitly control whether to show character and tail
-  position?: 'bottomLeft' | 'bottomRight' | 'topLeft' | 'topRight' | 'center';
-  align?: 'flex-start' | 'flex-end' | 'center';
+  position?: "bottomLeft" | "bottomRight" | "topLeft" | "topRight" | "center";
+  align?: "flex-start" | "flex-end" | "center";
   buttonText?: string;
   onButtonPress?: () => void;
   typingSpeedMs?: number; // characters per tick
@@ -25,8 +35,8 @@ export default function SpeechBubble({
   message,
   characterImg,
   showCharacter = true, // Default to true for backward compatibility
-  position = 'bottomLeft',
-  align = 'center',
+  position = "bottomLeft",
+  align = "center",
   buttonText,
   onButtonPress,
   typingSpeedMs = 18,
@@ -36,8 +46,14 @@ export default function SpeechBubble({
 }: SpeechBubbleProps) {
   // Don't render speech bubble if message is empty or whitespace-only - NEVER render if no text
   // Check multiple conditions to be absolutely sure
-  const trimmedMessage = typeof message === 'string' ? message.trim() : '';
-  if (!message || typeof message !== 'string' || trimmedMessage.length === 0 || message === '' || message === ' ') {
+  const trimmedMessage = typeof message === "string" ? message.trim() : "";
+  if (
+    !message ||
+    typeof message !== "string" ||
+    trimmedMessage.length === 0 ||
+    message === "" ||
+    message === " "
+  ) {
     return null;
   }
 
@@ -45,12 +61,14 @@ export default function SpeechBubble({
   const isVeryLongMessage = message.trim().length > LONG_MESSAGE_THRESHOLD;
 
   // Random position for drills - randomly choose left or right
-  const [randomSide, setRandomSide] = React.useState<'left' | 'right' | null>(null);
-  
+  const [randomSide, setRandomSide] = React.useState<"left" | "right" | null>(
+    null,
+  );
+
   React.useEffect(() => {
     if (randomPosition) {
       // Generate random position once per component mount
-      const side = Math.random() < 0.5 ? 'left' : 'right';
+      const side = Math.random() < 0.5 ? "left" : "right";
       setRandomSide(side);
     } else {
       setRandomSide(null);
@@ -60,20 +78,27 @@ export default function SpeechBubble({
   // Determine actual position
   let actualPosition = position;
   if (randomPosition && randomSide) {
-    const isTop = position === 'topLeft' || position === 'topRight';
-    actualPosition = randomSide === 'left' 
-      ? (isTop ? 'topLeft' : 'bottomLeft')
-      : (isTop ? 'topRight' : 'bottomRight');
+    const isTop = position === "topLeft" || position === "topRight";
+    actualPosition =
+      randomSide === "left"
+        ? isTop
+          ? "topLeft"
+          : "bottomLeft"
+        : isTop
+          ? "topRight"
+          : "bottomRight";
   }
 
   // Horizontal alignment and speaker side
-  let alignSelf: 'flex-start' | 'flex-end' | 'center' = 'center';
-  const isLeft = actualPosition === 'bottomLeft' || actualPosition === 'topLeft';
-  const isRight = actualPosition === 'bottomRight' || actualPosition === 'topRight';
-  const isCenter = actualPosition === 'center';
-  if (isLeft) alignSelf = 'flex-start';
-  if (isRight) alignSelf = 'flex-end';
-  if (isCenter) alignSelf = 'center';
+  let alignSelf: "flex-start" | "flex-end" | "center" = "center";
+  const isLeft =
+    actualPosition === "bottomLeft" || actualPosition === "topLeft";
+  const isRight =
+    actualPosition === "bottomRight" || actualPosition === "topRight";
+  const isCenter = actualPosition === "center";
+  if (isLeft) alignSelf = "flex-start";
+  if (isRight) alignSelf = "flex-end";
+  if (isCenter) alignSelf = "center";
 
   // Typing animation state
   const [typed, setTyped] = React.useState(disableTyping ? message : "");
@@ -89,8 +114,13 @@ export default function SpeechBubble({
       opacity.setValue(1);
     } else {
       Animated.parallel([
-        Animated.timing(slideIn, { toValue: 0, duration: 300, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
-        Animated.spring(opacity, { toValue: 1, useNativeDriver: true })
+        Animated.timing(slideIn, {
+          toValue: 0,
+          duration: 300,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.spring(opacity, { toValue: 1, useNativeDriver: true }),
       ]).start();
     }
 
@@ -117,17 +147,30 @@ export default function SpeechBubble({
   const dot3 = React.useRef(new Animated.Value(0)).current;
   React.useEffect(() => {
     if (!typing) return;
-    const makeAnim = (v: Animated.Value, delay: number) => Animated.loop(
-      Animated.sequence([
-        Animated.delay(delay),
-        Animated.timing(v, { toValue: 1, duration: 350, useNativeDriver: true }),
-        Animated.timing(v, { toValue: 0, duration: 350, useNativeDriver: true })
-      ])
-    ).start();
+    const makeAnim = (v: Animated.Value, delay: number) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(v, {
+            toValue: 1,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+          Animated.timing(v, {
+            toValue: 0,
+            duration: 350,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
     makeAnim(dot1, 0);
     makeAnim(dot2, 150);
     makeAnim(dot3, 300);
-    return () => { dot1.stopAnimation(); dot2.stopAnimation(); dot3.stopAnimation(); };
+    return () => {
+      dot1.stopAnimation();
+      dot2.stopAnimation();
+      dot3.stopAnimation();
+    };
   }, [typing]);
 
   const renderAvatar = (flip: boolean) => {
@@ -184,16 +227,16 @@ export default function SpeechBubble({
   };
 
   // When no character, make it centered and full-width
-  // Check both showCharacter prop and characterImg presence
-  const hasCharacter = showCharacter && !!characterImg;
-  
+  // Character is present if showCharacter is true (uses SVG fallback if no image)
+  const hasCharacter = !!showCharacter;
+
   // Determine if character is actually being rendered (visible)
-  // Character is visible when: showCharacter is true, characterImg is provided, and not very long message
+  // Character is visible when: showCharacter is true and not a very long message
   const isCharacterVisible = hasCharacter && !isVeryLongMessage;
-  
+
   // Only show tail when character is actually visible in the bubble
   const shouldShowTail = isCharacterVisible;
-  
+
   const bubbleNode = (
     <Animated.View
       style={[
@@ -205,29 +248,31 @@ export default function SpeechBubble({
         !isCharacterVisible && styles.bubbleContainerNoCharacter,
       ]}
     >
-      <View style={[styles.row, isRight && styles.rowRight, !isCharacterVisible && styles.rowNoCharacter]}>
+      <View
+        style={[
+          styles.row,
+          isRight && styles.rowRight,
+          !isCharacterVisible && styles.rowNoCharacter,
+        ]}
+      >
         {!isRight && isCharacterVisible && (
-          <View style={styles.avatarWrap}>
-            {renderAvatar(false)}
-          </View>
+          <View style={styles.avatarWrap}>{renderAvatar(false)}</View>
         )}
         {messageArea}
       </View>
       {/* Speech bubble tail - only show when character is actually visible */}
-      {shouldShowTail && (() => {
-        const tailConfig = getTailStyle();
-        if (!tailConfig) return null;
-        return (
-          <View style={[styles.tailContainer, tailConfig.style]}>
-            <Svg width={12} height={14}>
-              <Path
-                d={tailConfig.path}
-                fill="#FFFFFF"
-              />
-            </Svg>
-          </View>
-        );
-      })()}
+      {shouldShowTail &&
+        (() => {
+          const tailConfig = getTailStyle();
+          if (!tailConfig) return null;
+          return (
+            <View style={[styles.tailContainer, tailConfig.style]}>
+              <Svg width={12} height={14}>
+                <Path d={tailConfig.path} fill="#FFFFFF" />
+              </Svg>
+            </View>
+          );
+        })()}
     </Animated.View>
   );
 
@@ -241,9 +286,7 @@ export default function SpeechBubble({
     return (
       <View style={[styles.rightWrapper, { alignSelf }]}>
         {bubbleNode}
-        <View style={styles.avatarOutsideWrap}>
-          {renderAvatar(true)}
-        </View>
+        <View style={styles.avatarOutsideWrap}>{renderAvatar(true)}</View>
       </View>
     );
   }
@@ -253,146 +296,146 @@ export default function SpeechBubble({
 
 const styles = StyleSheet.create({
   bubbleContainer: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 18,
     paddingVertical: 16,
     paddingHorizontal: 16,
     marginBottom: 16,
-    alignSelf: 'center',
-    width: '94%',
+    alignSelf: "center",
+    width: "94%",
     maxWidth: 480,
     // shadowColor: '#000',
     // shadowOffset: { width: 0, height: 6 },
     // shadowOpacity: 0.12,
     // shadowRadius: 14,
     // elevation: 6,
-    position: 'relative',
+    position: "relative",
   },
   bubbleContainerRight: {
     marginLeft: 0,
     flex: 1,
     minWidth: 0,
-    maxWidth: '70%',
+    maxWidth: "70%",
   },
   bubbleContainerNoCharacter: {
-    width: '100%',
-    maxWidth: '100%',
-    alignSelf: 'center',
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "center",
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   rowRight: {
-    justifyContent: 'flex-end',
+    justifyContent: "flex-end",
   },
   rowNoCharacter: {
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   rightWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    alignItems: "flex-start",
     gap: 12,
     marginBottom: 16,
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 12,
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   avatarWrap: {
     width: 66,
     height: 66,
     borderRadius: 22,
-    backgroundColor: '#E6F0FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#E6F0FF",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   avatarOutsideWrap: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#E6F0FF',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#E6F0FF",
+    alignItems: "center",
+    justifyContent: "center",
     flexShrink: 0,
     marginTop: 8,
   },
   avatar: {
     width: 80,
     height: 80,
-    resizeMode: 'contain',
+    resizeMode: "contain",
   },
   avatarFlipped: {
     transform: [{ scaleX: -1 }],
   } as const,
   messageArea: {
     flex: 1,
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    alignItems: "flex-end",
+    justifyContent: "center",
     flexShrink: 1,
   },
   text: {
     fontSize: 18,
-    color: '#1e355e',
-    textAlign: 'right',
+    color: "#1e355e",
+    textAlign: "right",
     marginBottom: 8,
-    flexWrap: 'wrap',
+    flexWrap: "wrap",
   },
   typingRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 6,
     marginTop: 4,
   },
   bottomRow: {
-    flexDirection: 'row-reverse',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "flex-start",
     gap: 12,
   },
   dot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#A0AEC0',
+    backgroundColor: "#A0AEC0",
   },
   button: {
-    backgroundColor: '#3F9FFF',
+    backgroundColor: "#3F9FFF",
     borderRadius: 16,
     paddingVertical: 10,
     paddingHorizontal: 22,
     marginTop: 6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 18,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
   },
   shadowWingLeft: {
-    position: 'absolute',
+    position: "absolute",
     left: 18,
     bottom: -6,
     width: 34,
     height: 10,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: "rgba(0,0,0,0.08)",
     borderRadius: 6,
-    transform: [{ rotate: '-8deg' }],
+    transform: [{ rotate: "-8deg" }],
   },
   shadowWingRight: {
-    position: 'absolute',
+    position: "absolute",
     right: 18,
     bottom: -6,
     width: 34,
     height: 10,
-    backgroundColor: 'rgba(0,0,0,0.08)',
+    backgroundColor: "rgba(0,0,0,0.08)",
     borderRadius: 6,
-    transform: [{ rotate: '8deg' }],
+    transform: [{ rotate: "8deg" }],
   },
   tailContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: -12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   tailBottomLeft: {
     left: 20,
@@ -401,7 +444,7 @@ const styles = StyleSheet.create({
     right: 20,
   },
   tailBottomCenter: {
-    left: '50%',
+    left: "50%",
     marginLeft: -8,
   },
 });

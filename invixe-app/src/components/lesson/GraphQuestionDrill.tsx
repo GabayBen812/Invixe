@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, Modal } from 'react-native';
-import { parseSVGCode } from '../../utils/svgParser';
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, Pressable, StyleSheet, Image, Modal } from "react-native";
+import { parseSVGCode } from "../../utils/svgParser";
 
 export interface GraphQuestionChoice {
   id: string;
@@ -12,7 +12,7 @@ export interface GraphQuestionChoice {
   pngUrl?: string | null;
 }
 
-type MediaType = 'svg' | 'png';
+type MediaType = "svg" | "png";
 
 interface Props {
   mediaType: MediaType;
@@ -24,7 +24,10 @@ interface Props {
   submitText?: string;
   correctExplanation?: string;
   wrongExplanation?: string;
-  onStateChange?: (state: { showingExplanation: boolean; canSubmit: boolean }) => void;
+  onStateChange?: (state: {
+    showingExplanation: boolean;
+    canSubmit: boolean;
+  }) => void;
   onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
   onSubmit: (result: {
     correct: boolean;
@@ -41,7 +44,7 @@ export default function GraphQuestionDrill({
   svgPublicUrl,
   pngUrl,
   choices,
-  submitText = 'בדוק',
+  submitText = "בדוק",
   correctExplanation,
   wrongExplanation,
   onStateChange,
@@ -56,17 +59,17 @@ export default function GraphQuestionDrill({
 
   // Active media - always use the main graph, don't change based on selected choice
   const activeSvgCode = useMemo(() => {
-    if (mediaType !== 'svg') return undefined;
+    if (mediaType !== "svg") return undefined;
     return svgCode;
   }, [mediaType, svgCode]);
 
   const activeSvgUrl = useMemo(() => {
-    if (mediaType !== 'svg') return undefined;
+    if (mediaType !== "svg") return undefined;
     return svgPublicUrl || svgUrl;
   }, [mediaType, svgPublicUrl, svgUrl]);
 
   const activePngUrl = useMemo(() => {
-    if (mediaType !== 'png') return null;
+    if (mediaType !== "png") return null;
     return pngUrl || null;
   }, [mediaType, pngUrl]);
 
@@ -74,7 +77,7 @@ export default function GraphQuestionDrill({
   const [svgCache, setSvgCache] = useState<string | null>(null);
 
   useEffect(() => {
-    if (mediaType !== 'svg') return;
+    if (mediaType !== "svg") return;
     const codeToUse = activeSvgCode;
     const urlToUse = !codeToUse ? activeSvgUrl : undefined;
     if (!urlToUse) {
@@ -109,7 +112,9 @@ export default function GraphQuestionDrill({
     setIsCorrect(correct);
     setShowingExplanation(true);
 
-    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
+    const explanation = correct
+      ? correctExplanation || ""
+      : wrongExplanation || "";
     onSubmit({
       correct,
       selectedChoiceId: selectedChoice,
@@ -128,7 +133,14 @@ export default function GraphQuestionDrill({
         onSubmitTriggerRef.current = null;
       }
     };
-  }, [onSubmitTriggerRef, handleSubmit, selectedChoice, choices, correctExplanation, wrongExplanation]);
+  }, [
+    onSubmitTriggerRef,
+    handleSubmit,
+    selectedChoice,
+    choices,
+    correctExplanation,
+    wrongExplanation,
+  ]);
 
   // Notify parent about state (used to enable/disable absolute button)
   useEffect(() => {
@@ -142,7 +154,7 @@ export default function GraphQuestionDrill({
 
   // Parse SVG for rendering
   const parsedSVG = useMemo(() => {
-    if (mediaType !== 'svg') return null;
+    if (mediaType !== "svg") return null;
     const code = activeSvgCode || svgCache;
     if (!code) return null;
     return parseSVGCode(code);
@@ -153,30 +165,32 @@ export default function GraphQuestionDrill({
       {/* Media */}
       <View style={styles.mediaWrapper}>
         <View style={styles.mediaContainer} pointerEvents="none">
-          {mediaType === 'svg' ? (
+          {mediaType === "svg" ? (
             parsedSVG ? (
-              <View style={styles.svgContainer}>
-                {parsedSVG}
-              </View>
+              <View style={styles.svgContainer}>{parsedSVG}</View>
             ) : (
               <View style={styles.mediaPlaceholder}>
                 <Text style={styles.mediaPlaceholderText}>SVG</Text>
               </View>
             )
           ) : activePngUrl ? (
-            <Image source={{ uri: activePngUrl } as any} style={styles.pngImage} resizeMode="contain" />
+            <Image
+              source={{ uri: activePngUrl } as any}
+              style={styles.pngImage}
+              resizeMode="contain"
+            />
           ) : (
             <View style={styles.mediaPlaceholder}>
               <Text style={styles.mediaPlaceholderText}>No Image</Text>
             </View>
           )}
         </View>
-        
+
         {/* Clickable overlay for fullscreen */}
-        <Pressable 
+        <Pressable
           style={styles.fullScreenOverlay}
           onPress={() => {
-            console.log('Fullscreen pressed!');
+            console.log("Fullscreen pressed!");
             setFullScreenOpen(true);
           }}
         >
@@ -241,13 +255,13 @@ export default function GraphQuestionDrill({
         onRequestClose={() => setFullScreenOpen(false)}
       >
         <View style={styles.fullScreenContainer}>
-          <Pressable 
+          <Pressable
             style={styles.fullScreenBackdrop}
             onPress={() => setFullScreenOpen(false)}
           />
           <View style={styles.fullScreenContent}>
             {/* Close button */}
-            <Pressable 
+            <Pressable
               style={styles.closeButton}
               onPress={() => setFullScreenOpen(false)}
             >
@@ -255,16 +269,14 @@ export default function GraphQuestionDrill({
             </Pressable>
 
             {/* Full-screen image/SVG */}
-            {mediaType === 'png' && activePngUrl ? (
+            {mediaType === "png" && activePngUrl ? (
               <Image
                 source={{ uri: activePngUrl }}
                 style={styles.fullScreenImage}
                 resizeMode="contain"
               />
             ) : parsedSVG ? (
-              <View style={styles.fullScreenSvgContainer}>
-                {parsedSVG}
-              </View>
+              <View style={styles.fullScreenSvgContainer}>{parsedSVG}</View>
             ) : null}
           </View>
         </View>
@@ -275,110 +287,110 @@ export default function GraphQuestionDrill({
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    width: "100%",
     paddingHorizontal: 16,
-    paddingTop: 24,
+    paddingTop: 8,
     paddingBottom: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   mediaWrapper: {
-    width: '100%',
-    marginTop: 38,
+    width: "100%",
+    marginTop: 12,
     marginBottom: 20,
-    position: 'relative',
+    position: "relative",
     zIndex: 100,
   },
   mediaContainer: {
-    width: '100%',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
   },
   fullScreenOverlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 101,
   },
   mediaPlaceholder: {
-    width: '100%',
+    width: "100%",
     height: 160,
-    backgroundColor: '#D4DDEE',
+    backgroundColor: "#D4DDEE",
     borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   mediaPlaceholderText: {
-    color: '#334155',
-    fontWeight: '700',
+    color: "#334155",
+    fontWeight: "700",
     fontSize: 16,
   },
   pngImage: {
-    width: '100%',
+    width: "100%",
     height: 220,
   },
   svgContainer: {
-    width: '100%',
+    width: "100%",
     height: 220,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   choicesContainer: {
-    width: '94%',
+    width: "94%",
     maxWidth: 480,
     marginBottom: 20,
     marginTop: 8,
   },
   choiceButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     borderRadius: 12,
     paddingVertical: 16,
     paddingHorizontal: 20,
     marginBottom: 12,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   choiceButtonSelected: {
-    borderColor: '#3372D8',
-    backgroundColor: '#3372D8',
+    borderColor: "#3372D8",
+    backgroundColor: "#3372D8",
   },
   choiceButtonCorrect: {
-    borderColor: '#12B76A',
-    backgroundColor: '#12B76A',
+    borderColor: "#12B76A",
+    backgroundColor: "#12B76A",
   },
   choiceButtonWrong: {
-    borderColor: '#D92D20',
-    backgroundColor: '#FEE4E2',
+    borderColor: "#D92D20",
+    backgroundColor: "#FEE4E2",
   },
   choiceButtonDisabled: {
     opacity: 0.6,
   },
   choiceText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#374151',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#374151",
+    textAlign: "center",
     lineHeight: 22,
   },
   choiceTextSelected: {
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   fullScreenIndicator: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     left: 8,
-    backgroundColor: 'rgba(63, 159, 255, 0.95)',
+    backgroundColor: "rgba(63, 159, 255, 0.95)",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -387,43 +399,43 @@ const styles = StyleSheet.create({
   },
   fullScreenIcon: {
     fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '700',
+    color: "#FFFFFF",
+    fontWeight: "700",
   },
   fullScreenText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'NotoSansHebrew',
+    fontWeight: "700",
+    color: "#FFFFFF",
+    fontFamily: "NotoSansHebrew",
   },
   fullScreenContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fullScreenBackdrop: {
     ...StyleSheet.absoluteFillObject,
   },
   fullScreenContent: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -431,23 +443,17 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
+    fontWeight: "700",
+    color: "#000",
   },
   fullScreenImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   fullScreenSvgContainer: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
-
-
-
-
-
-

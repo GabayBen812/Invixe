@@ -1,7 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator, Modal } from 'react-native';
-import { SvgUri } from 'react-native-svg';
-import { parseSVGCode } from '../../utils/svgParser';
+import React, { useState, useEffect, useRef } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  Modal,
+} from "react-native";
+import { SvgUri } from "react-native-svg";
+import { parseSVGCode } from "../../utils/svgParser";
 
 interface Props {
   explanation: string;
@@ -9,6 +17,7 @@ interface Props {
   svgCode?: string;
   svgUrl?: string;
   svgPublicUrl?: string;
+  isComplexMedia?: boolean;
 }
 
 export default function PathSelectExplanation({
@@ -16,7 +25,8 @@ export default function PathSelectExplanation({
   imageUrl,
   svgCode,
   svgUrl,
-  svgPublicUrl
+  svgPublicUrl,
+  isComplexMedia = false,
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = React.useRef<React.ReactElement | null>(null);
@@ -30,7 +40,7 @@ export default function PathSelectExplanation({
     if (imageUrl) {
       setImageLoading(true);
       setImageError(false);
-      console.log('PathSelectExplanation: Loading image:', imageUrl);
+      console.log("PathSelectExplanation: Loading image:", imageUrl);
     }
   }, [imageUrl]);
 
@@ -38,11 +48,11 @@ export default function PathSelectExplanation({
   useEffect(() => {
     // Determine which URL to use (priority: svgPublicUrl > svgUrl)
     const urlToUse = svgPublicUrl || svgUrl;
-    
+
     // If we have no URL, clear cache and return
     if (!urlToUse) {
       if (cacheUrlRef.current) {
-        console.log('PathSelectExplanation: No URL provided, clearing cache');
+        console.log("PathSelectExplanation: No URL provided, clearing cache");
         setSvgCache(null);
         cacheUrlRef.current = null;
         parsedCacheRef.current = null;
@@ -52,7 +62,12 @@ export default function PathSelectExplanation({
 
     // If cache URL doesn't match current URL, clear cache
     if (cacheUrlRef.current && cacheUrlRef.current !== urlToUse) {
-      console.log('PathSelectExplanation: URL changed, clearing old cache. Old URL:', cacheUrlRef.current, 'New URL:', urlToUse);
+      console.log(
+        "PathSelectExplanation: URL changed, clearing old cache. Old URL:",
+        cacheUrlRef.current,
+        "New URL:",
+        urlToUse,
+      );
       setSvgCache(null);
       cacheUrlRef.current = null;
       parsedCacheRef.current = null;
@@ -60,38 +75,47 @@ export default function PathSelectExplanation({
 
     // If we already have cache for this URL (check ref, not state), don't fetch again
     if (cacheUrlRef.current === urlToUse && svgCache) {
-      console.log('PathSelectExplanation: Using existing cache for URL:', urlToUse);
+      console.log(
+        "PathSelectExplanation: Using existing cache for URL:",
+        urlToUse,
+      );
       return;
     }
 
     // Fetch the SVG
     let cancelled = false;
     const fetchSVG = async () => {
-      console.log('PathSelectExplanation: Fetching SVG from URL:', urlToUse);
+      console.log("PathSelectExplanation: Fetching SVG from URL:", urlToUse);
       try {
         const response = await fetch(urlToUse);
         if (!cancelled && response.ok) {
           const svgText = await response.text();
-          console.log('PathSelectExplanation: SVG fetched successfully, length:', svgText.length);
+          console.log(
+            "PathSelectExplanation: SVG fetched successfully, length:",
+            svgText.length,
+          );
           setSvgCache(svgText);
           cacheUrlRef.current = urlToUse; // Track which URL this cache is for
           parsedCacheRef.current = null; // Clear parsed cache so it will be re-parsed
         } else if (!cancelled) {
-          console.error('PathSelectExplanation: Failed to fetch SVG, status:', response.status);
+          console.error(
+            "PathSelectExplanation: Failed to fetch SVG, status:",
+            response.status,
+          );
           setSvgCache(null);
           cacheUrlRef.current = null;
         }
       } catch (error) {
         if (!cancelled) {
-          console.error('PathSelectExplanation: Failed to fetch SVG:', error);
+          console.error("PathSelectExplanation: Failed to fetch SVG:", error);
           setSvgCache(null);
           cacheUrlRef.current = null;
         }
       }
     };
-    
+
     fetchSVG();
-    
+
     // Cleanup: cancel fetch if URL changes or component unmounts
     return () => {
       cancelled = true;
@@ -101,7 +125,7 @@ export default function PathSelectExplanation({
   // Render SVG - use SvgUri for URLs (native, reliable), parse for svgCode
   const renderSVG = () => {
     const currentUrl = svgPublicUrl || svgUrl;
-    
+
     // If we have a URL, use SvgUri (native component, handles all SVG features)
     if (currentUrl) {
       return (
@@ -113,26 +137,33 @@ export default function PathSelectExplanation({
         />
       );
     }
-    
+
     // Fallback to parsing svgCode if provided
     if (svgCode && svgCode.trim()) {
       // Check parsed cache first
       if (parsedCacheRef.current) {
         return parsedCacheRef.current;
       }
-      
+
       // Parse the SVG
-      console.log('PathSelectExplanation: Parsing SVG code, length:', svgCode.length);
+      console.log(
+        "PathSelectExplanation: Parsing SVG code, length:",
+        svgCode.length,
+      );
       const startTime = Date.now();
       const parsed = parseSVGCode(svgCode);
       const parseTime = Date.now() - startTime;
-      
+
       if (parsed) {
-        console.log(`PathSelectExplanation: SVG parsed successfully in ${parseTime}ms`);
+        console.log(
+          `PathSelectExplanation: SVG parsed successfully in ${parseTime}ms`,
+        );
         parsedCacheRef.current = parsed;
         return parsed;
       } else {
-        console.error(`PathSelectExplanation: SVG parsing failed after ${parseTime}ms`);
+        console.error(
+          `PathSelectExplanation: SVG parsing failed after ${parseTime}ms`,
+        );
         return (
           <View style={styles.svgPlaceholder}>
             <Text style={styles.svgPlaceholderText}>SVG Error</Text>
@@ -140,7 +171,7 @@ export default function PathSelectExplanation({
         );
       }
     }
-    
+
     // No SVG available
     return null;
   };
@@ -153,15 +184,32 @@ export default function PathSelectExplanation({
         {explanation && (
           <Text style={styles.explanationText}>{explanation}</Text>
         )}
-        
+
         {imageUrl && (
-          <Pressable 
+          <Pressable
             style={styles.imageContainer}
-            onPress={() => setFullScreenOpen(true)}
+            onPress={() => isComplexMedia && setFullScreenOpen(true)}
+            disabled={!isComplexMedia}
           >
             {imageError ? (
-              <View style={[styles.image, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }]}>
-                <Text style={{ color: '#999', textAlign: 'center', padding: 20, fontSize: 14 }}>
+              <View
+                style={[
+                  styles.image,
+                  {
+                    justifyContent: "center",
+                    alignItems: "center",
+                    backgroundColor: "#f5f5f5",
+                  },
+                ]}
+              >
+                <Text
+                  style={{
+                    color: "#999",
+                    textAlign: "center",
+                    padding: 20,
+                    fontSize: 14,
+                  }}
+                >
                   Image not available
                 </Text>
               </View>
@@ -172,37 +220,59 @@ export default function PathSelectExplanation({
                   style={styles.image}
                   resizeMode="contain"
                   onError={(error) => {
-                    console.error('Failed to load image in PathSelectExplanation:', imageUrl, error);
+                    console.error(
+                      "Failed to load image in PathSelectExplanation:",
+                      imageUrl,
+                      error,
+                    );
                     setImageError(true);
                     setImageLoading(false);
                   }}
                   onLoad={() => {
-                    console.log('Successfully loaded image in PathSelectExplanation:', imageUrl);
+                    console.log(
+                      "Successfully loaded image in PathSelectExplanation:",
+                      imageUrl,
+                    );
                     setImageLoading(false);
                   }}
                 />
                 {imageLoading && (
-                  <View style={[styles.image, { position: 'absolute', justifyContent: 'center', alignItems: 'center', backgroundColor: '#f5f5f5' }]}>
+                  <View
+                    style={[
+                      styles.image,
+                      {
+                        position: "absolute",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        backgroundColor: "#f5f5f5",
+                      },
+                    ]}
+                  >
                     <ActivityIndicator size="small" color="#3372D8" />
                   </View>
                 )}
-                <View style={styles.fullScreenHint}>
-                  <Text style={styles.fullScreenHintText}>🔍 לחץ להגדלה</Text>
-                </View>
+                {isComplexMedia && (
+                  <View style={styles.fullScreenHint}>
+                    <Text style={styles.fullScreenHintText}>🔍 לחץ להגדלה</Text>
+                  </View>
+                )}
               </>
             )}
           </Pressable>
         )}
-        
+
         {(svgCode || svgUrl || svgPublicUrl || svgCache) && (
-          <Pressable 
+          <Pressable
             style={styles.svgContainer}
-            onPress={() => setFullScreenOpen(true)}
+            onPress={() => isComplexMedia && setFullScreenOpen(true)}
+            disabled={!isComplexMedia}
           >
             {renderSVG()}
-            <View style={styles.fullScreenHint}>
-              <Text style={styles.fullScreenHintText}>🔍 לחץ להגדלה</Text>
-            </View>
+            {isComplexMedia && (
+              <View style={styles.fullScreenHint}>
+                <Text style={styles.fullScreenHintText}>🔍 לחץ להגדלה</Text>
+              </View>
+            )}
           </Pressable>
         )}
       </View>
@@ -215,13 +285,13 @@ export default function PathSelectExplanation({
         onRequestClose={() => setFullScreenOpen(false)}
       >
         <View style={styles.fullScreenContainer}>
-          <Pressable 
+          <Pressable
             style={styles.fullScreenBackdrop}
             onPress={() => setFullScreenOpen(false)}
           />
           <View style={styles.fullScreenContent}>
             {/* Close button */}
-            <Pressable 
+            <Pressable
               style={styles.closeButton}
               onPress={() => setFullScreenOpen(false)}
             >
@@ -236,11 +306,9 @@ export default function PathSelectExplanation({
                 resizeMode="contain"
               />
             )}
-            
+
             {!imageUrl && (svgCode || svgUrl || svgPublicUrl || svgCache) && (
-              <View style={styles.fullScreenSvgContainer}>
-                {renderSVG()}
-              </View>
+              <View style={styles.fullScreenSvgContainer}>{renderSVG()}</View>
             )}
           </View>
         </View>
@@ -251,103 +319,111 @@ export default function PathSelectExplanation({
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: 16,
+    width: "100%",
+    flex: 1,
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingBottom: 20,
   },
   explanationContainer: {
-    width: '100%',
-    maxWidth: 480,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
+    width: "100%",
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
+    elevation: 2,
   },
   explanationText: {
     fontSize: 18,
-    fontWeight: '700',
-    color: '#0D2033',
-    textAlign: 'center',
+    fontWeight: "700",
+    color: "#0D2033",
+    textAlign: "center",
     marginBottom: 16,
     lineHeight: 26,
   },
   imageContainer: {
-    width: '100%',
-    minHeight: 200,
-    maxHeight: 300,
+    width: "100%",
+    flex: 1,
+    minHeight: 300,
     marginBottom: 16,
     borderRadius: 12,
-    overflow: 'hidden',
-    backgroundColor: '#f5f5f5',
+    overflow: "hidden",
+    backgroundColor: "#f5f5f5",
   },
   image: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: 'transparent',
+    width: "100%",
+    height: "100%",
+    backgroundColor: "transparent",
   },
   svgContainer: {
-    width: '100%',
-    height: 300,          // ❗ חובה
+    width: "100%",
+    flex: 1,
+    minHeight: 300,
     marginBottom: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     padding: 8,
-  },  
+  },
   svgPlaceholder: {
     width: 200,
     height: 200,
-    backgroundColor: '#E2E8F0',
+    backgroundColor: "#E2E8F0",
     borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   svgPlaceholderText: {
-    color: '#334155',
-    fontWeight: '700',
+    color: "#334155",
+    fontWeight: "700",
     fontSize: 16,
   },
   fullScreenHint: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 8,
     right: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: "rgba(0, 0, 0, 0.7)",
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
   fullScreenHintText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   fullScreenContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fullScreenBackdrop: {
     ...StyleSheet.absoluteFillObject,
   },
   fullScreenContent: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
     zIndex: 10,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -355,18 +431,17 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#000',
+    fontWeight: "700",
+    color: "#000",
   },
   fullScreenImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   fullScreenSvgContainer: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: "100%",
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
-
