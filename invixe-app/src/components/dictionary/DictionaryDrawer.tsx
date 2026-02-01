@@ -402,10 +402,8 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   cardsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 14,
+    flexDirection: 'column',
+    gap: 16,
   },
   // Overview list styles (Figma side panel)
   overviewContent: {

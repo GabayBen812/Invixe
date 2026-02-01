@@ -21,6 +21,8 @@ class MainActivity : ReactActivity() {
     SplashScreenManager.registerOnActivity(this)
     // @generated end expo-splashscreen
     super.onCreate(null)
+    // Force LTR: ignore system RTL (e.g. Hebrew device)
+    window.decorView.layoutDirection = android.view.View.LAYOUT_DIRECTION_LTR
   }
 
   /**

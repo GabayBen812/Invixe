@@ -58,7 +58,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const [drawingPath, setDrawingPath] = useState<DrawingPoint[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const lastOffset = useRef({ x: 0, y: 0 });
-  const [selectedRange, setSelectedRange] = useState('1h');
+  const [selectedRange, setSelectedRange] = useState('1d');
   const [displayMode, setDisplayMode] = useState<'line' | 'candles'>('candles');
   const webViewRef = useRef<any>(null);
   const [ohlcData, setOhlcData] = useState<any[]>([]);
@@ -371,13 +371,17 @@ export default function SandboxScreen({ navigation }: Props) {
   };
 
   const renderGraph = () => {
+    const chartBgColor = theme.colors.surface.darkBg;
+    const candleUpColor = theme.colors.growthGreen;
+    const candleDownColor = theme.colors.optimismOrange;
+    const gridColor = 'rgba(63, 159, 255, 0.14)';
     const tvHtml = `
       <!DOCTYPE html>
       <html lang="he">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-        <style> html,body,#container{margin:0;padding:0;height:100%;width:100%;background:#ffffff;} </style>
+        <style> html,body,#container{margin:0;padding:0;height:100%;width:100%;background:${chartBgColor};} </style>
         <script src="https://s3.tradingview.com/tv.js"></script>
       </head>
       <body>
@@ -391,15 +395,53 @@ export default function SandboxScreen({ navigation }: Props) {
             container_id: 'container',
             datafeed: undefined,
             locale: 'he',
-            theme: 'light',
+            theme: 'dark',
             timezone: 'Etc/UTC',
             hide_side_toolbar: false,
             allow_symbol_change: true,
             enable_publishing: false,
             studies: [],
+            studies_overrides: { 'volume.visible': false },
+            disabled_features: ['create_volume_indicator_by_default'],
+            overrides: {
+              'paneProperties.background': '${chartBgColor}',
+              'paneProperties.backgroundType': 'solid',
+              'paneProperties.vertGridProperties.color': '${gridColor}',
+              'paneProperties.horzGridProperties.color': '${gridColor}',
+              'mainSeriesProperties.candleStyle.upColor': '${candleUpColor}',
+              'mainSeriesProperties.candleStyle.downColor': '${candleDownColor}',
+              'mainSeriesProperties.candleStyle.borderUpColor': '${candleUpColor}',
+              'mainSeriesProperties.candleStyle.borderDownColor': '${candleDownColor}'
+            },
           });
           widget.onChartReady(() => {
             chartApi = widget.chart();
+            try {
+              if (chartApi.applyOverrides) {
+                chartApi.applyOverrides({
+                  'paneProperties.background': '${chartBgColor}',
+                  'paneProperties.backgroundType': 'solid',
+                  'paneProperties.vertGridProperties.color': '${gridColor}',
+                  'paneProperties.horzGridProperties.color': '${gridColor}',
+                  'mainSeriesProperties.candleStyle.upColor': '${candleUpColor}',
+                  'mainSeriesProperties.candleStyle.downColor': '${candleDownColor}',
+                  'mainSeriesProperties.candleStyle.borderUpColor': '${candleUpColor}',
+                  'mainSeriesProperties.candleStyle.borderDownColor': '${candleDownColor}'
+                });
+              }
+            } catch (e) {}
+            if (chartApi.getAllStudies && chartApi.removeEntity) {
+              try {
+                var studies = chartApi.getAllStudies();
+                for (var i = 0; i < studies.length; i++) {
+                  var name = (studies[i] && studies[i].name) ? String(studies[i].name) : '';
+                  if (name.indexOf('Volume') !== -1 || name.indexOf('Vol') === 0) {
+                    chartApi.removeEntity(studies[i].id);
+                    break;
+                  }
+                }
+              } catch (e) {}
+            }
             // Notify RN about initial state
             try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' })); } catch(e){}
             // Symbol change listener
@@ -435,26 +477,28 @@ export default function SandboxScreen({ navigation }: Props) {
 
     return (
       <View style={styles.graphContainer}>
-        <WebView
-          ref={webViewRef}
-          originWhitelist={["*"]}
-          source={{ html: tvHtml }}
-          javaScriptEnabled
-          domStorageEnabled
-          style={{ flex: 1, backgroundColor: '#fff' }}
-          allowsInlineMediaPlayback
-          onMessage={(e) => {
-            try {
-              const data = JSON.parse(e.nativeEvent.data || '{}');
-              if (data.type === 'symbolChanged' && data.symbol) {
-                setSelectedStock({ symbol: data.symbol, name: data.symbol });
-              } else if (data.type === 'intervalChanged' && data.interval) {
-                setSelectedRange(mapTvToRange(String(data.interval)));
-              }
-            } catch {}
-          }}
-        />
-        {/* Trading buttons */}
+        <View style={styles.graphWrapper}>
+          <WebView
+            ref={webViewRef}
+            originWhitelist={["*"]}
+            source={{ html: tvHtml }}
+            javaScriptEnabled
+            domStorageEnabled
+            style={{ flex: 1, backgroundColor: theme.colors.surface.darkBg }}
+            allowsInlineMediaPlayback
+            onMessage={(e) => {
+              try {
+                const data = JSON.parse(e.nativeEvent.data || '{}');
+                if (data.type === 'symbolChanged' && data.symbol) {
+                  setSelectedStock({ symbol: data.symbol, name: data.symbol });
+                } else if (data.type === 'intervalChanged' && data.interval) {
+                  setSelectedRange(mapTvToRange(String(data.interval)));
+                }
+              } catch {}
+            }}
+          />
+        </View>
+        {/* Buy/Sell row below chart, above bottom navbar */}
         <View style={styles.tradingButtons}>
           <TouchableOpacity
             style={[styles.tradeButton, styles.buyButton]}
@@ -645,13 +689,18 @@ const styles = StyleSheet.create({
   },
   graphContainer: {
     flex: 1,
-    backgroundColor: '#fff', // white for graph area
+    flexDirection: 'column',
+    backgroundColor: '#fff',
     shadowColor: '#0D2033',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 5,
     overflow: 'hidden',
+  },
+  graphWrapper: {
+    flex: 1,
+    minHeight: 0,
   },
   loadingContainer: {
     flex: 1,
@@ -752,16 +801,19 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   tradingButtons: {
-    position: 'absolute',
-    bottom: theme.spacing.lg,
-    right: theme.spacing.md,
     flexDirection: 'row',
-  },
-  tradeButton: {
-    borderRadius: theme.radius.sm,
+    width: '100%',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
-    marginLeft: theme.spacing.sm,
+    paddingBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  tradeButton: {
+    flex: 1,
+    borderRadius: theme.radius.sm,
+    paddingVertical: theme.spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#0D2033',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,

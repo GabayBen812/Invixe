@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated, Dimensions, ScrollView } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { DictionaryEntry } from '../../data/dictionary';
 
@@ -11,7 +11,10 @@ interface FlippableCardProps {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const DRAWER_WIDTH = SCREEN_WIDTH * 0.75;
-const CARD_WIDTH = (DRAWER_WIDTH - 46) / 2; // Account for drawer width and padding (16px * 2 + 14px gap)
+const HORIZONTAL_PADDING = 32; // 16px each side in drawer
+const CARD_WIDTH = DRAWER_WIDTH - HORIZONTAL_PADDING;
+const CARD_HEIGHT = 240; // Taller rectangle so term + explanation fit comfortably
+const IMAGE_SIZE = Math.min(CARD_WIDTH - 48, 140); // Generous but bounded icon area
 
 export default function FlippableCard({ entry, onFlip, isLocked = false }: FlippableCardProps) {
   const flipAnim = useRef(new Animated.Value(0)).current;
@@ -94,7 +97,7 @@ export default function FlippableCard({ entry, onFlip, isLocked = false }: Flipp
         {isLocked && renderLockBadge()}
         <View style={[styles.imageContainer, isLocked && styles.imageContainerLocked]}>
           {ImageComponent ? (
-            <ImageComponent width={CARD_WIDTH - 32} height={CARD_WIDTH - 32} />
+            <ImageComponent width={IMAGE_SIZE} height={IMAGE_SIZE} />
           ) : entry.imageUrl ? (
             <View style={styles.placeholder}>
               <Text style={styles.placeholderText}>Image</Text>
@@ -116,7 +119,13 @@ export default function FlippableCard({ entry, onFlip, isLocked = false }: Flipp
       >
         <View style={styles.backContent}>
           <Text style={styles.termText}>{entry.term}</Text>
-          <Text style={styles.explanationText}>{entry.explanation}</Text>
+          <ScrollView
+            style={styles.explanationScroll}
+            contentContainerStyle={styles.explanationScrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <Text style={styles.explanationText}>{entry.explanation}</Text>
+          </ScrollView>
         </View>
       </Animated.View>
     </Pressable>
@@ -126,7 +135,7 @@ export default function FlippableCard({ entry, onFlip, isLocked = false }: Flipp
 const styles = StyleSheet.create({
   cardContainer: {
     width: CARD_WIDTH,
-    height: CARD_WIDTH,
+    height: CARD_HEIGHT,
     marginBottom: 0,
   },
   card: {
@@ -136,68 +145,76 @@ const styles = StyleSheet.create({
   },
   cardFront: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   cardBack: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   imageContainer: {
     width: '100%',
-    height: '100%',
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   placeholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
+    minHeight: IMAGE_SIZE,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   placeholderText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: 16,
+    color: '#64748B',
     fontFamily: 'NotoSansHebrew',
   },
   backContent: {
     width: '100%',
     height: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   termText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#0D2033',
     marginBottom: 12,
     textAlign: 'center',
     fontFamily: 'NotoSansHebrew',
   },
+  explanationScroll: {
+    flex: 1,
+    width: '100%',
+  },
+  explanationScrollContent: {
+    paddingBottom: 8,
+  },
   explanationText: {
-    fontSize: 14,
-    color: '#0D2033',
+    fontSize: 15,
+    color: '#334155',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
     fontFamily: 'NotoSansHebrew',
   },
   cardLocked: {

@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Animated,
   Easing,
-  I18nManager,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import CharacterPrimarySVG from "./CharacterPrimarySVG";
@@ -211,21 +210,6 @@ export default function SpeechBubble({
     </View>
   );
 
-  // Determine tail position based on bubble position
-  // Tail should be at bottom corner, pointing down and slightly angled toward character
-  const getTailStyle = () => {
-    if (isLeft) {
-      // Character on left, bubble on right - tail at bottom-left pointing down-left
-      return { style: styles.tailBottomLeft, path: "M 0 0 L 12 0 L 2 14 Z" };
-    } else if (isRight) {
-      // Character on right, bubble on left - tail at bottom-right pointing down-right
-      return { style: styles.tailBottomRight, path: "M 0 0 L 12 0 L 10 14 Z" };
-    } else {
-      // Center bubble - tail at bottom center pointing down
-      return { style: styles.tailBottomCenter, path: "M 0 0 L 12 0 L 6 14 Z" };
-    }
-  };
-
   // When no character, make it centered and full-width
   // Character is present if showCharacter is true (uses SVG fallback if no image)
   const hasCharacter = !!showCharacter;
@@ -234,8 +218,24 @@ export default function SpeechBubble({
   // Character is visible when: showCharacter is true and not a very long message
   const isCharacterVisible = hasCharacter && !isVeryLongMessage;
 
-  // Only show tail when character is actually visible in the bubble
-  const shouldShowTail = isCharacterVisible;
+  // Character INSIDE the bubble = left or center (avatar in same row as message).
+  // Character BESIDE the bubble = right only (avatar in avatarOutsideWrap next to bubble).
+  // Only show tail when character is BESIDE the bubble (right side). Hide tail when character is inside.
+  const shouldShowTail = isCharacterVisible && isRight;
+
+  // Tail points toward the character. When character is on the right, tail is on right edge of bubble pointing right.
+  const getTailStyle = () => {
+    if (isRight) {
+      // Character beside on right: tail on right edge of bubble, triangle pointing right toward character
+      return {
+        style: styles.tailRightTowardCharacter,
+        path: "M 0 0 L 14 6 L 0 12 Z",
+        width: 14,
+        height: 12,
+      };
+    }
+    return null;
+  };
 
   const bubbleNode = (
     <Animated.View
@@ -260,14 +260,14 @@ export default function SpeechBubble({
         )}
         {messageArea}
       </View>
-      {/* Speech bubble tail - only show when character is actually visible */}
+      {/* Speech bubble tail - only when character is beside (right); hidden when character is inside bubble */}
       {shouldShowTail &&
         (() => {
           const tailConfig = getTailStyle();
           if (!tailConfig) return null;
           return (
             <View style={[styles.tailContainer, tailConfig.style]}>
-              <Svg width={12} height={14}>
+              <Svg width={tailConfig.width} height={tailConfig.height}>
                 <Path d={tailConfig.path} fill="#FFFFFF" />
               </Svg>
             </View>
@@ -433,18 +433,12 @@ const styles = StyleSheet.create({
   },
   tailContainer: {
     position: "absolute",
-    bottom: -12,
     justifyContent: "center",
     alignItems: "center",
   },
-  tailBottomLeft: {
-    left: 20,
-  },
-  tailBottomRight: {
-    right: 20,
-  },
-  tailBottomCenter: {
-    left: "50%",
-    marginLeft: -8,
+  tailRightTowardCharacter: {
+    right: -14,
+    top: "50%",
+    marginTop: -6,
   },
 });

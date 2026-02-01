@@ -341,12 +341,14 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
                       borderWidth = 1;
                     }
                   } else {
-                    if (isCorrectAnswer) {
-                      backgroundColor = '#D1FADF';
-                      borderColor = '#12B76A';
-                    } else {
-                      backgroundColor = '#FEE4E2';
-                      borderColor = '#D92D20';
+                    if (picked) {
+                      if (isCorrectAnswer) {
+                        backgroundColor = '#D1FADF';
+                        borderColor = '#12B76A';
+                      } else {
+                        backgroundColor = '#FEE4E2';
+                        borderColor = '#D92D20';
+                      }
                     }
                   }
                   
@@ -369,8 +371,8 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
                         <View style={[
                           styles.yesNoDot,
                           picked ? styles.yesNoDotSelected : styles.yesNoDotUnselected,
-                          submitted && isCorrectAnswer && styles.yesNoDotCorrect,
-                          submitted && !isCorrectAnswer && styles.yesNoDotWrong,
+                          submitted && picked && isCorrectAnswer && styles.yesNoDotCorrect,
+                          submitted && picked && !isCorrectAnswer && styles.yesNoDotWrong,
                         ]} />
                         <View style={styles.yesNoSvgWrapper}>
                           {renderSVG(opt, true)}
@@ -404,12 +406,14 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
                       borderWidth = 1;
                     }
                   } else {
-                    if (isCorrectAnswer) {
-                      backgroundColor = '#D1FADF';
-                      borderColor = '#12B76A';
-                    } else {
-                      backgroundColor = '#FEE4E2';
-                      borderColor = '#D92D20';
+                    if (picked) {
+                      if (isCorrectAnswer) {
+                        backgroundColor = '#D1FADF';
+                        borderColor = '#12B76A';
+                      } else {
+                        backgroundColor = '#FEE4E2';
+                        borderColor = '#D92D20';
+                      }
                     }
                   }
                   
@@ -432,8 +436,8 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
                         <View style={[
                           styles.yesNoDot,
                           picked ? styles.yesNoDotSelected : styles.yesNoDotUnselected,
-                          submitted && isCorrectAnswer && styles.yesNoDotCorrect,
-                          submitted && !isCorrectAnswer && styles.yesNoDotWrong,
+                          submitted && picked && isCorrectAnswer && styles.yesNoDotCorrect,
+                          submitted && picked && !isCorrectAnswer && styles.yesNoDotWrong,
                         ]} />
                         <View style={styles.yesNoSvgWrapper}>
                           {renderSVG(opt, true)}
@@ -483,24 +487,25 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
               };
             }
           } else {
-            // After submit – show actual correct/wrong answers
-            borderWidth = 1;
-            shadowStyle = {
-              shadowColor: '#101828',
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.08,
-              shadowRadius: 4,
-              elevation: 2,
-            };
-            // Green if this is a correct answer (regardless of whether it was selected)
-            // Red if this is a wrong answer (regardless of whether it was selected)
-            if (isCorrectAnswer) {
-              backgroundColor = '#D1FADF'; // soft green
-              borderColor = '#12B76A';
-            } else {
-              backgroundColor = '#FEE4E2'; // soft red
-              borderColor = '#D92D20';
+            // After submit – only change background/dot for options the user PICKED
+            if (picked) {
+              borderWidth = 1;
+              shadowStyle = {
+                shadowColor: '#101828',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.08,
+                shadowRadius: 4,
+                elevation: 2,
+              };
+              if (isCorrectAnswer) {
+                backgroundColor = '#D1FADF';
+                borderColor = '#12B76A';
+              } else {
+                backgroundColor = '#FEE4E2';
+                borderColor = '#D92D20';
+              }
             }
+            // Unpicked options stay neutral (no green/red)
             textColor = '#0D2033';
           }
           
@@ -522,8 +527,8 @@ function SVGMultiSelectDrill({ title, options, layout = 'grid', submitText = 'ב
                 style={[
                   styles.optionDot,
                   !submitted && picked && styles.optionDotSelected,
-                  submitted && isCorrectAnswer && styles.optionDotCorrect,
-                  submitted && !isCorrectAnswer && styles.optionDotWrong,
+                  submitted && picked && isCorrectAnswer && styles.optionDotCorrect,
+                  submitted && picked && !isCorrectAnswer && styles.optionDotWrong,
                 ]}
               />
               {renderSVG(opt)}

@@ -1,5 +1,16 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
+// Ensure SDK location exists for all subprojects (expo-modules-core, etc.)
+def localPropsFile = file("local.properties")
+if (!localPropsFile.exists()) {
+  def sdkDir = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+  if (sdkDir) {
+    localPropsFile.text = "sdk.dir=" + sdkDir.replace("\\", "/") + "\n"
+  } else {
+    throw new GradleException("SDK not found. Create android/local.properties with: sdk.dir=C:/Users/YOUR_USER/AppData/Local/Android/Sdk\nOr set ANDROID_HOME to your Android SDK path.")
+  }
+}
+
 buildscript {
   repositories {
     google()
