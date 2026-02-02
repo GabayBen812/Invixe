@@ -14,17 +14,20 @@ export default function StickyHeader({ title, progress }: StickyHeaderProps) {
   return (
     <View style={styles.stickyHeaderContent}>
       <View style={styles.stickyHeaderLeft}>
-        <View style={styles.stickyBadge}>
-          <Text style={styles.stickyBadgeText}>📈</Text>
-        </View>
         <Text style={styles.stickyTitle} numberOfLines={1} ellipsizeMode="tail">
           {title}
         </Text>
+        <View style={styles.stickyBadge}>
+          <Text style={styles.stickyBadgeText}>📈</Text>
+        </View>
       </View>
       <View style={styles.stickyHeaderRight}>
         <Text style={styles.stickyProgress}>{Math.round(progress * 100)}%</Text>
         <View style={styles.miniProgressBar}>
-          <ProgressBar progress={progress} width={Math.min(60, SCREEN_WIDTH * 0.2)} />
+          <ProgressBar
+            progress={progress}
+            width={Math.min(60, SCREEN_WIDTH * 0.2)}
+          />
         </View>
       </View>
     </View>
@@ -91,5 +94,3 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 });
-
-

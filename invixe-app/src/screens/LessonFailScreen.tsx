@@ -18,13 +18,13 @@ export default function LessonFailScreen({ navigation }: Props) {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#E3EEF9' }}>
+    <View style={{ flex: 1, backgroundColor: "#E3EEF9" }}>
       <View style={styles.container}>
         <SadIcon />
         <Text style={styles.title}>אוי לא...</Text>
         <Text style={styles.subtitle}>לא הצלחת בשיעור הפעם</Text>
         <Text style={styles.subtitleSmall}>נסה שוב כדי להצליח!</Text>
-        <Button text="חזור למפה" onPress={handleContinue} />
+        <Button text="חזור לשיעורים" onPress={handleContinue} />
       </View>
     </View>
   );
@@ -58,4 +58,4 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontFamily: theme.font.family,
   },
-}); 
+});

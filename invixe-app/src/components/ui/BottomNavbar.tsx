@@ -13,8 +13,8 @@ export default function BottomNavbar({
   onTabPress,
 }: BottomNavbarProps) {
   const tabs = [
-    { id: "map", label: "מפה" },
-    { id: "graph", label: "גרף" },
+    { id: "map", label: "שיעורים" },
+    { id: "graph", label: "מסחר" },
     { id: "shop", label: "חנות" },
     { id: "profile", label: "פרופיל" },
   ] as const;
@@ -148,7 +148,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     backgroundColor: theme.colors.white,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: "#E2E8F0",
     paddingBottom: 20,
     paddingTop: 12,
     shadowColor: theme.colors.black,

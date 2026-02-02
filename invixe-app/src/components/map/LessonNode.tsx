@@ -1,10 +1,10 @@
 import React from "react";
 import { View, StyleSheet, TouchableOpacity, Animated } from "react-native";
-import { AppText } from "../../../App";
 import theme from "../../theme";
-import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
+import Svg, { Path, Circle, Rect, G } from "react-native-svg";
 
-export const CIRCLE_SIZE = 72; // Slightly smaller for more premium look
+export const CIRCLE_SIZE = 72;
+const ACTIVE_SCALE = 1.1;
 
 interface LessonNodeProps {
   title?: string;
@@ -13,184 +13,187 @@ interface LessonNodeProps {
   showConnector?: boolean;
   completed?: boolean;
   current?: boolean;
-  position?: 'left' | 'right';
-  lessonType?: 'memorize' | 'info' | 'test' | 'practice';
+  position?: "left" | "right";
+  lessonType?: "memorize" | "info" | "test" | "practice";
 }
 
-// Premium Stock Chart Analysis icon
-const InfoIcon = ({ size = 28 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="chartGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#FFFFFF" />
-        <Stop offset="100%" stopColor="#F8FAFC" />
-      </LinearGradient>
-    </Defs>
-    {/* Premium chart design */}
-    <Path d="M3 17L9 11L13 15L21 7" stroke="url(#chartGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-    <Path d="M21 7h-4v4" stroke="url(#chartGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-    {/* Chart area with premium styling */}
-    <Rect x="2" y="3" width="20" height="18" rx="2" stroke="url(#chartGradient)" strokeWidth={1.5} fill="none"/>
-    {/* Enhanced data points */}
-    <Circle cx="9" cy="11" r="2" fill="url(#chartGradient)"/>
-    <Circle cx="13" cy="15" r="2" fill="url(#chartGradient)"/>
-    <Circle cx="21" cy="7" r="2" fill="url(#chartGradient)"/>
+const PRIMARY_COLOR = "#05BF90"; // Teal Green from image
+const LOCK_COLOR = "#E2E8F0";
+const ICON_COLOR_ACTIVE = "#05BF90";
+const ICON_COLOR_COMPLETED = "#FFFFFF";
+const ICON_COLOR_LOCKED = "#94A3B8";
+
+// Icons matching the Figma design (Line Art)
+
+// Graph Icon (Info)
+const InfoIcon = ({ color }: { color: string }) => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M3 12L3 12.01"
+      stroke={color}
+      strokeWidth={3}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M3 18L3 18.01"
+      stroke={color}
+      strokeWidth={3}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M3 6L3 6.01"
+      stroke={color}
+      strokeWidth={3}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M8 12L21 12"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <Path
+      d="M8 18L21 18"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <Path d="M8 6L21 6" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Circle cx="16" cy="10" r="5" stroke={color} strokeWidth={2} />
+    <Path d="M19 14L13 14" stroke={color} strokeWidth={2} />
   </Svg>
 );
 
-// Trading Patterns & Indicators icon
-const MemorizeIcon = ({ size = 28 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="patternGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#FFFFFF" />
-        <Stop offset="100%" stopColor="#F3F4F6" />
-      </LinearGradient>
-    </Defs>
-    {/* Candlestick patterns */}
-    <Rect x="4" y="8" width="3" height="8" fill="url(#patternGradient)" rx="1"/>
-    <Rect x="8.5" y="6" width="3" height="10" fill="url(#patternGradient)" rx="1"/>
-    <Rect x="13" y="9" width="3" height="6" fill="url(#patternGradient)" rx="1"/>
-    <Rect x="17.5" y="5" width="3" height="12" fill="url(#patternGradient)" rx="1"/>
-    {/* Trend lines */}
-    <Path d="M2 20L6 16L11 12L16 8L22 4" stroke="url(#patternGradient)" strokeWidth={2} strokeLinecap="round" strokeDasharray="3 2"/>
+// Candles Icon (Practice/Memorize)
+const PracticeIcon = ({ color }: { color: string }) => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+    <Path d="M7 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Path d="M17 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Rect
+      x="5"
+      y="8"
+      width="4"
+      height="8"
+      rx="1"
+      fill={color}
+      stroke={color}
+      strokeWidth={2}
+    />
+    <Rect
+      x="15"
+      y="6"
+      width="4"
+      height="6"
+      rx="1"
+      fill={color}
+      stroke={color}
+      strokeWidth={2}
+    />
+    <Rect
+      x="15"
+      y="15"
+      width="4"
+      height="3"
+      rx="1"
+      fill={color}
+      stroke={color}
+      strokeWidth={2}
+    />
   </Svg>
 );
 
-// Portfolio Management & Trading Practice icon
-const PracticeIcon = ({ size = 28 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="portfolioGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#FFFFFF" />
-        <Stop offset="100%" stopColor="#F9FAFB" />
-      </LinearGradient>
-    </Defs>
-    {/* Portfolio pie chart */}
-    <Circle cx="12" cy="12" r="8" stroke="url(#portfolioGradient)" strokeWidth={2} fill="none"/>
-    <Path d="M12 4 A8 8 0 0 1 17.66 8" stroke="url(#portfolioGradient)" strokeWidth={3} strokeLinecap="round"/>
-    <Path d="M17.66 8 A8 8 0 0 1 17.66 16" stroke="url(#portfolioGradient)" strokeWidth={2} strokeLinecap="round"/>
-    <Path d="M17.66 16 A8 8 0 0 1 12 20" stroke="url(#portfolioGradient)" strokeWidth={2} strokeLinecap="round"/>
-    {/* Dollar sign in center */}
-    <SvgText x="12" y="16" textAnchor="middle" fontSize="8" fontWeight="bold" fill="url(#portfolioGradient)">$</SvgText>
+// Sliders Icon (Test)
+const TestIcon = ({ color }: { color: string }) => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+    <Path d="M6 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Path d="M12 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Path d="M18 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Circle cx="6" cy="14" r="2" fill={color} />
+    <Circle cx="12" cy="8" r="2" fill={color} />
+    <Circle cx="18" cy="16" r="2" fill={color} />
   </Svg>
 );
 
-// Market Assessment & Trading Test icon
-const TestIcon = ({ size = 28 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <Defs>
-      <LinearGradient id="assessmentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <Stop offset="0%" stopColor="#FFFFFF" />
-        <Stop offset="100%" stopColor="#F0FDF4" />
-      </LinearGradient>
-    </Defs>
-    {/* Trading screen/monitor */}
-    <Rect x="3" y="4" width="18" height="13" rx="2" stroke="url(#assessmentGradient)" strokeWidth={2} fill="none"/>
-    {/* Profit line */}
-    <Path d="M6 12L9 9L13 11L18 6" stroke="url(#assessmentGradient)" strokeWidth={2.5} strokeLinecap="round"/>
-    {/* Success checkmark */}
-    <Path d="M8 20l2 2 4-4" stroke="url(#assessmentGradient)" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-    {/* Performance indicators */}
-    <Circle cx="15" cy="9" r="1.5" fill="url(#assessmentGradient)"/>
-    <Circle cx="9" cy="11" r="1.5" fill="url(#assessmentGradient)"/>
+// Generic Graph/Analysis Icon (Memorize/Default)
+const MemorizeIcon = ({ color }: { color: string }) => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M3 21L21 21"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+    />
+    <Path d="M3 21L3 3" stroke={color} strokeWidth={2} strokeLinecap="round" />
+    <Path
+      d="M7 14L11 10L15 14L21 6"
+      stroke={color}
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Circle cx="14" cy="10" r="4" stroke={color} strokeWidth={2} />
   </Svg>
 );
 
-// Checkmark icon with glow effect
-const Checkmark = () => (
-  <View style={styles.checkmarkContainer}>
-    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-      <Path d="M5 13l4 4L19 7" stroke="#FFFFFF" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round"/>
-    </Svg>
+const CheckmarkBadge = () => (
+  <View style={styles.badgeContainer}>
+    <View style={styles.badgeCircle}>
+      <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M20 6L9 17L4 12"
+          stroke="white"
+          strokeWidth={3}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    </View>
   </View>
 );
 
-// Lock icon with modern styling
-const LockIcon = () => (
-  <View style={styles.lockContainer}>
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-      <Path d="M6 11V8a6 6 0 1112 0v3" stroke="#FFFFFF" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round"/>
-      <Path d="M5 11h14a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2v-7a2 2 0 012-2z" stroke="#FFFFFF" strokeWidth={2.5}/>
-    </Svg>
-  </View>
-);
+const getLessonIcon = (
+  lessonType: string,
+  state: "completed" | "active" | "locked",
+) => {
+  const color =
+    state === "completed"
+      ? ICON_COLOR_COMPLETED
+      : state === "locked"
+        ? ICON_COLOR_LOCKED
+        : ICON_COLOR_ACTIVE;
 
-const getLessonIcon = (lessonType: 'memorize' | 'info' | 'test' | 'practice') => {
+  // Custom mapping based on visuals (Trying to match specific icons to types if possible, otherwise generic)
   switch (lessonType) {
-    case 'info':
-      return <InfoIcon />;
-    case 'memorize':
-      return <MemorizeIcon />;
-    case 'practice':
-      return <PracticeIcon />;
-    case 'test':
-      return <TestIcon />;
+    case "practice":
+      return <PracticeIcon color={color} />;
+    case "test":
+      return <TestIcon color={color} />;
+    case "memorize":
+      return <MemorizeIcon color={color} />;
+    case "info":
     default:
-      return <InfoIcon />;
-  }
-};
-
-const getLessonStyle = (lessonType: 'memorize' | 'info' | 'test' | 'practice') => {
-  switch (lessonType) {
-    case 'info':
-      return styles.infoLesson;
-    case 'memorize':
-      return styles.memorizeLesson;
-    case 'practice':
-      return styles.practiceLesson;
-    case 'test':
-      return styles.testLesson;
-    default:
-      return styles.infoLesson;
+      return <InfoIcon color={color} />;
   }
 };
 
 export default function LessonNode({
-  title,
   unlocked,
   onStart,
-  showConnector,
   completed = false,
   current = false,
-  position = 'left',
-  lessonType = 'info',
+  lessonType = "info",
+  position,
 }: LessonNodeProps) {
-  const [scaleAnim] = React.useState(new Animated.Value(1));
-  const [fadeAnim] = React.useState(new Animated.Value(0));
-  const [slideAnim] = React.useState(new Animated.Value(50));
-  
-  // Offset for zig-zag
-  const offsetStyle = position === 'left' ? styles.left : styles.right;
-  const lessonStyle = getLessonStyle(lessonType);
-  
-  // Entrance animation on mount
-  React.useEffect(() => {
-    Animated.sequence([
-      Animated.delay(Math.random() * 500), // Random stagger
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.spring(slideAnim, {
-          toValue: 0,
-          tension: 100,
-          friction: 8,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, []);
-  
+  const [scaleAnim] = React.useState(new Animated.Value(unlocked ? 1 : 0.95));
+
+  // Determine State
+  const state = completed ? "completed" : !unlocked ? "locked" : "active";
+
   const handlePressIn = () => {
     if (unlocked) {
       Animated.spring(scaleAnim, {
-        toValue: 0.95,
+        toValue: 0.9,
         useNativeDriver: true,
-        tension: 300,
-        friction: 10,
       }).start();
     }
   };
@@ -200,280 +203,126 @@ export default function LessonNode({
       Animated.spring(scaleAnim, {
         toValue: 1,
         useNativeDriver: true,
-        tension: 300,
-        friction: 10,
       }).start();
     }
   };
-  
+
   return (
-    <View style={[styles.container, offsetStyle]}>
-      <Animated.View style={[{ 
-        transform: [
-          { scale: scaleAnim },
-          { translateY: slideAnim }
-        ],
-        opacity: fadeAnim 
-      }]}>
+    <View
+      style={[
+        styles.container,
+        position === "left" ? styles.left : styles.right,
+      ]}
+    >
+      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
         <TouchableOpacity
-          style={[
-            styles.circle, 
-            lessonStyle,
-            completed && styles.completed, 
-            current && styles.current, 
-            !unlocked && styles.locked
-          ]}
           activeOpacity={1}
           onPress={unlocked ? onStart : undefined}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
           disabled={!unlocked}
+          style={[
+            styles.nodeBase,
+            state === "completed" && styles.nodeCompleted,
+            state === "active" && styles.nodeActive,
+            state === "locked" && styles.nodeLocked,
+          ]}
         >
-          {/* Premium Background Pattern */}
-          <Svg style={styles.backgroundPattern} width={CIRCLE_SIZE} height={CIRCLE_SIZE} viewBox="0 0 72 72">
-            <Defs>
-              <LinearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                <Stop offset="0%" stopColor={completed ? "#10B981" : current ? "#F59E0B" : !unlocked ? "#64748B" : "#3B82F6"} stopOpacity="0.08" />
-                <Stop offset="100%" stopColor={completed ? "#047857" : current ? "#D97706" : !unlocked ? "#475569" : "#1D4ED8"} stopOpacity="0.04" />
-              </LinearGradient>
-            </Defs>
-            {/* Premium grid pattern */}
-            <Path d="M0 18H72M0 36H72M0 54H72M18 0V72M36 0V72M54 0V72" stroke="rgba(255,255,255,0.08)" strokeWidth="0.5"/>
-            {/* Premium chart pattern */}
-            <Path d="M9 45L18 40L27 50L36 32L45 36L54 27L63 32" stroke="rgba(255,255,255,0.12)" strokeWidth="1" fill="none"/>
-            <Rect width="72" height="72" fill="url(#bgGradient)" rx="36"/>
-          </Svg>
+          {/* Inner ring for active state */}
+          {state === "active" && <View style={styles.activeInnerRing} />}
 
-          {/* Premium Glassmorphism overlay */}
-          <View style={[
-            styles.glassOverlay, 
-            completed && styles.completedGlass, 
-            current && styles.currentGlass,
-            !unlocked && styles.lockedGlass
-          ]} />
-          
-          {/* Premium outer glow for current node */}
-          {current && <View style={styles.outerGlow} />}
-          
-          {/* Premium performance indicator */}
-          {completed && (
-            <View style={styles.performanceIndicator}>
-              <Svg width={10} height={10} viewBox="0 0 12 12">
-                <Path d="M2 8L4 6L6 7L10 3" stroke="#10B981" strokeWidth={1.5} strokeLinecap="round"/>
-                <Circle cx="10" cy="3" r="1" fill="#10B981"/>
-              </Svg>
-            </View>
-          )}
-          
-          {/* Premium icon container */}
+          {/* Icon */}
           <View style={styles.iconContainer}>
-            {getLessonIcon(lessonType)}
+            {getLessonIcon(lessonType, state)}
           </View>
-          
-          {/* Premium status indicators */}
-          {completed && <Checkmark />}
-          {current && !completed && <View style={styles.currentIndicator} />}
-          {!unlocked && !completed && <LockIcon />}
+
+          {/* Badge */}
+          {completed && <CheckmarkBadge />}
         </TouchableOpacity>
       </Animated.View>
+
+      {/* Label or Popover could go here, handled by parent usually */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    marginBottom: 40,
     alignItems: "center",
-    position: "relative",
-    marginBottom: theme.spacing.xl,
-    width: '100%',
+    width: "100%",
   },
-  left: {
-    alignItems: 'flex-start',
-    marginLeft: 0,
-  },
-  right: {
-    alignItems: 'flex-end',
-    marginRight: 0,
-  },
-  circle: {
+  left: { alignItems: "center" }, // Position handled by parent x/y, just center content
+  right: { alignItems: "center" },
+
+  nodeBase: {
     width: CIRCLE_SIZE,
     height: CIRCLE_SIZE,
     borderRadius: CIRCLE_SIZE / 2,
-    alignItems: "center",
     justifyContent: "center",
-    position: 'relative',
-    overflow: 'hidden',
-    elevation: 16,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.12,
-    shadowRadius: 32,
+    alignItems: "center",
+    borderWidth: 0,
+    backgroundColor: "white",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+
+  nodeCompleted: {
+    backgroundColor: PRIMARY_COLOR,
+    borderWidth: 0,
+  },
+
+  nodeActive: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 4,
+    borderColor: PRIMARY_COLOR,
+  },
+
+  nodeLocked: {
+    backgroundColor: "#F1F5F9",
+    borderColor: "#CBD5E1",
+    borderWidth: 4,
+  },
+
+  activeInnerRing: {
+    position: "absolute",
+    width: CIRCLE_SIZE - 16,
+    height: CIRCLE_SIZE - 16,
+    borderRadius: (CIRCLE_SIZE - 16) / 2,
+    borderWidth: 1,
+    borderColor: PRIMARY_COLOR,
+    opacity: 0.3,
+  },
+
+  iconContainer: {
     zIndex: 1,
   },
-  
-  // Stock market background pattern
-  backgroundPattern: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
-  
-  // Premium glassmorphism overlay
-  glassOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
+
+  badgeContainer: {
+    position: "absolute",
     right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: CIRCLE_SIZE / 2,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.6)',
-  },
-  
-  completedGlass: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-  },
-  
-  currentGlass: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: 'rgba(245, 158, 11, 0.4)',
-    shadowColor: '#F59E0B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-  },
-  
-  lockedGlass: {
-    backgroundColor: 'rgba(148, 163, 184, 0.12)',
-    borderColor: 'rgba(148, 163, 184, 0.25)',
-  },
-  
-  // Premium lesson styles with sophisticated colors
-  infoLesson: {
-    backgroundColor: '#1E40AF', // Premium market analysis blue
-  },
-  memorizeLesson: {
-    backgroundColor: '#C2410C', // Premium vibrant orange
-  },
-  practiceLesson: {
-    backgroundColor: '#DC2626', // Premium strong red
-  },
-  testLesson: {
-    backgroundColor: '#059669', // Premium profit green
-  },
-  
-  completed: {
-    backgroundColor: '#047857', // Premium completed green
-  },
-  
-  current: {
-    shadowColor: '#F59E0B',
-    shadowOpacity: 0.4,
-    shadowRadius: 28,
-    elevation: 24,
-  },
-  
-  locked: {
-    backgroundColor: '#475569', // Premium neutral gray
-  },
-  
-  // Premium outer glow for current node
-  outerGlow: {
-    position: 'absolute',
-    top: -12,
-    left: -12,
-    right: -12,
-    bottom: -12,
-    borderRadius: (CIRCLE_SIZE + 24) / 2,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    zIndex: -1,
-  },
-  
-  iconContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  
-  // Premium performance indicator
-  performanceIndicator: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: 'rgba(16, 185, 129, 0.95)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#10B981',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  
-  // Premium status indicator styles
-  checkmarkContainer: {
-    position: 'absolute',
-    bottom: -3,
-    right: -3,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#10B981',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
+    top: 0,
+    backgroundColor: "white",
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
     elevation: 6,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
   },
-  
-  lockContainer: {
-    position: 'absolute',
-    bottom: -3,
-    right: -3,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#64748B',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.12,
-    shadowRadius: 6,
-    elevation: 6,
-  },
-  
-  currentIndicator: {
-    position: 'absolute',
-    bottom: -3,
-    right: -3,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: '#3B82F6',
-    borderWidth: 2.5,
-    borderColor: '#FFFFFF',
-    shadowColor: '#3B82F6',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 6,
+  badgeCircle: {
+    backgroundColor: PRIMARY_COLOR,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });

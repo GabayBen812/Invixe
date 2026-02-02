@@ -8,11 +8,15 @@ import {
   Pressable,
   Animated,
   TouchableWithoutFeedback,
+  TouchableOpacity,
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
-import { isLessonUnlocked, areAllSublessonsCompleted } from "../modules/lessons/registry";
+import {
+  isLessonUnlocked,
+  areAllSublessonsCompleted,
+} from "../modules/lessons/registry";
 import { useLessons } from "../context/LessonsContext";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
@@ -28,7 +32,150 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 
 // inline icons and art moved to components
 const NODE_X_CENTER = SCREEN_WIDTH / 2;
-const NODE_X_OFFSET = 80; // how far from center to offset left/right nodes
+const NODE_X_OFFSET = 80;
+
+interface Lesson {
+  id: number;
+  title: string;
+  lessonType?: "info" | "memorize" | "practice" | "test";
+  [key: string]: any;
+}
+
+// --- Tooltip Component ---
+interface LessonTooltipProps {
+  title: string;
+  status: "locked" | "active" | "completed";
+  onPress: () => void;
+  style?: any;
+}
+
+const LessonTooltip = ({
+  title,
+  status,
+  onPress,
+  style,
+}: LessonTooltipProps) => {
+  const isCompleted = status === "completed";
+  const themeColor = isCompleted ? "#10B981" : "#3B82F6";
+  const btnText = isCompleted ? "תרגול חוזר" : "המשך למידה";
+
+  const progressText = isCompleted ? "16/16" : "0/16";
+  const progressPercent = isCompleted ? 1 : 0;
+
+  return (
+    <View style={[tooltipStyles.container, style]}>
+      {/* Arrow at top pointing up */}
+      <View style={tooltipStyles.arrow} />
+      <View style={tooltipStyles.content}>
+        <Text style={tooltipStyles.title}>{title}</Text>
+        <View style={tooltipStyles.progressRow}>
+          <View style={tooltipStyles.progressBarBg}>
+            <View
+              style={[
+                tooltipStyles.progressBarFill,
+                {
+                  width: `${progressPercent * 100}%`,
+                  backgroundColor: themeColor,
+                },
+              ]}
+            />
+          </View>
+          <Text style={[tooltipStyles.progressText, { color: themeColor }]}>
+            {progressText}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[tooltipStyles.button, { backgroundColor: themeColor }]}
+          onPress={onPress}
+          activeOpacity={0.8}
+        >
+          <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M15 18l-6-6 6-6"
+              stroke="white"
+              strokeWidth={2.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </Svg>
+          <Text style={tooltipStyles.buttonText}>{btnText}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+const tooltipStyles = StyleSheet.create({
+  container: {
+    position: "absolute",
+    width: 200,
+    backgroundColor: "white",
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 100,
+    padding: 16,
+    alignItems: "center",
+  },
+  arrow: {
+    position: "absolute",
+    // top: -8 means it sits above the container
+    top: -8,
+    width: 0,
+    height: 0,
+    backgroundColor: "transparent",
+    borderStyle: "solid",
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderBottomWidth: 8, // Pointing up needs bottom width
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderBottomColor: "white", // Color matches container
+    left: "50%",
+    marginLeft: -8,
+  },
+  content: { width: "100%", alignItems: "center" },
+  title: {
+    fontSize: 16,
+    fontFamily: theme.font.bold,
+    color: "#1E293B",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    marginBottom: 12,
+    gap: 8,
+  },
+  progressBarBg: {
+    flex: 1,
+    height: 6,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 3,
+    overflow: "hidden",
+  },
+  progressBarFill: { height: "100%", borderRadius: 3 },
+  progressText: { fontSize: 12, fontFamily: theme.font.bold },
+  button: {
+    width: "100%",
+    paddingVertical: 10,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  buttonText: {
+    color: "white",
+    fontFamily: theme.font.bold,
+    fontSize: 14,
+  },
+});
 
 // Helper to determine lesson status for new structure
 // function getLessonStatuses(completedLessons: number[]) {
@@ -361,16 +508,29 @@ export default function MapScreen({ navigation }: Props) {
   const { completedLessons, lessonAttempts, coins, markLessonAttempted } =
     useUser();
   const [modalVisible, setModalVisible] = React.useState(false);
-  const [selectedMainLesson, setSelectedMainLesson] = React.useState<any>(null);
+  const [selectedMainLesson, setSelectedMainLesson] =
+    React.useState<Lesson | null>(null);
   // New: selected unit (step) index. When null → show unit selector
   const [selectedUnitIdx, setSelectedUnitIdx] = React.useState<number | null>(
-    null
+    null,
   );
+
+  // New state for Tooltip
+  const [activeTooltipId, setActiveTooltipId] = React.useState<number | null>(
+    null,
+  );
+  const handleBackgroundPress = () => {
+    if (activeTooltipId) setActiveTooltipId(null);
+  };
 
   // Animation values
   const scrollY = useRef(new Animated.Value(0)).current;
   const heroOpacity = useRef(new Animated.Value(1)).current;
   const stickyHeaderOpacity = useRef(new Animated.Value(0)).current;
+
+  // Scroll Ref
+  const scrollViewRef = React.useRef<ScrollView>(null);
+  const scrollOffsetRef = React.useRef(0);
 
   // Initialize animations immediately
   React.useEffect(() => {
@@ -380,11 +540,16 @@ export default function MapScreen({ navigation }: Props) {
 
   // Determine active step based on selected unit
   const { lessonsRegistry } = useLessons();
-  const activeStep = selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
+  const activeStep =
+    selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
 
   // Calculate user progress (overall and per unit)
-  const totalLessons = (activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)).length;
-  const completedCount = (activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)).filter((l) => completedLessons.includes(l.id)).length;
+  const totalLessons = (
+    activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)
+  ).length;
+  const completedCount = (
+    activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)
+  ).filter((l) => completedLessons.includes(l.id)).length;
   const progressPercentage =
     totalLessons > 0 ? completedCount / totalLessons : 0;
   const currentStreak = 7; // TODO: Calculate actual streak from user data
@@ -393,6 +558,8 @@ export default function MapScreen({ navigation }: Props) {
   // Simplified scroll handler - no animations to prevent blocking
   const handleScroll = (event: any) => {
     const offsetY = event.nativeEvent.contentOffset.y;
+    scrollOffsetRef.current = offsetY; // Track scroll offset
+
     const threshold = 80;
     const maxScroll = 160;
 
@@ -449,26 +616,48 @@ export default function MapScreen({ navigation }: Props) {
       lesson,
       stepIdx: selectedUnitIdx ?? stepIdx,
       step,
-    }))
+    })),
   );
 
   // Calculate node positions for each lesson (only within active unit)
-  const nodePositions = allLessons.map((_, idx) => {
-    const y = idx * (CIRCLE_SIZE + 80); // More spacing between lessons for better scroll
-    const x = NODE_X_CENTER + (idx % 2 === 0 ? -NODE_X_OFFSET : NODE_X_OFFSET);
-    return { x, y };
-  });
+  // Calculate node positions for each lesson (only within active unit)
+  // We use useMemo to ensure stability, though the logic is deterministic.
+  const nodePositions = React.useMemo(() => {
+    return allLessons.map((_, idx) => {
+      // Increased vertical spacing slightly for a more fluent flow
+      const y = idx * (CIRCLE_SIZE + 60);
+
+      // Deterministic "Randomness" based on index
+      // Center the nodes more (reduce spread)
+
+      const baseDirection = idx % 2 === 0 ? -1 : 1;
+
+      // Much tighter horizontal spread (closer to center)
+      // Range: 10px to 22% of screen width
+      const randomFactor = Math.abs(Math.sin(idx * 4.5 + 2)) * 0.5 + 0.2; // Smoother variance
+      const minOffset = 10;
+      const maxOffset = SCREEN_WIDTH * 0.22; // Significantly reduced from 0.35
+      const offsetMagnitude =
+        minOffset + randomFactor * (maxOffset - minOffset);
+
+      const x = NODE_X_CENTER + baseDirection * offsetMagnitude;
+      return { x, y };
+    });
+  }, [allLessons.length]);
 
   // Calculate total height needed for all lessons
-  const totalMapHeight = allLessons.length * (CIRCLE_SIZE + 80) + 200;
+  const totalMapHeight = allLessons.length * (CIRCLE_SIZE + 60) + 200;
 
   // Calculate lesson statuses with support for re-taking
   const lessonStatuses = allLessons.map((lessonData, idx) => {
     const { lesson } = lessonData;
     const lessonAttempt = lessonAttempts.find((a) => a.lessonId === lesson.id);
     // Check if lesson is completed: either directly completed OR all sublessons are completed
-    const completed = completedLessons.includes(lesson.id) || 
-                      (lesson.sublessons && lesson.sublessons.length > 0 && areAllSublessonsCompleted(lesson, completedLessons));
+    const completed =
+      completedLessons.includes(lesson.id) ||
+      (lesson.sublessons &&
+        lesson.sublessons.length > 0 &&
+        areAllSublessonsCompleted(lesson, completedLessons));
     const unlocked = isLessonUnlocked(lesson.id, completedLessons);
 
     // Current lesson is the first uncompleted, unlocked lesson
@@ -573,12 +762,6 @@ export default function MapScreen({ navigation }: Props) {
         fill="black"
         stroke="white"
       />
-      <Path
-        d="M57.2083 7.13212C57.2083 8.23669 56.3129 9.13212 55.2083 9.13212H45.875C44.7704 9.13212 43.875 8.23669 43.875 7.13212V6.05859C43.875 4.95402 44.7704 4.05859 45.875 4.05859H55.2083C56.3129 4.05859 57.2083 4.95402 57.2083 6.05859V7.13212Z"
-        fill="black"
-        stroke="white"
-        strokeWidth={1.5}
-      />
       <Rect
         x={38.7188}
         y={56.8232}
@@ -658,10 +841,10 @@ export default function MapScreen({ navigation }: Props) {
               activeStep?.step === 1
                 ? "מבוא לשוק ההון"
                 : activeStep?.step === 2
-                ? "ניתוח טכני"
-                : activeStep?.step === 3
-                ? "השקעות לטווח ארוך"
-                : "ניתוח פונדמנטלי"
+                  ? "ניתוח טכני"
+                  : activeStep?.step === 3
+                    ? "השקעות לטווח ארוך"
+                    : "ניתוח פונדמנטלי"
             }
             progress={progressPercentage}
           />
@@ -675,180 +858,226 @@ export default function MapScreen({ navigation }: Props) {
           onSelectUnit={setSelectedUnitIdx}
         />
       ) : (
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={true}
-          onScroll={handleScroll}
-          scrollEventThrottle={64}
-          removeClippedSubviews={true}
-          decelerationRate="normal"
-          bounces={false}
-        >
-          {/* Animated Hero Section with Elegant Unit Display */}
-          <Animated.View
-            style={[
-              styles.heroSection,
-              {
-                opacity: heroOpacity,
-              },
-            ]}
+        <Pressable style={{ flex: 1 }} onPress={handleBackgroundPress}>
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={true}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            removeClippedSubviews={false} // Changed to false to avoid clipping overflow tooltips
+            decelerationRate="normal"
+            bounces={false}
           >
-            <View style={styles.unitHeader}>
-              <View style={styles.unitBadge}>
-                <Text style={styles.unitBadgeText}>קורס מלא</Text>
-              </View>
-              <Text style={styles.unitTitle}>
-                {activeStep?.step === 1 ? "מבוא לשוק ההון" : activeStep?.step === 2 ? "ניתוח טכני" : activeStep?.step === 3 ? "השקעות לטווח ארוך" : "ניתוח פונדמנטלי"}
-              </Text>
-              <Text style={styles.unitSubtitle}>
-                למד ניתוח טכני, מסחר במניות והשקעות חכמות
-              </Text>
-              {/* Back to units */}
-              <Pressable
-                onPress={() => setSelectedUnitIdx(null)}
-                style={{
-                  marginTop: 10,
-                  alignSelf: "center",
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: 12,
-                  backgroundColor: "#EFF6FF",
-                  borderWidth: 1,
-                  borderColor: "#BFDBFE",
-                }}
-              >
-                <Text style={{ fontFamily: theme.font.bold, color: "#0EA5E9" }}>
-                  חזרה לבחירת יחידות
-                </Text>
-              </Pressable>
-            </View>
+            {/* Unit Header Card matching Figma */}
+            <View style={styles.headerCard}>
+              <View style={styles.headerRow}>
+                {/* Icon Left */}
+                <View style={styles.headerIconContainer}>
+                  <TechnicalAnalysisIcon size={56} />
+                </View>
 
-            <View style={styles.progressContainer}>
-              <View style={styles.progressInfo}>
-                <Text style={styles.progressText}>
-                  {completedCount} מתוך {totalLessons} שיעורים הושלמו
-                </Text>
-                <Text style={styles.progressPercentage}>
+                {/* Text Right */}
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.headerTitle}>
+                    {activeStep?.step === 1
+                      ? "מבוא לשוק ההון"
+                      : activeStep?.step === 2
+                        ? "ניתוח טכני"
+                        : activeStep?.step === 3
+                          ? "השקעות לטווח ארוך"
+                          : "ניתוח פונדמנטלי"}
+                  </Text>
+                  <Text style={styles.headerSubtitle}>
+                    {activeStep?.step === 1
+                      ? "מושגי יסוד ומונחים"
+                      : activeStep?.step === 2
+                        ? "תמיכה והתנגדות"
+                        : "אסטרטגיות מתקדמות"}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Progress Bar Row */}
+              <View style={styles.headerProgressRow}>
+                <View style={styles.headerProgressBarBg}>
+                  <View
+                    style={[
+                      styles.headerProgressBarFill,
+                      { width: `${progressPercentage * 100}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.headerProgressText}>
                   {Math.round(progressPercentage * 100)}%
                 </Text>
               </View>
-              <View style={styles.progressBar}>
-                <ProgressBar progress={progressPercentage} width={SCREEN_WIDTH - 60} />
-              </View>
             </View>
-          </Animated.View>
-          <View style={[styles.mapContainer, { minHeight: totalMapHeight }]}>
-            {/* Simplified Map Background - No complex SVG to improve performance */}
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: SCREEN_WIDTH,
-                height: totalMapHeight,
-                backgroundColor: "#E3EEF9",
-              }}
-            />
-            {/* Connectors between lessons */}
-            <Svg
-              width={SCREEN_WIDTH}
-              height={totalMapHeight}
-              style={{ position: "absolute", top: 0, left: 0 }}
-              pointerEvents="none"
-            >
-              {nodePositions.slice(1).map((curr, idx) => {
-                const prev = nodePositions[idx];
-                const x0 = prev.x;
-                const y0 = prev.y + CIRCLE_SIZE / 2;
-                const x1 = curr.x;
-                const y1 = curr.y + CIRCLE_SIZE / 2;
-                const cx = SCREEN_WIDTH / 2;
-                const cy = (y0 + y1) / 2;
-                const d = `M ${x0} ${y0} Q ${cx} ${cy} ${x1} ${y1}`;
-                return (
-                  <G key={`conn-${idx}`}>
+
+            <View style={[styles.mapContainer, { minHeight: totalMapHeight }]}>
+              {/* Map Connector Path - Dotted Blue Line */}
+              <Svg
+                width={SCREEN_WIDTH}
+                height={totalMapHeight}
+                style={{ position: "absolute", top: 0, left: 0 }}
+                pointerEvents="none"
+              >
+                {nodePositions.slice(1).map((curr, idx) => {
+                  const prev = nodePositions[idx];
+                  const x0 = prev.x;
+                  const y0 = prev.y + CIRCLE_SIZE / 2;
+                  const x1 = curr.x;
+                  const y1 = curr.y + CIRCLE_SIZE / 2;
+
+                  // Cubic Bezier for smooth S-curve
+                  const dy = y1 - y0;
+                  const controlY = dy * 0.5; // Control point distance
+
+                  // M Start C Control1 Control2 End
+                  const d = `M ${x0} ${y0} C ${x0} ${y0 + controlY} ${x1} ${y1 - controlY} ${x1} ${y1}`;
+
+                  return (
                     <Path
+                      key={`conn-${idx}`}
                       d={d}
-                      stroke="rgba(255,255,255,0.9)"
+                      stroke="#3B82F6"
                       strokeWidth={4}
                       fill="none"
                       strokeLinecap="round"
+                      strokeDasharray="10, 10"
+                      opacity={0.8}
                     />
-                    <Path
-                      d={d}
-                      stroke="rgba(59,130,246,0.25)"
-                      strokeWidth={6}
-                      fill="none"
-                      strokeLinecap="round"
-                    />
-                  </G>
-                );
-              })}
-            </Svg>
-            {allLessons.map((lessonData, idx) => {
-              const { lesson, step } = lessonData;
-              const { completed, current, unlocked } = lessonStatuses[idx];
-              const position = idx % 2 === 0 ? "left" : "right";
-              const nodeStyle = {
-                position: "absolute" as const,
-                left: nodePositions[idx].x - CIRCLE_SIZE / 2,
-                top: nodePositions[idx].y,
-                alignItems: "center" as const,
-              };
+                  );
+                })}
+              </Svg>
+              {allLessons.map((lessonData, idx) => {
+                const { lesson, step } = lessonData;
+                const { completed, current, unlocked } = lessonStatuses[idx];
+                const position = idx % 2 === 0 ? "left" : "right";
+                const nodeStyle = {
+                  position: "absolute" as const,
+                  left: nodePositions[idx].x - CIRCLE_SIZE / 2,
+                  top: nodePositions[idx].y,
+                  alignItems: "center" as const,
+                  zIndex: 1, // Base zIndex
+                };
 
-              // In unit view we do not need unit dividers
-              const isNewUnit = false;
+                // In unit view we do not need unit dividers
+                const isNewUnit = false;
 
-              return (
-                <React.Fragment key={lesson.id}>
-                  {/* Unit Divider */}
-                  {isNewUnit && (
+                // Determine status for styling
+                const status = completed
+                  ? "completed"
+                  : !unlocked
+                    ? "locked"
+                    : "active";
+                const isTooltipVisible = activeTooltipId === lesson.id;
+
+                return (
+                  <React.Fragment key={lesson.id}>
+                    {/* Unit Divider */}
+                    {isNewUnit && (
+                      <View
+                        style={[
+                          styles.unitDivider,
+                          { top: nodePositions[idx].y - 40 },
+                        ]}
+                      >
+                        <View style={styles.dividerLine} />
+                        <View style={styles.dividerBadge}>
+                          <Text style={styles.dividerText}>
+                            יחידה {step.step}
+                          </Text>
+                        </View>
+                        <View style={styles.dividerLine} />
+                      </View>
+                    )}
+
                     <View
                       style={[
-                        styles.unitDivider,
-                        { top: nodePositions[idx].y - 40 },
+                        nodeStyle,
+                        { zIndex: isTooltipVisible ? 100 : 1 },
                       ]}
                     >
-                      <View style={styles.dividerLine} />
-                      <View style={styles.dividerBadge}>
-                        <Text style={styles.dividerText}>
-                          יחידה {step.step}
-                        </Text>
-                      </View>
-                      <View style={styles.dividerLine} />
-                    </View>
-                  )}
+                      {/* Node circle */}
+                      <LessonNode
+                        title={lesson.title}
+                        unlocked={unlocked}
+                        onStart={() => {
+                          // Toggle tooltip
+                          if (activeTooltipId === lesson.id) {
+                            setActiveTooltipId(null);
+                          } else {
+                            setActiveTooltipId(lesson.id);
 
-                  <View style={nodeStyle}>
-                    <LessonNode
-                      title={lesson.title}
-                      unlocked={unlocked}
-                      onStart={() => {
-                        setSelectedMainLesson(lesson);
-                        setModalVisible(true);
-                      }}
-                      showConnector={idx < allLessons.length - 1}
-                      completed={completed}
-                      current={current}
-                      position={position}
-                      lessonType={lesson.lessonType || "info"}
-                    />
-                  </View>
-                </React.Fragment>
-              );
-            })}
-            <LessonModal
-              visible={modalVisible}
-              onClose={() => setModalVisible(false)}
-              selectedMainLesson={selectedMainLesson}
-              completedLessons={completedLessons}
-              lessonAttempts={lessonAttempts}
-              onStart={handleLessonStart}
-            />
-            {/* Spacer for scroll */}
-            <View style={{ height: 200 }} />
-          </View>
-        </ScrollView>
+                            // Auto-scroll logic if tooltip is obscured by bottom bar
+                            const tooltipHeight = 160;
+                            const bottomBarHeight = 90;
+                            const screenHeight =
+                              Dimensions.get("window").height;
+                            const nodeY = nodePositions[idx].y; // Absolute Y position of node in ScrollView
+
+                            const tooltipBottomY =
+                              nodeY + CIRCLE_SIZE + tooltipHeight;
+                            const visibleBottomY =
+                              scrollOffsetRef.current +
+                              screenHeight -
+                              bottomBarHeight;
+
+                            if (tooltipBottomY > visibleBottomY) {
+                              // Scroll down to show tooltip
+                              const targetScroll =
+                                tooltipBottomY -
+                                screenHeight +
+                                bottomBarHeight +
+                                40; // +40 padding
+                              scrollViewRef.current?.scrollTo({
+                                y: targetScroll,
+                                animated: true,
+                              });
+                            }
+                          }
+                        }}
+                        completed={completed}
+                        current={current}
+                        position={position}
+                        lessonType={lesson.lessonType || "info"}
+                      />
+
+                      {/* Tooltip Rendered Below Node (Inside the absolute view) */}
+                      {isTooltipVisible && (
+                        <LessonTooltip
+                          title={lesson.title}
+                          status={status}
+                          style={{
+                            top: CIRCLE_SIZE + 10,
+                            // Center relative to the circle (Circle=80, Tooltip=200 -> -60)
+                            left: (CIRCLE_SIZE - 200) / 2,
+                          }}
+                          onPress={() => {
+                            setSelectedMainLesson(lesson);
+                            setModalVisible(true);
+                            setActiveTooltipId(null); // Close tooltip after action
+                          }}
+                        />
+                      )}
+                    </View>
+                  </React.Fragment>
+                );
+              })}
+              <LessonModal
+                visible={modalVisible}
+                onClose={() => setModalVisible(false)}
+                selectedMainLesson={selectedMainLesson}
+                completedLessons={completedLessons}
+                lessonAttempts={lessonAttempts}
+                onStart={handleLessonStart}
+              />
+              {/* Spacer for scroll */}
+              <View style={{ height: 200 }} />
+            </View>
+          </ScrollView>
+        </Pressable>
       )}
       <BottomNavbar activeTab="map" onTabPress={handleTabPress} />
     </View>
@@ -863,6 +1092,68 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 200, // Increased padding for better scroll
     flexGrow: 1, // Allow content to expand
+  },
+
+  // Header Card Styles
+  headerCard: {
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 24,
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  headerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  headerIconContainer: {
+    marginRight: 16,
+  },
+  headerTextContainer: {
+    flex: 1,
+    alignItems: "flex-end",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontFamily: theme.font.bold,
+    color: "#1E293B",
+    textAlign: "right",
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontFamily: theme.font.family,
+    color: "#64748B",
+    marginTop: 4,
+    textAlign: "right",
+  },
+  headerProgressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  headerProgressText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: "#3B82F6",
+    marginLeft: 12,
+  },
+  headerProgressBarBg: {
+    flex: 1,
+    height: 8,
+    backgroundColor: "#E2E8F0",
+    borderRadius: 4,
+    overflow: "hidden",
+  },
+  headerProgressBarFill: {
+    height: "100%",
+    backgroundColor: "#3B82F6",
+    borderRadius: 4,
   },
 
   // Elegant Hero Section
