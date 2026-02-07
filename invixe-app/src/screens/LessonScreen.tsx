@@ -54,6 +54,7 @@ import TextWithSVG from "../components/lesson/TextWithSVG";
 import GraphQuestionDrill from "../components/lesson/GraphQuestionDrill";
 import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
+import ExplanationDrill from "../components/lesson/ExplanationDrill";
 
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
@@ -469,6 +470,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     step?.activity === "textWithImageExplain" &&
     !!step.activityConfig?.questionWithImage;
   const activityType = step?.activity as any;
+  const isExplanation = activityType === "explanation";
   const isTextWithSVG =
     activityType === "textWithSVG" && !!step.activityConfig?.questionWithImage;
   const isSimpleQuestion = activityType === "simple_question";
@@ -1185,7 +1187,8 @@ export default function LessonScreen({ navigation, route }: Props) {
                       step.activity === "carouselSelect" ||
                       step.activity === "sequenceBuild" ||
                       (step.activity as any) === "dragMatch" ||
-                      step.activity === "pathSelect"
+                      step.activity === "pathSelect" ||
+                      isExplanation
                         ? undefined
                         : showingDrillExplanation
                           ? "המשך"
@@ -1500,7 +1503,13 @@ export default function LessonScreen({ navigation, route }: Props) {
 
         {/* Drill Content Area - fills space between speech bubble and button */}
 
+        {/* Drill Content Area - fills space between speech bubble and button */}
+
+        {/* Add ExplanationDrill here - outside of the default ScrollView */}
+        {isExplanation && <ExplanationDrill step={step} />}
+
         {!(step.activity === "textWithImageExplain" && !step.message?.trim()) &&
+          !isExplanation &&
           !(activityType === "graphQuestionPNG") && (
             <ScrollView
               style={styles.drillContentArea}
@@ -2693,6 +2702,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 step.activity !== "multiSelect" &&
                 step.activity !== "sequenceBuild" &&
                 !isGraphQuestionActivity &&
+                !isExplanation &&
                 choices &&
                 choices.length === 1 &&
                 step.id !== "simple_text_step" && (
@@ -2969,6 +2979,32 @@ export default function LessonScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         )}
+
+      {/* Static button for explanation drill */}
+      {isExplanation &&
+        step.activityConfig?.explanation &&
+        !showSimpleQuestionButtonSheet &&
+        !showCorrectOverlay &&
+        choices &&
+        choices.length === 1 && (
+          <View style={styles.absoluteContinueButton}>
+            <Pressable
+              style={styles.continueButton}
+              onPress={() => {
+                if (step.choices && step.choices.length > 0) {
+                  handleChoice(step.choices[0].nextStep);
+                } else {
+                  console.warn("ExplanationDrill: No next step defined");
+                }
+              }}
+            >
+              <Text style={styles.continueButtonText}>
+                {step.activityConfig.explanation.buttonText || "המשך"}
+              </Text>
+            </Pressable>
+          </View>
+        )}
+
       {/* Static button for sequenceBuild drill using the shared absolute pattern */}
       {step.activity === "sequenceBuild" &&
         step.activityConfig?.sequenceBuild &&
