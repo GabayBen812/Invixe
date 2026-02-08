@@ -21,16 +21,19 @@ export default function SplashScreen({ navigation }: Props) {
   }, [navigation]);
 
   return (
-    <ImageBackground source={require("../../assets/bg.png")} style={styles.bg}>
+    <ImageBackground
+      source={require("../../assets/DefaultBlankBackground.png")}
+      style={styles.bg}
+    >
       <View style={styles.content}>
         <Image
-          source={require("../../assets/character.png")}
+          source={require("../../assets/Characters/character_orange_noback.png")}
           style={styles.character}
         />
         <Text style={styles.title}>Invixe</Text>
         <ActivityIndicator
           size="large"
-          color="#ff9800"
+          color="#3372D8"
           style={{ marginTop: 24 }}
         />
       </View>
@@ -50,9 +53,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 36,
     fontWeight: "bold",
-    color: "white",
-    textShadowColor: "#222",
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 6,
+    color: "#3372D8",
+    textShadowColor: "rgba(0,0,0,0.1)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
 });

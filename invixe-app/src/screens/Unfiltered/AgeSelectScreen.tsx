@@ -11,10 +11,22 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
 
 const ageGroups = [
-  { label: "16 - 21", icon: require("../../assets/character.png") },
-  { label: "21 - 34", icon: require("../../assets/character.png") },
-  { label: "34 - 49", icon: require("../../assets/character.png") },
-  { label: "50+", icon: require("../../assets/character.png") },
+  {
+    label: "16 - 21",
+    icon: require("../../assets/Characters/character_orange_noback.png"),
+  },
+  {
+    label: "21 - 34",
+    icon: require("../../assets/Characters/character_orange_noback.png"),
+  },
+  {
+    label: "34 - 49",
+    icon: require("../../assets/Characters/character_orange_noback.png"),
+  },
+  {
+    label: "50+",
+    icon: require("../../assets/Characters/character_orange_noback.png"),
+  },
 ];
 
 type Props = NativeStackScreenProps<RootStackParamList, "AgeSelect">;
@@ -26,13 +38,16 @@ export default function AgeSelectScreen({ navigation }: Props) {
     navigation.navigate("GoalSelect");
   };
   return (
-    <ImageBackground source={require("../../assets/bg.png")} style={styles.bg}>
+    <ImageBackground
+      source={require("../../assets/DefaultBlankBackground.png")}
+      style={styles.bg}
+    >
       <View style={styles.content}>
         <View style={styles.speechBubble}>
           <Text style={styles.speechText}>באיזה טווח גילאים אתה?</Text>
         </View>
         <Image
-          source={require("../../assets/character.png")}
+          source={require("../../assets/Characters/character_orange_noback.png")}
           style={styles.character}
         />
         <View style={styles.choices}>
@@ -61,8 +76,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     maxWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  speechText: { fontSize: 18, textAlign: "center", color: "#222" },
+  speechText: { fontSize: 18, textAlign: "center", color: "#0F2233" },
   character: {
     width: 120,
     height: 120,
@@ -73,11 +93,16 @@ const styles = StyleSheet.create({
   choice: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1e355e",
+    backgroundColor: "#3372D8",
     borderRadius: 16,
     padding: 12,
     marginVertical: 6,
     width: 260,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   icon: { width: 32, height: 32, marginRight: 16 },
   choiceText: { color: "white", fontSize: 20, fontWeight: "bold" },

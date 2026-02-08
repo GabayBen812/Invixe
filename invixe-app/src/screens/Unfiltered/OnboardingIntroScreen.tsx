@@ -13,7 +13,10 @@ type Props = NativeStackScreenProps<RootStackParamList, "OnboardingIntro">;
 
 export default function OnboardingIntroScreen({ navigation }: Props) {
   return (
-    <ImageBackground source={require("../../assets/bg.png")} style={styles.bg}>
+    <ImageBackground
+      source={require("../../assets/DefaultBlankBackground.png")}
+      style={styles.bg}
+    >
       <View style={styles.content}>
         <View style={styles.speechBubble}>
           <Text style={styles.speechText}>
@@ -21,7 +24,7 @@ export default function OnboardingIntroScreen({ navigation }: Props) {
           </Text>
         </View>
         <Image
-          source={require("../../assets/character.png")}
+          source={require("../../assets/Characters/character_orange_noback.png")}
           style={styles.character}
         />
         <TouchableOpacity
@@ -44,8 +47,13 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 24,
     maxWidth: 300,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  speechText: { fontSize: 18, textAlign: "center", color: "#222" },
+  speechText: { fontSize: 18, textAlign: "center", color: "#0F2233" },
   character: {
     width: 220,
     height: 220,
@@ -53,7 +61,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   button: {
-    backgroundColor: "#ff9800",
+    backgroundColor: "#3372D8",
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 40,

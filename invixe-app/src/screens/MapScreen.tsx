@@ -872,11 +872,6 @@ export default function MapScreen({ navigation }: Props) {
             {/* Unit Header Card matching Figma */}
             <View style={styles.headerCard}>
               <View style={styles.headerRow}>
-                {/* Icon Left */}
-                <View style={styles.headerIconContainer}>
-                  <TechnicalAnalysisIcon size={56} />
-                </View>
-
                 {/* Text Right */}
                 <View style={styles.headerTextContainer}>
                   <Text style={styles.headerTitle}>
@@ -895,6 +890,11 @@ export default function MapScreen({ navigation }: Props) {
                         ? "תמיכה והתנגדות"
                         : "אסטרטגיות מתקדמות"}
                   </Text>
+                </View>
+
+                {/* Icon Left */}
+                <View style={styles.headerIconContainer}>
+                  <TechnicalAnalysisIcon size={56} />
                 </View>
               </View>
 
@@ -1114,7 +1114,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   headerIconContainer: {
-    marginRight: 16,
+    marginLeft: 16,
   },
   headerTextContainer: {
     flex: 1,

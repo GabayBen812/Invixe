@@ -3,7 +3,13 @@ import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import theme from "../../theme";
 import ProgressBar from "./ProgressBar";
 import CourseCard from "./CourseCard";
-import { AppCharacterSVG, TechnicalAnalysisIcon, TradingIcon, InvestmentIcon, FundamentalIcon } from "./MapAssets";
+import {
+  AppCharacterSVG,
+  TechnicalAnalysisIcon,
+  TradingIcon,
+  InvestmentIcon,
+  FundamentalIcon,
+} from "./MapAssets";
 import { useLessons } from "../../context/LessonsContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -13,25 +19,40 @@ type UnitSelectorProps = {
   onSelectUnit: (idx: number) => void;
 };
 
-export default function UnitSelector({ completedLessons, onSelectUnit }: UnitSelectorProps) {
+export default function UnitSelector({
+  completedLessons,
+  onSelectUnit,
+}: UnitSelectorProps) {
   const { lessonsRegistry } = useLessons();
   const unitProgress = React.useMemo(() => {
     return lessonsRegistry.map((step) => {
       const total = step.lessons.length;
-      const done = step.lessons.filter((l) => completedLessons.includes(l.id)).length;
+      const done = step.lessons.filter((l) =>
+        completedLessons.includes(l.id),
+      ).length;
       return { total, done, pct: total > 0 ? done / total : 0 };
     });
   }, [completedLessons, lessonsRegistry]);
 
-  const { overallProgress, totalCompleted, totalLessons } = React.useMemo(() => {
-    const total = lessonsRegistry.flatMap((s) => s.lessons).length;
-    const done = lessonsRegistry.flatMap((s) => s.lessons).filter((l) => completedLessons.includes(l.id)).length;
-    return { overallProgress: total > 0 ? done / total : 0, totalCompleted: done, totalLessons: total };
-  }, [completedLessons, lessonsRegistry]);
+  const { overallProgress, totalCompleted, totalLessons } =
+    React.useMemo(() => {
+      const total = lessonsRegistry.flatMap((s) => s.lessons).length;
+      const done = lessonsRegistry
+        .flatMap((s) => s.lessons)
+        .filter((l) => completedLessons.includes(l.id)).length;
+      return {
+        overallProgress: total > 0 ? done / total : 0,
+        totalCompleted: done,
+        totalLessons: total,
+      };
+    }, [completedLessons, lessonsRegistry]);
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.hero}>
           <View style={styles.heroRow}>
             <View style={{ flex: 1 }}>
@@ -60,30 +81,35 @@ export default function UnitSelector({ completedLessons, onSelectUnit }: UnitSel
               step.step === 1
                 ? "מבוא לשוק ההון"
                 : step.step === 2
-                ? "ניתוח טכני"
-                : step.step === 3
-                ? "השקעות לטווח ארוך"
-                : "ניתוח פונדמנטלי";
+                  ? "ניתוח טכני"
+                  : step.step === 3
+                    ? "השקעות לטווח ארוך"
+                    : "ניתוח פונדמנטלי";
             const subtitle =
               step.step === 1
                 ? "קריאת גרפים, מגמות ואיתותים"
                 : step.step === 2
-                ? "איך שוק עובד, סוגי פקודות וסיכונים"
-                : step.step === 3
-                ? "אסטרטגיות DCA, פיזור וניהול סיכונים"
-                : "קריאת דוחות, מכפילים ויתרון תחרותי";
+                  ? "איך שוק עובד, סוגי פקודות וסיכונים"
+                  : step.step === 3
+                    ? "אסטרטגיות DCA, פיזור וניהול סיכונים"
+                    : "קריאת דוחות, מכפילים ויתרון תחרותי";
             const badge = idx === 0 ? "מומלץ להתחלה" : undefined;
-            const comingSoon = step.step === 4; // "ניתוח פונדמנטלי"
+            const comingSoon = step.step === 3 || step.step === 4; // "השקעות לטווח ארוך" and "ניתוח פונדמנטלי"
             const level = step.step <= 2 ? "בסיסי" : "מתקדם";
-            const duration = step.step === 1 ? "כ-60 דק׳" : step.step === 2 ? "כ-45 דק׳" : "כ-50 דק׳";
+            const duration =
+              step.step === 1
+                ? "כ-60 דק׳"
+                : step.step === 2
+                  ? "כ-45 דק׳"
+                  : "כ-50 דק׳";
             const IconComp =
               step.step === 1
                 ? TradingIcon
                 : step.step === 2
-                ? TechnicalAnalysisIcon
-                : step.step === 3
-                ? InvestmentIcon
-                : FundamentalIcon;
+                  ? TechnicalAnalysisIcon
+                  : step.step === 3
+                    ? InvestmentIcon
+                    : FundamentalIcon;
             return (
               <CourseCard
                 key={`unit-${idx}`}
@@ -226,5 +252,3 @@ const styles = StyleSheet.create({
     textAlign: "right",
   },
 });
-
-

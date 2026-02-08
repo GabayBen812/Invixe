@@ -63,7 +63,7 @@ export default function WelcomeScreen({ navigation }: Props) {
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
-      ])
+      ]),
     ).start();
   }, [logoAnim, heroAnim, buttonsAnim, characterFloat]);
 
@@ -83,7 +83,7 @@ export default function WelcomeScreen({ navigation }: Props) {
   });
 
   return (
-    <PageBackground source={require("../../assets/bg.png")}>
+    <PageBackground source={require("../../assets/DefaultBlankBackground.png")}>
       <View style={styles.container}>
         <Animated.View
           style={{

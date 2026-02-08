@@ -44,10 +44,13 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
   };
 
   return (
-    <ImageBackground source={require("../../assets/bg.png")} style={styles.bg}>
+    <ImageBackground
+      source={require("../../assets/DefaultBlankBackground.png")}
+      style={styles.bg}
+    >
       <View style={styles.content}>
         <Image
-          source={require("../../assets/character.png")}
+          source={require("../../assets/Characters/character_orange_noback.png")}
           style={styles.character}
         />
         <Text style={styles.title}>ברוך הבא להרפתקה של Invixe!</Text>
@@ -57,7 +60,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
         {loading ? (
           <ActivityIndicator
             size="large"
-            color="#ff9800"
+            color="#3372D8"
             style={{ marginTop: 24 }}
           />
         ) : success ? (
@@ -83,7 +86,12 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   bg: { flex: 1, resizeMode: "cover" },
-  content: { flex: 1, justifyContent: "center", alignItems: "center" },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
   character: {
     width: 160,
     height: 160,
@@ -91,26 +99,20 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   title: {
-    fontSize: 28,
+    fontSize: 26,
     fontWeight: "bold",
-    color: "white",
+    color: "#3372D8",
     textAlign: "center",
     marginBottom: 12,
-    textShadowColor: "#222",
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 6,
   },
   subtitle: {
     fontSize: 18,
-    color: "white",
+    color: "#5E7686",
     textAlign: "center",
     marginBottom: 24,
-    textShadowColor: "#222",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 4,
   },
   button: {
-    backgroundColor: "#ff9800",
+    backgroundColor: "#3372D8",
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 40,
@@ -118,10 +120,10 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "white", fontSize: 20, fontWeight: "bold" },
   success: {
-    color: "#4caf50",
+    color: "#12B76A",
     fontSize: 20,
     marginTop: 16,
     fontWeight: "bold",
   },
-  error: { color: "#f44336", fontSize: 16, marginTop: 12 },
+  error: { color: "#D92D20", fontSize: 16, marginTop: 12 },
 });

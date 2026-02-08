@@ -10,12 +10,12 @@ type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
 export default function RegisterScreen({ navigation }: Props) {
   return (
-    <PageBackground source={require("../../assets/bg.png")}>
+    <PageBackground source={require("../../assets/DefaultBlankBackground.png")}>
       <View style={styles.container}>
         <View style={styles.card}>
           <Text style={styles.title}>בוא נבנה לך מסלול אישי</Text>
           <Text style={styles.subtitle}>
-            נבין מה הידע שלך, מה המטרה שלך בשוק ההון ונרכיב עבורך מסלול לימוד
+            נבין מה ידע שלך, מה המטרה שלך בשוק ההון ונרכיב עבורך מסלול לימוד
             שמתאים בדיוק אליך.
           </Text>
 
@@ -26,7 +26,7 @@ export default function RegisterScreen({ navigation }: Props) {
               <Text style={styles.bullet}>• התאמת קורסים ותרגולים</Text>
             </View>
             <Image
-              source={require("../../assets/character-bubble.png")}
+              source={require("../../assets/Characters/character_orange_noback.png")}
               style={styles.sideImage}
             />
           </View>
@@ -39,7 +39,7 @@ export default function RegisterScreen({ navigation }: Props) {
             text="חזרה למסך הראשי"
             variant="secondary"
             onPress={() => navigation.navigate("Welcome")}
-            style={{ marginTop: theme.spacing.xs }}
+            style={{ marginTop: theme.spacing.sm }}
           />
         </View>
       </View>
@@ -54,25 +54,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   card: {
-    backgroundColor: "rgba(255,255,255,0.96)",
-    borderRadius: theme.radius.xl,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     padding: theme.spacing.xl,
-    shadowColor: theme.colors.trustBlueDark,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
   },
   title: {
-    fontSize: 26,
-    color: theme.colors.primaryBlue,
+    fontSize: 22,
+    color: "#3372D8",
     textAlign: "right",
     fontFamily: theme.font.bold,
     marginBottom: theme.spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: theme.colors.text,
+    fontSize: 15,
+    color: "#5E7686",
     textAlign: "right",
     lineHeight: 22,
     fontFamily: theme.font.family,
@@ -89,8 +89,8 @@ const styles = StyleSheet.create({
     marginRight: theme.spacing.md,
   },
   bullet: {
-    fontSize: 15,
-    color: theme.colors.trustBlueDark,
+    fontSize: 14,
+    color: "#0F2233",
     textAlign: "right",
     marginBottom: theme.spacing.xs,
     fontFamily: theme.font.family,

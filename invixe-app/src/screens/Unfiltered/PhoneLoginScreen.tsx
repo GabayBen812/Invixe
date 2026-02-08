@@ -26,16 +26,19 @@ export default function PhoneLoginScreen({ navigation }: Props) {
   };
 
   return (
-    <ImageBackground source={require("../../assets/bg.png")} style={styles.bg}>
+    <ImageBackground
+      source={require("../../assets/DefaultBlankBackground.png")}
+      style={styles.bg}
+    >
       <View style={styles.content}>
         <Image
-          source={require("../../assets/character.png")}
+          source={require("../../assets/Characters/character_orange_noback.png")}
           style={styles.character}
         />
         <TextInput
           style={styles.input}
           placeholder="מספר טלפון"
-          placeholderTextColor="#ccc"
+          placeholderTextColor="#8CA0AE"
           value={phone}
           onChangeText={setPhoneLocal}
           keyboardType="phone-pad"
@@ -43,7 +46,7 @@ export default function PhoneLoginScreen({ navigation }: Props) {
         <TextInput
           style={styles.input}
           placeholder="סיסמה"
-          placeholderTextColor="#ccc"
+          placeholderTextColor="#8CA0AE"
           value={password}
           onChangeText={setPasswordLocal}
           secureTextEntry
@@ -68,15 +71,21 @@ const styles = StyleSheet.create({
   input: {
     width: 260,
     height: 48,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "#FFFFFF",
     borderRadius: 24,
     paddingHorizontal: 20,
-    fontSize: 18,
+    fontSize: 16,
     marginBottom: 16,
     textAlign: "right",
+    color: "#0F2233",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
   button: {
-    backgroundColor: "#ff9800",
+    backgroundColor: "#3372D8",
     borderRadius: 24,
     paddingVertical: 12,
     paddingHorizontal: 40,

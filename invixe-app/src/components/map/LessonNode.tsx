@@ -1,7 +1,25 @@
 import React from "react";
-import { View, StyleSheet, TouchableOpacity, Animated } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Easing,
+} from "react-native";
 import theme from "../../theme";
 import Svg, { Path, Circle, Rect, G } from "react-native-svg";
+import { SvgXml } from "react-native-svg";
+
+// Import SVG assets
+import Frame from "../../assets/nodes/Frame.svg";
+import Frame1 from "../../assets/nodes/Frame1.svg";
+import Frame2 from "../../assets/nodes/Frame2.svg";
+import Frame3 from "../../assets/nodes/Frame3.svg";
+
+// Import Completed SVG assets
+import Frame1Completed from "../../assets/nodes/Frame1_Completed.svg";
+import Frame2Completed from "../../assets/nodes/Frame2_Completed.svg";
+import Frame3Completed from "../../assets/nodes/Frame3_Completed.svg";
 
 export const CIRCLE_SIZE = 72;
 const ACTIVE_SCALE = 1.1;
@@ -25,116 +43,6 @@ const ICON_COLOR_LOCKED = "#94A3B8";
 
 // Icons matching the Figma design (Line Art)
 
-// Graph Icon (Info)
-const InfoIcon = ({ color }: { color: string }) => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M3 12L3 12.01"
-      stroke={color}
-      strokeWidth={3}
-      strokeLinecap="round"
-    />
-    <Path
-      d="M3 18L3 18.01"
-      stroke={color}
-      strokeWidth={3}
-      strokeLinecap="round"
-    />
-    <Path
-      d="M3 6L3 6.01"
-      stroke={color}
-      strokeWidth={3}
-      strokeLinecap="round"
-    />
-    <Path
-      d="M8 12L21 12"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-    />
-    <Path
-      d="M8 18L21 18"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-    />
-    <Path d="M8 6L21 6" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Circle cx="16" cy="10" r="5" stroke={color} strokeWidth={2} />
-    <Path d="M19 14L13 14" stroke={color} strokeWidth={2} />
-  </Svg>
-);
-
-// Candles Icon (Practice/Memorize)
-const PracticeIcon = ({ color }: { color: string }) => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-    <Path d="M7 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Path d="M17 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Rect
-      x="5"
-      y="8"
-      width="4"
-      height="8"
-      rx="1"
-      fill={color}
-      stroke={color}
-      strokeWidth={2}
-    />
-    <Rect
-      x="15"
-      y="6"
-      width="4"
-      height="6"
-      rx="1"
-      fill={color}
-      stroke={color}
-      strokeWidth={2}
-    />
-    <Rect
-      x="15"
-      y="15"
-      width="4"
-      height="3"
-      rx="1"
-      fill={color}
-      stroke={color}
-      strokeWidth={2}
-    />
-  </Svg>
-);
-
-// Sliders Icon (Test)
-const TestIcon = ({ color }: { color: string }) => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-    <Path d="M6 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Path d="M12 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Path d="M18 4V20" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Circle cx="6" cy="14" r="2" fill={color} />
-    <Circle cx="12" cy="8" r="2" fill={color} />
-    <Circle cx="18" cy="16" r="2" fill={color} />
-  </Svg>
-);
-
-// Generic Graph/Analysis Icon (Memorize/Default)
-const MemorizeIcon = ({ color }: { color: string }) => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M3 21L21 21"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-    />
-    <Path d="M3 21L3 3" stroke={color} strokeWidth={2} strokeLinecap="round" />
-    <Path
-      d="M7 14L11 10L15 14L21 6"
-      stroke={color}
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Circle cx="14" cy="10" r="4" stroke={color} strokeWidth={2} />
-  </Svg>
-);
-
 const CheckmarkBadge = () => (
   <View style={styles.badgeContainer}>
     <View style={styles.badgeCircle}>
@@ -151,31 +59,6 @@ const CheckmarkBadge = () => (
   </View>
 );
 
-const getLessonIcon = (
-  lessonType: string,
-  state: "completed" | "active" | "locked",
-) => {
-  const color =
-    state === "completed"
-      ? ICON_COLOR_COMPLETED
-      : state === "locked"
-        ? ICON_COLOR_LOCKED
-        : ICON_COLOR_ACTIVE;
-
-  // Custom mapping based on visuals (Trying to match specific icons to types if possible, otherwise generic)
-  switch (lessonType) {
-    case "practice":
-      return <PracticeIcon color={color} />;
-    case "test":
-      return <TestIcon color={color} />;
-    case "memorize":
-      return <MemorizeIcon color={color} />;
-    case "info":
-    default:
-      return <InfoIcon color={color} />;
-  }
-};
-
 export default function LessonNode({
   unlocked,
   onStart,
@@ -185,9 +68,36 @@ export default function LessonNode({
   position,
 }: LessonNodeProps) {
   const [scaleAnim] = React.useState(new Animated.Value(unlocked ? 1 : 0.95));
+  const [bounceAnim] = React.useState(new Animated.Value(0));
 
   // Determine State
   const state = completed ? "completed" : !unlocked ? "locked" : "active";
+
+  // Bouncing animation for current node
+  React.useEffect(() => {
+    if (current) {
+      const bounce = Animated.loop(
+        Animated.sequence([
+          Animated.timing(bounceAnim, {
+            toValue: -12,
+            duration: 500,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+          Animated.timing(bounceAnim, {
+            toValue: 0,
+            duration: 500,
+            easing: Easing.in(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      bounce.start();
+      return () => bounce.stop();
+    } else {
+      bounceAnim.setValue(0);
+    }
+  }, [current, bounceAnim]);
 
   const handlePressIn = () => {
     if (unlocked) {
@@ -207,6 +117,59 @@ export default function LessonNode({
     }
   };
 
+  // Select the appropriate SVG based on state and lesson type
+  const getNodeSVG = () => {
+    // If completed, use the specific Completed SVGs (Pre-colored White & Translucent Ring)
+    if (state === "completed") {
+      switch (lessonType) {
+        case "practice":
+          return <Frame1Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
+        case "test":
+          return <Frame2Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
+        case "memorize":
+          return <Frame3Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
+        default:
+          return <Frame1Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
+      }
+    }
+
+    // Otherwise use Standard SVGs (Active/Locked) - These are Teal by default
+    // We can tint them if needed but they render as Teal on White background which is correct for active.
+
+    // For unlocked active nodes: Teal Icon on White Background.
+    // For locked nodes: We might want Gray. Since the SVGs are Teal, we can try to color them if they support it,
+    // or just leave them teal if locked nodes are also teal in this design (often they are gray though).
+    // Let's assume for now we use the standard frames.
+
+    let NodeComponent = Frame;
+
+    switch (lessonType) {
+      case "practice":
+        NodeComponent = Frame1;
+        break;
+      case "test":
+        NodeComponent = Frame2;
+        break;
+      case "memorize":
+        NodeComponent = Frame3;
+        break;
+      default:
+        NodeComponent = Frame1;
+        break;
+    }
+
+    const color = state === "locked" ? "#94A3B8" : undefined;
+    // Note: If SVG doesn't use currentColor, 'color' prop might not work.
+    // But we reverted SVGs to hardcoded Teal.
+    // If user wants GRAY for locked, we'd need a Gray set or revert to currentColor.
+    // However, the user specifically asked to focus on MATCHING COMPLETED NODE 1:1.
+    // So I will focus on that. Locked state can use the default for now.
+
+    return (
+      <NodeComponent width={CIRCLE_SIZE} height={CIRCLE_SIZE} color={color} />
+    );
+  };
+
   return (
     <View
       style={[
@@ -214,87 +177,106 @@ export default function LessonNode({
         position === "left" ? styles.left : styles.right,
       ]}
     >
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <Animated.View
+        style={{
+          transform: [{ scale: scaleAnim }, { translateY: bounceAnim }],
+        }}
+      >
+        {/* 3D Depth Shadow Layer (Darker Teal/Black Alpha behind main circle) */}
+        <View style={styles.depthShadow} />
+
         <TouchableOpacity
           activeOpacity={1}
           onPress={unlocked ? onStart : undefined}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
           disabled={!unlocked}
-          style={[
-            styles.nodeBase,
-            state === "completed" && styles.nodeCompleted,
-            state === "active" && styles.nodeActive,
-            state === "locked" && styles.nodeLocked,
-          ]}
+          style={styles.touchableArea}
         >
-          {/* Inner ring for active state */}
-          {state === "active" && <View style={styles.activeInnerRing} />}
-
-          {/* Icon */}
-          <View style={styles.iconContainer}>
-            {getLessonIcon(lessonType, state)}
+          {/* Main Node Circle */}
+          <View
+            style={[
+              styles.mainCircle,
+              state === "completed" && styles.completedCircle,
+              state === "active" && styles.activeCircle,
+              state === "locked" && styles.lockedCircle,
+            ]}
+          >
+            {/* SVG Node - Now mostly icon content */}
+            {getNodeSVG()}
           </View>
 
-          {/* Badge */}
+          {/* Badge - Top Right overlap */}
           {completed && <CheckmarkBadge />}
         </TouchableOpacity>
       </Animated.View>
-
-      {/* Label or Popover could go here, handled by parent usually */}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 40,
+    marginBottom: 40, // Spacing between nodes
     alignItems: "center",
     width: "100%",
   },
-  left: { alignItems: "center" }, // Position handled by parent x/y, just center content
+  left: { alignItems: "center" },
   right: { alignItems: "center" },
 
-  nodeBase: {
-    width: CIRCLE_SIZE,
-    height: CIRCLE_SIZE,
-    borderRadius: CIRCLE_SIZE / 2,
+  // 3D Depth Shadow Layer - mimics the solid bottom shadow
+  depthShadow: {
+    position: "absolute",
+    width: 80, // Matches new LARGER size
+    height: 80,
+    borderRadius: 40,
+    top: 6, // 6px offset for depth
+    left: 0,
+    zIndex: -1,
+    backgroundColor: "rgba(0,0,0,0.15)", // User suggested alpha black shadow
+    // Or closer to design: Darker Teal #11805E if we wan solid, but 0.15 alpha matches request.
+    // Let's add the second shadow layer suggested if possible, or just one strong one.
+    // "0px 6px 0px rgba(0,0,0,0.15)" -> This is the main depth.
+  },
+
+  touchableArea: {
+    width: 80,
+    height: 80,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 0,
-    backgroundColor: "white",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
+    // Ensure no clipping so badge can overflow
   },
 
-  nodeCompleted: {
-    backgroundColor: PRIMARY_COLOR,
-    borderWidth: 0,
+  // Main Circle Base - Common structure
+  mainCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 5, // Thick border
+    borderColor: "#FFFFFF", // Always white per design (for completed/active usually)
+    // For locked it might be different, but let's stick to the requested structure.
   },
 
-  nodeActive: {
+  // COMPLETED: Teal Background, White Border
+  completedCircle: {
+    backgroundColor: "#1AC488", // Teal Green
+    borderColor: "#FFFFFF",
+  },
+
+  // ACTIVE: White Background, Teal Border (Inverse)
+  // Design for active wasn't specified in latest prompt, but keeping consistency
+  activeCircle: {
     backgroundColor: "#FFFFFF",
-    borderWidth: 4,
-    borderColor: PRIMARY_COLOR,
+    borderColor: PRIMARY_COLOR, // Teal Border
+    borderWidth: 5,
   },
 
-  nodeLocked: {
-    backgroundColor: "#F1F5F9",
+  // LOCKED: White Background, Gray Border
+  lockedCircle: {
+    backgroundColor: "#FFFFFF",
     borderColor: "#CBD5E1",
-    borderWidth: 4,
-  },
-
-  activeInnerRing: {
-    position: "absolute",
-    width: CIRCLE_SIZE - 16,
-    height: CIRCLE_SIZE - 16,
-    borderRadius: (CIRCLE_SIZE - 16) / 2,
-    borderWidth: 1,
-    borderColor: PRIMARY_COLOR,
-    opacity: 0.3,
+    borderWidth: 5,
   },
 
   iconContainer: {
@@ -303,25 +285,26 @@ const styles = StyleSheet.create({
 
   badgeContainer: {
     position: "absolute",
-    right: 0,
-    top: 0,
-    backgroundColor: "white",
+    right: -4, // Overlap border
+    top: -4, // Overlap border (1:30 clock position approx)
+    backgroundColor: "#1AC488", // Teal background
     borderRadius: 12,
-    width: 24,
-    height: 24,
+    width: 26, // Slightly larger for visibility
+    height: 26,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 6,
+    borderWidth: 3, // White cutout border
+    borderColor: "#FFFFFF",
+    elevation: 4,
     shadowColor: "#000",
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.15,
     shadowRadius: 2,
-    shadowOffset: { width: 0, height: 1 },
+    shadowOffset: { width: 0, height: 2 },
   },
   badgeCircle: {
-    backgroundColor: PRIMARY_COLOR,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    // Inner part of badge is just the icon container now
+    width: "100%",
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
   },

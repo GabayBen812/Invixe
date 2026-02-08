@@ -862,17 +862,20 @@ export default function LessonScreen({ navigation, route }: Props) {
 
   if (!step) {
     return (
-      <PageBackground source={backgroundImages.bg1}>
+      <PageBackground source={backgroundImages.defaultBackground}>
         <TopBar />
         <View style={styles.loadingContainer}>
           <Animated.View
             style={[styles.loadingCharacterContainer, { opacity }]}
           >
-            <Image source={characterImg} style={styles.loadingCharacter} />
+            <Image
+              source={getCharacterImg("character_orange_noback.png")}
+              style={styles.loadingCharacter}
+            />
           </Animated.View>
           <View style={styles.loadingSpinnerContainer}>
             <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <ActivityIndicator size="large" color="#3F9FFF" />
+              <ActivityIndicator size="large" color="#3372D8" />
             </Animated.View>
           </View>
           <Text style={styles.loadingText}>טוען שיעור...</Text>
