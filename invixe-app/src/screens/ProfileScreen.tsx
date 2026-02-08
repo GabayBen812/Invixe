@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,36 +6,46 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-} from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type { RootStackParamList } from '../navigation/AppNavigator';
-import TopBar from '../components/ui/TopBar';
-import BottomNavbar from '../components/ui/BottomNavbar';
-import theme from '../theme';
-import { useUser } from '../context/UserContext';
-import Svg, { Path } from 'react-native-svg';
-import { API_BASE_URL } from '../config/api';
+  Image,
+} from "react-native";
+import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../navigation/AppNavigator";
+import TopBar from "../components/ui/TopBar";
+import BottomNavbar from "../components/ui/BottomNavbar";
+import theme from "../theme";
+import { useUser } from "../context/UserContext";
+import Svg, { Path, Rect, Circle } from "react-native-svg";
+import { API_BASE_URL } from "../config/api";
 
-// Gold coin SVG
-const CoinIcon = () => (
-  <Svg width={24} height={24} viewBox="0 0 27 28" fill="none">
-    <Path d="M13.5 27.0933C20.5416 27.0933 26.25 21.3849 26.25 14.3433C26.25 7.30163 20.5416 1.59326 13.5 1.59326C6.45837 1.59326 0.75 7.30163 0.75 14.3433C0.75 21.3849 6.45837 27.0933 13.5 27.0933Z" fill="#F4900C"/>
-    <Path d="M13.5 0.593262C20.2655 0.593262 25.75 6.07777 25.75 12.8433C25.75 19.6087 20.2655 25.0933 13.5 25.0933C6.73451 25.0933 1.25 19.6087 1.25 12.8433C1.25 6.07777 6.73451 0.593262 13.5 0.593262Z" fill="#FFCC4D" stroke="#F4900C"/>
-    <Path d="M13.5 24.0933C19.299 24.0933 24 19.3923 24 13.5933C24 7.79427 19.299 3.09326 13.5 3.09326C7.70101 3.09326 3 7.79427 3 13.5933C3 19.3923 7.70101 24.0933 13.5 24.0933Z" fill="#FFE8B6"/>
-    <Path d="M13.5 23.3433C19.299 23.3433 24 18.6423 24 12.8433C24 7.04427 19.299 2.34326 13.5 2.34326C7.70101 2.34326 3 7.04427 3 12.8433C3 18.6423 7.70101 23.3433 13.5 23.3433Z" fill="#FFAC33"/>
-    <Path d="M7.16016 8.23543C7.16016 7.82668 7.56141 7.66318 7.56141 7.66318L13.4699 4.88818L19.4347 7.66318C19.4347 7.66318 19.8457 7.75468 19.8457 8.23843V8.71918H7.16016V8.23543Z" fill="#FFE8B6"/>
+// --- Icons ---
+
+const FireIcon = () => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M12 22c4.97 0 9-4.03 9-9c0-4.97-9-13-9-13S3 8.03 3 13c0 4.97 4.03 9 9 9z"
+      fill="#FFA000"
+    />
+    <Path
+      d="M12 18c2.21 0 4-1.79 4-4c0-2.21-4-7-4-7s-4 4.79-4 7c0 2.21 1.79 4 4 4z"
+      fill="#FFCA28"
+    />
   </Svg>
 );
 
-// Lightning icon
-const LightningIcon = () => (
-  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
+const LessonsIcon = () => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"
-      stroke="#FFD700"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      d="M4 11h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zm10 0h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zM4 21h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zm13 0c2.21 0 4-1.79 4-4s-1.79-4-4-4s-4 1.79-4 4s1.79 4 4 4z"
+      fill="#4285F4"
+    />
+  </Svg>
+);
+
+const BookIcon = () => (
+  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"
+      fill="#5C6BC0"
     />
   </Svg>
 );
@@ -56,10 +66,11 @@ interface StockPrice {
   changePercent: number;
 }
 
-type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
+type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { coins, lightnings, completedLessons } = useUser();
+  const { coins, lightnings, completedLessons, logout, currentUserEmail } =
+    useUser();
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
   const [stockPrices, setStockPrices] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,16 +85,24 @@ export default function ProfileScreen({ navigation }: Props) {
     }
   }, [portfolio]);
 
+  const handleLogout = () => {
+    logout();
+    navigation.reset({
+      index: 0,
+      routes: [{ name: "Welcome" }],
+    });
+  };
+
   const fetchPortfolio = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/user/portfolio`);
       if (!response.ok) {
-        throw new Error('Failed to fetch portfolio');
+        throw new Error("Failed to fetch portfolio");
       }
       const data = await response.json();
       setPortfolio(data.portfolio || []);
     } catch (error) {
-      console.error('Error fetching portfolio:', error);
+      console.error("Error fetching portfolio:", error);
     } finally {
       setLoading(false);
     }
@@ -91,21 +110,23 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const fetchStockPrices = async () => {
     try {
-      const symbols = portfolio.map(h => h.symbol).join(',');
-      const response = await fetch(`${API_BASE_URL}/stocks/prices?symbols=${symbols}`);
+      const symbols = portfolio.map((h) => h.symbol).join(",");
+      const response = await fetch(
+        `${API_BASE_URL}/stocks/prices?symbols=${symbols}`,
+      );
       if (!response.ok) {
-        throw new Error('Failed to fetch stock prices');
+        throw new Error("Failed to fetch stock prices");
       }
       const data = await response.json();
       setStockPrices(data.prices || []);
     } catch (error) {
-      console.error('Error fetching stock prices:', error);
+      console.error("Error fetching stock prices:", error);
       // Mock data for demo
-      const mockPrices = portfolio.map(holding => ({
+      const mockPrices = portfolio.map((holding) => ({
         symbol: holding.symbol,
         price: 100 + Math.random() * 200,
         change: (Math.random() - 0.5) * 10,
-        changePercent: (Math.random() - 0.5) * 5
+        changePercent: (Math.random() - 0.5) * 5,
       }));
       setStockPrices(mockPrices);
     }
@@ -113,7 +134,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   // Updated getCurrentPrice: fallback to avgPrice if no price found
   const getCurrentPrice = (symbol: string, avgPrice: number) => {
-    const priceData = stockPrices.find(p => p.symbol === symbol);
+    const priceData = stockPrices.find((p) => p.symbol === symbol);
     // If no price found, fallback to avgPrice (so gain/loss is 0)
     return priceData?.price || avgPrice;
   };
@@ -121,13 +142,13 @@ export default function ProfileScreen({ navigation }: Props) {
   const getTotalValue = () => {
     return portfolio.reduce((total, holding) => {
       const currentPrice = getCurrentPrice(holding.symbol, holding.avgPrice);
-      return total + (holding.shares * currentPrice);
+      return total + holding.shares * currentPrice;
     }, 0);
   };
 
   const getTotalCost = () => {
     return portfolio.reduce((total, holding) => {
-      return total + (holding.shares * holding.avgPrice);
+      return total + holding.shares * holding.avgPrice;
     }, 0);
   };
 
@@ -143,115 +164,172 @@ export default function ProfileScreen({ navigation }: Props) {
     return (getTotalGainLoss() / totalCost) * 100;
   };
 
-  const handleTabPress = (tab: 'map' | 'profile' | 'shop' | 'graph') => {
+  const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
     switch (tab) {
-      case 'map':
-        navigation.navigate('Map');
+      case "map":
+        navigation.navigate("Map", {});
         break;
-      case 'graph':
-        navigation.navigate('Sandbox');
+      case "graph":
+        navigation.navigate("Sandbox");
         break;
-      case 'profile':
+      case "profile":
         // Already on profile screen, do nothing
         break;
-      case 'shop':
-        navigation.navigate('Shop');
+      case "shop":
+        navigation.navigate("Shop");
         break;
     }
   };
 
+  const getInitial = (name: string) => {
+    return name ? name.charAt(0).toUpperCase() : "?";
+  };
+
+  const userName = "יונתן אסייג"; // Mock for now or derive from email if available
+  const userInitials = "יא";
+  const streakDays = 12; // Mock
+
   // --- Redesigned UI ---
   return (
-    <View style={styles.container}> {/* Solid color background */}
+    <View style={styles.container}>
       <TopBar />
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>פרופיל</Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Header Section */}
+        <View style={styles.headerSection}>
+          <View style={styles.headerInfo}>
+            <Text style={styles.userName}>{userName}</Text>
+            <Text style={styles.userRole}>Beginner Investor</Text>
+          </View>
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarText}>{userInitials}</Text>
+          </View>
+        </View>
+
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
-            <CoinIcon />
-            <Text style={styles.statValue}>{String(coins)}</Text>
-            <Text style={styles.statLabel}>מטבעות</Text>
+            <FireIcon />
+            <Text style={styles.statValue}>{streakDays}</Text>
+            <Text style={styles.statLabel}>רצף ימים</Text>
           </View>
           <View style={styles.statCard}>
-            <LightningIcon />
-            <Text style={styles.statValue}>{String(lightnings)}</Text>
-            <Text style={styles.statLabel}>מטבעות</Text>
+            <LessonsIcon />
+            <Text style={styles.statValue}>{completedLessons.length}</Text>
+            <Text style={styles.statLabel}>שיעורים</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{String(completedLessons.length)}</Text>
-            <Text style={styles.statLabel}>שיעורים הושלמו</Text>
+            <BookIcon />
+            <Text style={styles.statValue}>64</Text>
+            {/* Mocking Terms count for now as per design */}
+            <Text style={styles.statLabel}>מושגים</Text>
           </View>
         </View>
-        {/* Portfolio Summary Card */}
-        <View style={styles.summaryCard}>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>ערך כולל</Text>
-            <Text style={styles.summaryValue}>${getTotalValue().toFixed(2)}</Text>
-          </View>
-          <View style={styles.summaryItem}>
-            <Text style={styles.summaryLabel}>רווח/הפסד</Text>
-            <Text style={[styles.summaryValue, { color: getTotalGainLoss() >= 0 ? theme.colors.growthGreen : theme.colors.optimismOrange }]}>
-              {getTotalGainLoss() >= 0 ? '+' : ''}${getTotalGainLoss().toFixed(2)}
-            </Text>
-            <Text style={[styles.summaryPercent, { color: getGainLossPercent() >= 0 ? theme.colors.growthGreen : theme.colors.optimismOrange }]}>
-              {getGainLossPercent() >= 0 ? '+' : ''}{getGainLossPercent().toFixed(2)}%
-            </Text>
-          </View>
-        </View>
-        {/* Holdings List */}
-        <Text style={styles.sectionTitle}>תיק השקעות</Text>
-        {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primaryBlue} />
-        ) : portfolio.length === 0 ? (
-          <View style={styles.emptyPortfolio}>
-            <Text style={styles.emptyText}>אין לך מניות עדיין</Text>
-            <Text style={styles.emptySubtext}>עבור לגרף כדי לקנות מניות</Text>
-          </View>
-        ) : (
-          <View style={styles.holdingsList}>
-            {portfolio.map((holding) => {
-              const currentPrice = getCurrentPrice(holding.symbol, holding.avgPrice);
-              const totalValue = holding.shares * currentPrice;
-              const gainLoss = totalValue - (holding.shares * holding.avgPrice);
-              const gainLossPercent = ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
-              // Format shares to up to 3 decimals, but remove trailing zeros
-              const sharesDisplay = parseFloat(holding.shares.toFixed(3)).toString();
 
-              return (
-                <View key={holding.id} style={styles.holdingCard}>
-                  <View style={styles.holdingHeader}>
-                    <Text style={styles.holdingSymbol}>{String(holding.symbol)}</Text>
-                    <Text style={styles.holdingShares}>{String(sharesDisplay)} מניות</Text>
-                  </View>
-                  <View style={styles.holdingDetails}>
-                    <View style={styles.holdingPrice}>
-                      <Text style={styles.priceLabel}>מחיר נוכחי</Text>
-                      <Text style={styles.priceValue}>
-                        {currentPrice ? `$${currentPrice.toFixed(2)}` : 'N/A'}
-                      </Text>
-                    </View>
-                    <View style={styles.holdingValue}>
-                      <Text style={styles.valueLabel}>ערך כולל</Text>
-                      <Text style={styles.valueAmount}>
-                        {currentPrice ? `$${totalValue.toFixed(2)}` : 'N/A'}
-                      </Text>
-                    </View>
-                    <View style={styles.holdingGainLoss}>
-                      <Text style={styles.gainLossLabel}>רווח/הפסד</Text>
-                      <Text style={[styles.gainLossAmount, { color: gainLoss >= 0 ? theme.colors.growthGreen : theme.colors.optimismOrange }]}>
-                        {currentPrice ? `${gainLoss >= 0 ? '+' : ''}$${gainLoss.toFixed(2)}` : 'N/A'}
-                      </Text>
-                      <Text style={[styles.gainLossPercent, { color: gainLossPercent >= 0 ? theme.colors.growthGreen : theme.colors.optimismOrange }]}>
-                        {currentPrice ? `${gainLossPercent >= 0 ? '+' : ''}${gainLossPercent.toFixed(2)}%` : ''}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
+        {/* Portfolio Section */}
+        <View style={styles.portfolioContainer}>
+          <View style={styles.portfolioHeader}>
+            <View>
+              <Text style={styles.portfolioTitle}>תיק ההשקעות שלך</Text>
+              <Text style={styles.portfolioSubtitle}>תיק לימודי מדמה</Text>
+            </View>
+            <View style={{ alignItems: "flex-end" }}>
+              <Text style={styles.portfolioTotalValue}>
+                $
+                {getTotalValue().toLocaleString("en-US", {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0,
+                })}
+              </Text>
+              <Text
+                style={[
+                  styles.portfolioGrowth,
+                  { color: getTotalGainLoss() >= 0 ? "#12B76A" : "#F04438" },
+                ]}
+              >
+                {getTotalGainLoss() >= 0 ? "+" : ""}
+                {getGainLossPercent().toFixed(1)}%
+              </Text>
+            </View>
           </View>
-        )}
+
+          <View style={styles.divider} />
+
+          {loading ? (
+            <ActivityIndicator
+              size="large"
+              color={theme.colors.primaryBlue}
+              style={{ marginTop: 20 }}
+            />
+          ) : portfolio.length === 0 ? (
+            <View style={styles.emptyPortfolio}>
+              <Text style={styles.emptyText}>אין לך מניות עדיין</Text>
+              <Text style={styles.emptySubtext}>עבור לגרף כדי לקנות מניות</Text>
+            </View>
+          ) : (
+            <View style={styles.holdingsList}>
+              {portfolio.map((holding) => {
+                const currentPrice = getCurrentPrice(
+                  holding.symbol,
+                  holding.avgPrice,
+                );
+                const gainLossPercent =
+                  ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
+                const isPositive = gainLossPercent >= 0;
+
+                return (
+                  <View key={holding.id} style={styles.holdingItem}>
+                    {/* Symbol Circle */}
+                    <View
+                      style={[
+                        styles.symbolCircle,
+                        { backgroundColor: isPositive ? "#E8F5E9" : "#FFEBEE" },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.symbolInitial,
+                          { color: isPositive ? "#1B5E20" : "#B71C1C" },
+                        ]}
+                      >
+                        {holding.symbol.charAt(0)}
+                        {holding.symbol.charAt(1)}
+                      </Text>
+                    </View>
+
+                    {/* Info */}
+                    <View style={styles.holdingInfo}>
+                      <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
+                      <Text style={styles.holdingShares}>
+                        {holding.shares} מניות
+                      </Text>
+                    </View>
+
+                    {/* Change */}
+                    <View style={styles.holdingChange}>
+                      <Text
+                        style={[
+                          styles.changeText,
+                          { color: isPositive ? "#12B76A" : "#F04438" },
+                        ]}
+                      >
+                        {isPositive ? "+" : ""}
+                        {gainLossPercent.toFixed(1)}%
+                      </Text>
+                      <Text style={styles.chevron}>›</Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+          <Text style={styles.logoutText}>התנתק</Text>
+        </TouchableOpacity>
       </ScrollView>
       <BottomNavbar activeTab="profile" onTabPress={handleTabPress} />
     </View>
@@ -261,202 +339,204 @@ export default function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E3EEF9', // solid color like MapScreen
+    backgroundColor: "#E3EEF9", // Light blue background
   },
   scrollContent: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: 20,
+    paddingBottom: 100,
   },
-  title: {
-    fontSize: 28,
-    fontFamily: theme.font.bold,
-    color: '#125BA5',
-    textAlign: 'center',
-    marginVertical: theme.spacing.lg,
-    textShadowColor: '#0D2033',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
+  headerSection: {
+    flexDirection: "row",
+    justifyContent: "space-between", // Space between info and avatar
+    alignItems: "center",
+    marginBottom: 30,
+    marginTop: 10,
+    paddingHorizontal: 10,
+  },
+  headerInfo: {
+    flex: 1,
+    alignItems: "flex-end", // Align text to right for Hebrew
+    marginRight: 16,
+  },
+  userName: {
+    fontSize: 24,
+    fontWeight: "800", // Heavy bold
+    color: "#0D2033",
+    textAlign: "right",
+  },
+  userRole: {
+    fontSize: 16,
+    color: "#F79009", // Orange color
+    fontWeight: "600",
+    marginTop: 4,
+    textAlign: "right",
+  },
+  avatarContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#0D2033", // Dark background
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    color: "#FFFFFF",
+    fontSize: 32,
+    fontWeight: "700",
   },
   statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.lg,
-    gap: 8,
-  },
-  statCard: {
-    backgroundColor: '#A0CFFF',
-    borderRadius: 20,
-    padding: theme.spacing.md,
-    flex: 1,
-    alignItems: 'center',
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-    marginHorizontal: 4,
-  },
-  statValue: {
-    fontSize: 22,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-    marginTop: 4,
-  },
-  statLabel: {
-    fontSize: 13,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginTop: 2,
-  },
-  summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: theme.spacing.md,
-    marginBottom: theme.spacing.lg,
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 24,
     gap: 12,
   },
-  summaryItem: {
+  statCard: {
     flex: 1,
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 13,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginBottom: 2,
-  },
-  summaryValue: {
-    fontSize: 18,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-  },
-  summaryPercent: {
-    fontSize: 13,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginTop: 2,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontFamily: theme.font.bold,
-    color: '#125BA5',
-    marginBottom: theme.spacing.md,
-    textAlign: 'right',
-  },
-  emptyPortfolio: {
-    backgroundColor: '#A0CFFF',
-    borderRadius: 20,
-    padding: theme.spacing.lg,
-    alignItems: 'center',
-    shadowColor: '#0D2033',
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#0D2033",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
-    marginBottom: theme.spacing.lg,
   },
-  emptyText: {
-    fontSize: 16,
-    fontFamily: theme.font.bold,
-    color: '#125BA5',
-    marginBottom: theme.spacing.xs,
+  statValue: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#0D2033",
+    marginTop: 8,
+    marginBottom: 4,
   },
-  emptySubtext: {
+  statLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#667085",
+    textTransform: "uppercase",
+  },
+  portfolioContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    marginBottom: 24,
+    shadowColor: "#0D2033",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  portfolioHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+  },
+  portfolioTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0D2033",
+    marginBottom: 4,
+    textAlign: "right",
+  },
+  portfolioSubtitle: {
     fontSize: 14,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    opacity: 0.8,
+    color: "#98A2B3",
+    fontWeight: "500",
+    textAlign: "right",
+  },
+  portfolioTotalValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#0D2033",
+    marginBottom: 4,
+  },
+  portfolioGrowth: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#EAECF0",
+    marginBottom: 16,
   },
   holdingsList: {
     gap: 12,
-    marginBottom: theme.spacing.lg,
   },
-  holdingCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: theme.spacing.md,
+  holdingItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    paddingHorizontal: 16,
     marginBottom: 8,
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  holdingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+  symbolCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    marginLeft: 16, // Changed from marginRight to marginLeft for RTL
+  },
+  symbolInitial: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  holdingInfo: {
+    flex: 1,
+    alignItems: "flex-end",
+    marginRight: 16,
   },
   holdingSymbol: {
-    fontSize: 18,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0D2033",
+    textAlign: "right",
   },
   holdingShares: {
-    fontSize: 14,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-  },
-  holdingDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  holdingPrice: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  priceLabel: {
-    fontSize: 11,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginBottom: 2,
-  },
-  priceValue: {
-    fontSize: 15,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-  },
-  holdingValue: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  valueLabel: {
-    fontSize: 11,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginBottom: 2,
-  },
-  valueAmount: {
-    fontSize: 15,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-  },
-  holdingGainLoss: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  gainLossLabel: {
-    fontSize: 11,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginBottom: 2,
-  },
-  gainLossAmount: {
-    fontSize: 15,
-    fontFamily: theme.font.bold,
-  },
-  gainLossPercent: {
     fontSize: 13,
-    fontFamily: theme.font.family,
+    color: "#667085",
+    marginTop: 2,
+    textAlign: "right",
   },
-}); 
+  holdingChange: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  changeText: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginRight: 8,
+  },
+  chevron: {
+    fontSize: 20,
+    color: "#D0D5DD",
+    fontWeight: "400",
+  },
+  emptyPortfolio: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  emptyText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0D2033",
+    marginBottom: 4,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: "#667085",
+  },
+  logoutBtn: {
+    alignSelf: "center",
+    marginTop: 10,
+  },
+  logoutText: {
+    color: "#D92D20",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});

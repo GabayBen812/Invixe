@@ -47,6 +47,9 @@ interface LessonTooltipProps {
   status: "locked" | "active" | "completed";
   onPress: () => void;
   style?: any;
+  buttonText?: string;
+  progressLabel?: string;
+  progressPercent?: number;
 }
 
 const LessonTooltip = ({
@@ -54,13 +57,22 @@ const LessonTooltip = ({
   status,
   onPress,
   style,
+  buttonText,
+  progressLabel,
+  progressPercent: explicitProgressPercent,
 }: LessonTooltipProps) => {
   const isCompleted = status === "completed";
   const themeColor = isCompleted ? "#10B981" : "#3B82F6";
-  const btnText = isCompleted ? "תרגול חוזר" : "המשך למידה";
 
-  const progressText = isCompleted ? "16/16" : "0/16";
-  const progressPercent = isCompleted ? 1 : 0;
+  // Use passed props or fallbacks
+  const btnText = buttonText || (isCompleted ? "תרגול חוזר" : "המשך למידה");
+  const progressText = progressLabel || (isCompleted ? "16/16" : "0/16");
+  const progressPercent =
+    explicitProgressPercent !== undefined
+      ? explicitProgressPercent
+      : isCompleted
+        ? 1
+        : 0;
 
   return (
     <View style={[tooltipStyles.container, style]}>
@@ -504,7 +516,7 @@ const FootprintSVG = ({
 
 type Props = NativeStackScreenProps<RootStackParamList, "Map">;
 
-export default function MapScreen({ navigation }: Props) {
+export default function MapScreen({ navigation, route }: Props) {
   const { completedLessons, lessonAttempts, coins, markLessonAttempted } =
     useUser();
   const [modalVisible, setModalVisible] = React.useState(false);
@@ -514,6 +526,16 @@ export default function MapScreen({ navigation }: Props) {
   const [selectedUnitIdx, setSelectedUnitIdx] = React.useState<number | null>(
     null,
   );
+
+  // Sync route params with local state
+  React.useEffect(() => {
+    if (
+      route.params?.selectedUnitIdx !== undefined &&
+      route.params?.selectedUnitIdx !== null
+    ) {
+      setSelectedUnitIdx(route.params.selectedUnitIdx);
+    }
+  }, [route.params?.selectedUnitIdx]);
 
   // New state for Tooltip
   const [activeTooltipId, setActiveTooltipId] = React.useState<number | null>(
@@ -653,11 +675,11 @@ export default function MapScreen({ navigation }: Props) {
     const { lesson } = lessonData;
     const lessonAttempt = lessonAttempts.find((a) => a.lessonId === lesson.id);
     // Check if lesson is completed: either directly completed OR all sublessons are completed
-    const completed =
-      completedLessons.includes(lesson.id) ||
-      (lesson.sublessons &&
-        lesson.sublessons.length > 0 &&
-        areAllSublessonsCompleted(lesson, completedLessons));
+    // Check if lesson is completed: strict check for sublessons
+    const hasSublessons = lesson.sublessons && lesson.sublessons.length > 0;
+    const completed = hasSublessons
+      ? areAllSublessonsCompleted(lesson, completedLessons)
+      : completedLessons.includes(lesson.id);
     const unlocked = isLessonUnlocked(lesson.id, completedLessons);
 
     // Current lesson is the first uncompleted, unlocked lesson
@@ -680,6 +702,7 @@ export default function MapScreen({ navigation }: Props) {
       stepIdx: lessonData.stepIdx,
       attempts: lessonAttempt?.attempts || 0,
       lastAttempted: lessonAttempt?.lastAttempted,
+      lessonId: lesson.id,
     };
   });
 
@@ -999,68 +1022,102 @@ export default function MapScreen({ navigation }: Props) {
                         { zIndex: isTooltipVisible ? 100 : 1 },
                       ]}
                     >
-                      {/* Node circle */}
-                      <LessonNode
-                        title={lesson.title}
-                        unlocked={unlocked}
-                        onStart={() => {
-                          // Toggle tooltip
-                          if (activeTooltipId === lesson.id) {
-                            setActiveTooltipId(null);
-                          } else {
-                            setActiveTooltipId(lesson.id);
+                      {/* Calculate progress for tooltip */}
+                      {(() => {
+                        const sublessons = lesson.sublessons || [];
+                        const totalSub = sublessons.length;
+                        const doneSub = sublessons.filter((s: any) =>
+                          completedLessons.includes(s.id),
+                        ).length;
 
-                            // Auto-scroll logic if tooltip is obscured by bottom bar
-                            const tooltipHeight = 160;
-                            const bottomBarHeight = 90;
-                            const screenHeight =
-                              Dimensions.get("window").height;
-                            const nodeY = nodePositions[idx].y; // Absolute Y position of node in ScrollView
+                        // Default logic if no sublessons found: use 0 or 1 based on main lesson completion
+                        let displayTotal = totalSub > 0 ? totalSub : 1;
+                        let displayDone =
+                          totalSub > 0 ? doneSub : completed ? 1 : 0;
 
-                            const tooltipBottomY =
-                              nodeY + CIRCLE_SIZE + tooltipHeight;
-                            const visibleBottomY =
-                              scrollOffsetRef.current +
-                              screenHeight -
-                              bottomBarHeight;
+                        // If completed, ensure full progress shown
+                        if (completed) {
+                          displayDone = displayTotal;
+                        }
 
-                            if (tooltipBottomY > visibleBottomY) {
-                              // Scroll down to show tooltip
-                              const targetScroll =
-                                tooltipBottomY -
-                                screenHeight +
-                                bottomBarHeight +
-                                40; // +40 padding
-                              scrollViewRef.current?.scrollTo({
-                                y: targetScroll,
-                                animated: true,
-                              });
-                            }
-                          }
-                        }}
-                        completed={completed}
-                        current={current}
-                        position={position}
-                        lessonType={lesson.lessonType || "info"}
-                      />
+                        const progLabel = `${displayDone}/${displayTotal}`;
+                        const progPercent =
+                          displayTotal > 0 ? displayDone / displayTotal : 0;
 
-                      {/* Tooltip Rendered Below Node (Inside the absolute view) */}
-                      {isTooltipVisible && (
-                        <LessonTooltip
-                          title={lesson.title}
-                          status={status}
-                          style={{
-                            top: CIRCLE_SIZE + 10,
-                            // Center relative to the circle (Circle=80, Tooltip=200 -> -60)
-                            left: (CIRCLE_SIZE - 200) / 2,
-                          }}
-                          onPress={() => {
-                            setSelectedMainLesson(lesson);
-                            setModalVisible(true);
-                            setActiveTooltipId(null); // Close tooltip after action
-                          }}
-                        />
-                      )}
+                        // Button text logic
+                        let btnTxt = "המשך למידה";
+                        if (completed) {
+                          btnTxt = "תרגול חוזר";
+                        } else if (displayDone === 0) {
+                          btnTxt = "התחל למידה";
+                        }
+
+                        return (
+                          <>
+                            {/* Node circle */}
+                            <LessonNode
+                              title={lesson.title}
+                              unlocked={unlocked}
+                              onStart={() => {
+                                // Toggle tooltip logic
+                                if (activeTooltipId === lesson.id) {
+                                  setActiveTooltipId(null);
+                                } else {
+                                  setActiveTooltipId(lesson.id);
+                                  // ... auto scroll code ... (omitted from this block, preserved in file)
+                                  const tooltipHeight = 160;
+                                  const bottomBarHeight = 90;
+                                  const screenHeight =
+                                    Dimensions.get("window").height;
+                                  const nodeY = nodePositions[idx].y;
+                                  const tooltipBottomY =
+                                    nodeY + CIRCLE_SIZE + tooltipHeight;
+                                  const visibleBottomY =
+                                    scrollOffsetRef.current +
+                                    screenHeight -
+                                    bottomBarHeight;
+
+                                  if (tooltipBottomY > visibleBottomY) {
+                                    const targetScroll =
+                                      tooltipBottomY -
+                                      screenHeight +
+                                      bottomBarHeight +
+                                      40;
+                                    scrollViewRef.current?.scrollTo({
+                                      y: targetScroll,
+                                      animated: true,
+                                    });
+                                  }
+                                }
+                              }}
+                              completed={completed}
+                              current={current}
+                              position={position}
+                              lessonType={lesson.lessonType || "info"}
+                            />
+
+                            {/* Tooltip Rendered Below Node (Inside the absolute view) */}
+                            {isTooltipVisible && (
+                              <LessonTooltip
+                                title={lesson.title}
+                                status={status}
+                                buttonText={btnTxt}
+                                progressLabel={progLabel}
+                                progressPercent={progPercent}
+                                style={{
+                                  top: CIRCLE_SIZE + 10,
+                                  left: (CIRCLE_SIZE - 200) / 2,
+                                }}
+                                onPress={() => {
+                                  setSelectedMainLesson(lesson);
+                                  setModalVisible(true);
+                                  setActiveTooltipId(null);
+                                }}
+                              />
+                            )}
+                          </>
+                        );
+                      })()}
                     </View>
                   </React.Fragment>
                 );

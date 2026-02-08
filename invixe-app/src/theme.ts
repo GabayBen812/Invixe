@@ -96,8 +96,8 @@ export const colors = {
   black: "#0F2233",
   gray: "#F4F7FA",
   text: "#0F2233",
-  error: "#D92D20",
-  success: "#12B76A",
+  // error: "#D92D20",
+  // success: "#12B76A",
 };
 
 export const font = {

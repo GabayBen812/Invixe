@@ -11,6 +11,7 @@ import {
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
+import { useUser } from "../../context/UserContext";
 
 import { API_BASE_URL } from "../../config/api";
 
@@ -20,6 +21,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "OnboardingFinish">;
 
 export default function OnboardingFinishScreen({ navigation }: Props) {
   const { data, reset } = useRegistration();
+  const { setCurrentUser } = useUser();
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -34,6 +36,10 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
         body: JSON.stringify(data),
       });
       if (!res.ok) throw new Error("Registration failed");
+
+      // Set the current user immediately
+      await setCurrentUser(data.phone);
+
       setSuccess(true);
       reset();
     } catch (e: any) {

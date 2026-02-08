@@ -14,6 +14,7 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 import PageBackground from "../../components/ui/PageBackground";
 import Button from "../../components/ui/Button";
 import theme from "../../theme";
+import { useUser } from "../../context/UserContext";
 import Svg, { Path } from "react-native-svg";
 
 import { API_BASE_URL } from "../../config/api";
@@ -39,6 +40,19 @@ export default function LoginScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { setCurrentUser } = useUser();
+
+  const getHebrewError = (msg: string) => {
+    const lower = msg.toLowerCase();
+    if (lower.includes("network") || lower.includes("failed to fetch"))
+      return "שגיאת רשת, אנא בדקו את החיבור";
+    if (lower.includes("user") && lower.includes("not found"))
+      return "משתמש לא נמצא";
+    if (lower.includes("password") || lower.includes("credentials"))
+      return "סיסמה שגויה";
+    if (lower.includes("invalid")) return "פרטים שגויים, אנא נסו שוב";
+    return "שגיאה בהתחברות, אנא נסו שוב";
+  };
 
   const handleLogin = async () => {
     setLoading(true);
@@ -51,11 +65,15 @@ export default function LoginScreen({ navigation }: Props) {
       });
       if (!res.ok) {
         const data = await res.json();
+        // Translate known backend errors
         throw new Error(data.error || "Login failed");
       }
-      navigation.navigate("Map");
+      const data = await res.json();
+      await setCurrentUser(data.phone || phone); // Use returned phone/email or input
+      navigation.navigate("Map", {});
     } catch (e: any) {
-      setError(e.message || "Network error");
+      const msg = e.message || "Network error";
+      setError(getHebrewError(msg));
     } finally {
       setLoading(false);
     }
@@ -74,11 +92,11 @@ export default function LoginScreen({ navigation }: Props) {
           <Text style={styles.title}>התחברות</Text>
           <TextInput
             style={styles.input}
-            placeholder="מספר טלפון"
+            placeholder="שם משתמש"
             placeholderTextColor="#8CA0AE"
             value={phone}
             onChangeText={setPhone}
-            keyboardType="phone-pad"
+            keyboardType="default"
           />
           <TextInput
             style={styles.input}

@@ -1,6 +1,15 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { getParentLessonForSublesson, areAllSublessonsCompleted } from '../modules/lessons/registry';
-import { API_BASE_URL } from '../config/api';
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
+import {
+  getParentLessonForSublesson,
+  areAllSublessonsCompleted,
+} from "../modules/lessons/registry";
+import { API_BASE_URL } from "../config/api";
 
 interface LessonAttempt {
   lessonId: number;
@@ -22,6 +31,7 @@ interface UserContextType {
   setCoins: (coins: number) => void;
   setLightnings: (lightnings: number) => void;
   setCurrentUser: (email: string) => void;
+  logout: () => void;
   refreshUserData: () => void;
 }
 
@@ -29,7 +39,9 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [completedLessons, setCompletedLessonsState] = useState<number[]>([]);
-  const [lessonAttempts, setLessonAttemptsState] = useState<LessonAttempt[]>([]);
+  const [lessonAttempts, setLessonAttemptsState] = useState<LessonAttempt[]>(
+    [],
+  );
   const [coins, setCoinsState] = useState<number>(0);
   const [lightnings, setLightningsState] = useState<number>(0);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
@@ -39,21 +51,17 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     try {
       const userEmail = email || currentUserEmail;
       if (!userEmail) {
-        console.log('No user email provided, using default user');
-        // For now, use a default user if no email is provided
-        const res = await fetch(`${API_BASE_URL}/user/progress`);
-        if (!res.ok) {
-          throw new Error(`Failed to fetch user data: ${res.status}`);
-        }
-        const data = await res.json();
-        setCompletedLessonsState(data.completedLessons || []);
-        setLessonAttemptsState(data.lessonAttempts || []);
-        setCoinsState(data.coins || 0);
-        setLightningsState(data.lightnings || 0);
+        // No email, clear data (guest mode)
+        setCompletedLessonsState([]);
+        setLessonAttemptsState([]);
+        setCoinsState(0);
+        setLightningsState(0);
         return;
       }
 
-      const res = await fetch(`${API_BASE_URL}/user/progress?email=${encodeURIComponent(userEmail)}`);
+      const res = await fetch(
+        `${API_BASE_URL}/user/progress?email=${encodeURIComponent(userEmail)}`,
+      );
       if (!res.ok) {
         throw new Error(`Failed to fetch user data: ${res.status}`);
       }
@@ -63,8 +71,12 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setCoinsState(data.coins || 0);
       setLightningsState(data.lightnings || 0);
     } catch (e) {
-      console.error('Error fetching user data:', e);
-      // Keep default values if fetch fails
+      console.error("Error fetching user data:", e);
+      // Keep empty if fetch fails
+      setCompletedLessonsState([]);
+      setLessonAttemptsState([]);
+      setCoinsState(0);
+      setLightningsState(0);
     }
   };
 
@@ -78,24 +90,35 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     await fetchUserData(email);
   };
 
+  const logout = () => {
+    setCurrentUserEmail(null);
+    setCompletedLessonsState([]);
+    setLessonAttemptsState([]);
+    setCoinsState(0);
+    setLightningsState(0);
+  };
+
   // Update progress in backend
   const setCompletedLessons = async (lessons: number[]) => {
     try {
       setCompletedLessonsState(lessons);
       const userEmail = currentUserEmail;
+      // If guest, don't save to backend
+      if (!userEmail) return;
+
       const res = await fetch(`${API_BASE_URL}/user/progress`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: userEmail,
-          completedLessons: lessons 
+          completedLessons: lessons,
         }),
       });
       if (!res.ok) {
         throw new Error(`Failed to save progress: ${res.status}`);
       }
     } catch (error) {
-      console.error('Error saving progress:', error);
+      console.error("Error saving progress:", error);
       throw error;
     }
   };
@@ -106,46 +129,46 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLessonAttemptsState(attempts);
       const userEmail = currentUserEmail;
       const res = await fetch(`${API_BASE_URL}/user/lesson-attempts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           email: userEmail,
-          lessonAttempts: attempts 
+          lessonAttempts: attempts,
         }),
       });
       if (!res.ok) {
         throw new Error(`Failed to save lesson attempts: ${res.status}`);
       }
     } catch (error) {
-      console.error('Error saving lesson attempts:', error);
+      console.error("Error saving lesson attempts:", error);
       throw error;
     }
   };
 
   // Mark a lesson as completed
   const markLessonCompleted = async (lessonId: number) => {
-    const existingAttempt = lessonAttempts.find(a => a.lessonId === lessonId);
+    const existingAttempt = lessonAttempts.find((a) => a.lessonId === lessonId);
     const updatedAttempts = [...lessonAttempts];
-    
+
     if (existingAttempt) {
-      const index = updatedAttempts.findIndex(a => a.lessonId === lessonId);
+      const index = updatedAttempts.findIndex((a) => a.lessonId === lessonId);
       updatedAttempts[index] = {
         ...existingAttempt,
         completed: true,
         lastAttempted: new Date(),
-        attempts: existingAttempt.attempts + 1
+        attempts: existingAttempt.attempts + 1,
       };
     } else {
       updatedAttempts.push({
         lessonId,
         completed: true,
         lastAttempted: new Date(),
-        attempts: 1
+        attempts: 1,
       });
     }
 
     await setLessonAttempts(updatedAttempts);
-    
+
     // Update completed lessons list (and parent lesson if all sublessons done)
     let newCompletedLessons = [...completedLessons];
     if (!newCompletedLessons.includes(lessonId)) {
@@ -166,22 +189,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   // Mark a lesson as attempted (for re-taking)
   const markLessonAttempted = async (lessonId: number) => {
-    const existingAttempt = lessonAttempts.find(a => a.lessonId === lessonId);
+    const existingAttempt = lessonAttempts.find((a) => a.lessonId === lessonId);
     const updatedAttempts = [...lessonAttempts];
-    
+
     if (existingAttempt) {
-      const index = updatedAttempts.findIndex(a => a.lessonId === lessonId);
+      const index = updatedAttempts.findIndex((a) => a.lessonId === lessonId);
       updatedAttempts[index] = {
         ...existingAttempt,
         lastAttempted: new Date(),
-        attempts: existingAttempt.attempts + 1
+        attempts: existingAttempt.attempts + 1,
       };
     } else {
       updatedAttempts.push({
         lessonId,
         completed: false,
         lastAttempted: new Date(),
-        attempts: 1
+        attempts: 1,
       });
     }
 
@@ -193,8 +216,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setCoinsState(coins);
     const userEmail = currentUserEmail;
     await fetch(`${API_BASE_URL}/user/currency`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail, coins }),
     });
   };
@@ -204,28 +227,31 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setLightningsState(lightnings);
     const userEmail = currentUserEmail;
     await fetch(`${API_BASE_URL}/user/currency`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail, lightnings }),
     });
   };
 
   return (
-    <UserContext.Provider value={{ 
-      completedLessons, 
-      lessonAttempts,
-      coins, 
-      lightnings, 
-      currentUserEmail,
-      setCompletedLessons, 
-      setLessonAttempts,
-      markLessonCompleted,
-      markLessonAttempted,
-      setCoins, 
-      setLightnings, 
-      setCurrentUser,
-      refreshUserData: () => fetchUserData() 
-    }}>
+    <UserContext.Provider
+      value={{
+        completedLessons,
+        lessonAttempts,
+        coins,
+        lightnings,
+        currentUserEmail,
+        setCompletedLessons,
+        setLessonAttempts,
+        markLessonCompleted,
+        markLessonAttempted,
+        setCoins,
+        setLightnings,
+        setCurrentUser,
+        logout,
+        refreshUserData: () => fetchUserData(),
+      }}
+    >
       {children}
     </UserContext.Provider>
   );
@@ -233,6 +259,6 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
 export const useUser = () => {
   const ctx = useContext(UserContext);
-  if (!ctx) throw new Error('useUser must be used within a UserProvider');
+  if (!ctx) throw new Error("useUser must be used within a UserProvider");
   return ctx;
-}; 
+};

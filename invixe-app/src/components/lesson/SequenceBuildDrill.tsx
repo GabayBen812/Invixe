@@ -692,14 +692,14 @@ export default function SequenceBuildDrill({
         }}
       >
         <View style={styles.optionsInnerWrapper}>
-          {options.map((o) => {
+          {options.map((o, index) => {
             const pan = panValues[o.id] || new Animated.ValueXY({ x: 0, y: 0 });
             if (!panValues[o.id]) panValues[o.id] = pan;
             const resp = attachPanResponder(o);
             const isDragging = draggingOptionId === o.id;
 
             return (
-              <React.Fragment key={o.id}>
+              <React.Fragment key={`${o.id}-${index}`}>
                 {/* Shadow/outline placeholder in bank when dragging - rendered in same position */}
                 {isDragging && (
                   <View

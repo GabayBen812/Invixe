@@ -544,6 +544,8 @@ export default function LessonScreen({ navigation, route }: Props) {
   const hasGenericBubble = !isGenericBubbleExcluded && !!step.message?.trim();
   const shouldShowBubbleContainer = hasSpecificBubble || hasGenericBubble;
 
+  const [sessionCoins, setSessionCoins] = useState(0);
+
   const handleDrillComplete = (result: {
     isCorrect: boolean;
     explanation: string;
@@ -560,6 +562,11 @@ export default function LessonScreen({ navigation, route }: Props) {
       result.numCorrect ||
       0;
     const isCorrect = result.isCorrect || result.correct || false;
+
+    // A correct answer earns coins
+    if (rewards > 0) {
+      setSessionCoins((prev) => prev + rewards);
+    }
 
     // For simple_question, questionWithSVG, questionWithImage, graphQuestion, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
     if (
@@ -778,7 +785,10 @@ export default function LessonScreen({ navigation, route }: Props) {
         if (shouldFail) {
           navigation.navigate("LessonFail");
         } else {
-          navigation.navigate("LessonComplete", { lessonId });
+          navigation.navigate("LessonComplete", {
+            lessonId,
+            coinsEarned: sessionCoins,
+          });
         }
       });
 

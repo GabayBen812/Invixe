@@ -37,11 +37,11 @@ export default function PhoneLoginScreen({ navigation }: Props) {
         />
         <TextInput
           style={styles.input}
-          placeholder="מספר טלפון"
+          placeholder="שם משתמש"
           placeholderTextColor="#8CA0AE"
           value={phone}
           onChangeText={setPhoneLocal}
-          keyboardType="phone-pad"
+          keyboardType="default"
         />
         <TextInput
           style={styles.input}

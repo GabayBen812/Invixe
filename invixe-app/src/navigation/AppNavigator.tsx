@@ -28,9 +28,9 @@ export type RootStackParamList = {
   AgeSelect: undefined;
   GoalSelect: undefined;
   OnboardingFinish: undefined;
-  Map: undefined;
+  Map: { selectedUnitIdx?: number };
   Lesson: { lessonId: number };
-  LessonComplete: { lessonId: number };
+  LessonComplete: { lessonId: number; coinsEarned?: number };
   Sandbox: undefined;
   LessonFail: undefined;
   Profile: undefined;

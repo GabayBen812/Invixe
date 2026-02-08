@@ -5,10 +5,12 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 import PageBackground from "../../components/ui/PageBackground";
 import Button from "../../components/ui/Button";
 import theme from "../../theme";
+import { useUser } from "../../context/UserContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Register">;
 
 export default function RegisterScreen({ navigation }: Props) {
+  const { setCurrentUser } = useUser();
   return (
     <PageBackground source={require("../../assets/DefaultBlankBackground.png")}>
       <View style={styles.container}>

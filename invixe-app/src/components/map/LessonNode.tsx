@@ -33,6 +33,7 @@ interface LessonNodeProps {
   current?: boolean;
   position?: "left" | "right";
   lessonType?: "memorize" | "info" | "test" | "practice";
+  lessonId?: number;
 }
 
 const PRIMARY_COLOR = "#05BF90"; // Teal Green from image
@@ -66,6 +67,7 @@ export default function LessonNode({
   current = false,
   lessonType = "info",
   position,
+  lessonId = 0,
 }: LessonNodeProps) {
   const [scaleAnim] = React.useState(new Animated.Value(unlocked ? 1 : 0.95));
   const [bounceAnim] = React.useState(new Animated.Value(0));
@@ -119,14 +121,28 @@ export default function LessonNode({
 
   // Select the appropriate SVG based on state and lesson type
   const getNodeSVG = () => {
+    // Helper to select Frame based on ID or Type
+    const getFrameIndex = () => {
+      // If specific type is set and valid, use it
+      if (lessonType === "practice") return 1;
+      if (lessonType === "test") return 2;
+      if (lessonType === "memorize") return 3;
+
+      // Otherwise cycle through available frames based on ID
+      // (ID % 3) -> 0, 1, 2 -> map to Frame1, Frame2, Frame3
+      return (lessonId % 3) + 1;
+    };
+
+    const frameIdx = getFrameIndex();
+
     // If completed, use the specific Completed SVGs (Pre-colored White & Translucent Ring)
     if (state === "completed") {
-      switch (lessonType) {
-        case "practice":
+      switch (frameIdx) {
+        case 1:
           return <Frame1Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
-        case "test":
+        case 2:
           return <Frame2Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
-        case "memorize":
+        case 3:
           return <Frame3Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
         default:
           return <Frame1Completed width={CIRCLE_SIZE} height={CIRCLE_SIZE} />;
@@ -136,25 +152,17 @@ export default function LessonNode({
     // Otherwise use Standard SVGs (Active/Locked) - These are Teal by default
     // We can tint them if needed but they render as Teal on White background which is correct for active.
 
-    // For unlocked active nodes: Teal Icon on White Background.
-    // For locked nodes: We might want Gray. Since the SVGs are Teal, we can try to color them if they support it,
-    // or just leave them teal if locked nodes are also teal in this design (often they are gray though).
-    // Let's assume for now we use the standard frames.
+    let NodeComponent = Frame1; // Default
 
-    let NodeComponent = Frame;
-
-    switch (lessonType) {
-      case "practice":
+    switch (frameIdx) {
+      case 1:
         NodeComponent = Frame1;
         break;
-      case "test":
+      case 2:
         NodeComponent = Frame2;
         break;
-      case "memorize":
+      case 3:
         NodeComponent = Frame3;
-        break;
-      default:
-        NodeComponent = Frame1;
         break;
     }
 
