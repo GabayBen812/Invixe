@@ -31,7 +31,7 @@ export type RootStackParamList = {
   GoalSelect: undefined;
   OnboardingFinish: undefined;
   Map: { selectedUnitIdx?: number };
-  Lesson: { lessonId: number };
+  Lesson: { lessonId: number; unitId?: string };
   LessonComplete: { lessonId: number; coinsEarned?: number };
   Sandbox: undefined;
   LessonFail: undefined;

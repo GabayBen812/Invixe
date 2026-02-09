@@ -26,7 +26,20 @@ router.get('/registry', async (req, res) => {
       .order('code', { ascending: true });
     if (lErr) throw lErr;
 
-    const byUnit = new Map(units.map(u => [u.id, { unit: { index: u.index, title: u.title, description: u.description }, lessons: [] }]));
+    const byUnit = new Map(
+      (units || []).map(u => [
+        u.id,
+        {
+          unit: {
+            id: u.id,
+            index: u.index,
+            title: u.title,
+            description: u.description,
+          },
+          lessons: [],
+        },
+      ]),
+    );
     const lessonById = new Map();
     (lessons || []).forEach(l => lessonById.set(l.id, { id: l.code, title: l.title, description: l.description, lessonType: l.type, sublessons: [] }));
     (lessons || []).forEach(l => {
@@ -40,7 +53,11 @@ router.get('/registry', async (req, res) => {
       }
     });
 
-    const registry = Array.from(byUnit.values()).map(({ unit, lessons }) => ({ step: unit.index, lessons }));
+    const registry = Array.from(byUnit.entries()).map(([unitId, { unit, lessons }]) => ({
+      step: unit.index,
+      unitId,
+      lessons,
+    }));
     return res.json(registry);
   } catch (err) {
     console.error('GET /api/v2/lessons/registry error', err);
@@ -49,20 +66,76 @@ router.get('/registry', async (req, res) => {
 });
 
 // GET /api/v2/lessons/:code/steps
+// Optional query: ?unitId=<uuid>
+// When unitId is provided, we return the lesson that matches BOTH code and unit.
+// This fixes the case where the same code is reused across multiple units.
 router.get('/:code/steps', async (req, res) => {
   try {
     const supabase = getSupabase(req);
     const code = Number(req.params.code);
-    if (!Number.isFinite(code)) return res.status(400).json({ error: 'Invalid code' });
-    const { data: lessonRows, error: lErr } = await supabase
+    if (!Number.isFinite(code)) {
+      return res.status(400).json({ error: 'Invalid code' });
+    }
+
+    const unitId = req.query.unitId ? String(req.query.unitId) : null;
+    console.log('[v2.lessons] GET /:code/steps', { code, unitId });
+
+    // Base query: by code
+    let lessonsQuery = supabase
       .from('Lesson')
-      .select('id')
+      .select('id, unitid')
       .eq('code', code)
       .order('id', { ascending: true })
       .limit(1);
+
+    // If unitId is provided, further constrain by unitid
+    if (unitId) {
+      lessonsQuery = lessonsQuery.eq('unitid', unitId);
+    }
+
+    const { data: lessonRows, error: lErr } = await lessonsQuery;
     if (lErr) throw lErr;
+
     const lesson = (lessonRows || [])[0];
-    if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+    if (lesson) {
+      console.log('[v2.lessons] matched lesson by code+unit', {
+        code,
+        unitId,
+        lessonId: lesson.id,
+        lessonUnitId: lesson.unitid,
+      });
+    }
+
+    // If we didn't find a lesson with this code+unit combination, fall back to "any lesson with this code"
+    // This preserves previous behaviour for older clients or data where unitId isn't wired up yet.
+    if (!lesson) {
+      console.log('[v2.lessons] no lesson for code+unit, falling back to first by code', {
+        code,
+        unitId,
+      });
+      const { data: fallbackRows, error: fErr } = await supabase
+        .from('Lesson')
+        .select('id, unitid')
+        .eq('code', code)
+        .order('id', { ascending: true })
+        .limit(1);
+      if (fErr) throw fErr;
+      const fallbackLesson = (fallbackRows || [])[0];
+      if (!fallbackLesson) {
+        return res.status(404).json({ error: 'Lesson not found' });
+      }
+      const { data: stepsRows, error: sErr } = await supabase
+        .from('LessonStepsV2')
+        .select('steps')
+        .eq('lessonid', fallbackLesson.id)
+        .order('id', { ascending: true })
+        .limit(1);
+      if (sErr) throw sErr;
+      const stepsDoc = (stepsRows || [])[0];
+      if (!stepsDoc) return res.status(404).json({ error: 'Lesson steps not found' });
+      return res.json(stepsDoc.steps);
+    }
+
     const { data: stepsRows, error: sErr } = await supabase
       .from('LessonStepsV2')
       .select('steps')

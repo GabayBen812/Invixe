@@ -56,6 +56,24 @@ import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
 
+// Normalize Supabase public URLs in case old hosts are stored in lesson data
+const OLD_SUPABASE_HOST = "https://msmkiolnyhtnvjabfinh.supabase.co";
+const NEW_SUPABASE_HOST = "https://mkdwubjposlywjiinwkn.supabase.co";
+
+const normalizeSupabaseUrl = (
+  url?: string | null,
+): string | null => {
+  if (!url || typeof url !== "string") return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith(OLD_SUPABASE_HOST)) {
+    return NEW_SUPABASE_HOST + trimmed.slice(OLD_SUPABASE_HOST.length);
+  }
+
+  return trimmed;
+};
+
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
 // Helper component to handle image loading with error fallback
@@ -269,22 +287,25 @@ export default function LessonScreen({ navigation, route }: Props) {
     [],
   );
 
+  const unitId = route.params?.unitId;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const cached = inMemorySteps[lessonId];
+      const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
+      const cached = inMemorySteps[cacheKey];
       if (cached) {
         if (!cancelled) setCurrentLessonSteps(cached);
         return;
       }
-      const steps = await getLessonSteps(lessonId);
-      inMemorySteps[lessonId] = steps;
+      const steps = await getLessonSteps(lessonId, unitId);
+      inMemorySteps[cacheKey] = steps;
       if (!cancelled) setCurrentLessonSteps(steps);
     })();
     return () => {
       cancelled = true;
     };
-  }, [lessonId]);
+  }, [lessonId, unitId]);
 
   // Track current step as visited and update progress
   useEffect(() => {
@@ -327,9 +348,10 @@ export default function LessonScreen({ navigation, route }: Props) {
     if (!currentStep) return;
 
     // Preload image for current step if it has one
-    const imageUrl =
+    const rawImageUrl =
       currentStep.activityConfig?.questionWithImage?.uploadedImagePublicUrl ||
       currentStep.activityConfig?.questionWithImage?.uploadedImageUrl;
+    const imageUrl = normalizeSupabaseUrl(rawImageUrl);
 
     if (imageUrl && typeof imageUrl === "string") {
       Image.prefetch(imageUrl).catch((err) => {
@@ -470,7 +492,9 @@ export default function LessonScreen({ navigation, route }: Props) {
     step?.activity === "textWithImageExplain" &&
     !!step.activityConfig?.questionWithImage;
   const activityType = step?.activity as any;
-  const isExplanation = activityType === "explanation";
+  const isExplanation =
+    activityType === "explanation" &&
+    !!step.activityConfig?.explanation;
   const isTextWithSVG =
     activityType === "textWithSVG" && !!step.activityConfig?.questionWithImage;
   const isSimpleQuestion = activityType === "simple_question";
@@ -1553,11 +1577,12 @@ export default function LessonScreen({ navigation, route }: Props) {
 
                   if (!step.activityConfig?.questionWithImage) return null;
 
-                  const imageUrl =
+                  const rawImageUrl =
                     step.activityConfig.questionWithImage
                       .uploadedImagePublicUrl ||
                     step.activityConfig.questionWithImage.uploadedImageUrl ||
                     step.activityConfig.questionWithImage.uploadedImage;
+                  const imageUrl = normalizeSupabaseUrl(rawImageUrl);
 
                   // Always render the wrapper, even if no image URL (for debugging)
                   if (!imageUrl) {

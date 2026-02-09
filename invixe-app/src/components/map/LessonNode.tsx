@@ -60,6 +60,27 @@ const CheckmarkBadge = () => (
   </View>
 );
 
+const LockBadge = () => (
+  <View style={[styles.badgeContainer, styles.lockBadgeContainer]}>
+    <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M17 11H7a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1Z"
+        stroke="#64748B"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <Path
+        d="M9 11V8a3 3 0 0 1 6 0v3"
+        stroke="#64748B"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  </View>
+);
+
 export default function LessonNode({
   unlocked,
   onStart,
@@ -191,7 +212,7 @@ export default function LessonNode({
         }}
       >
         {/* 3D Depth Shadow Layer (Darker Teal/Black Alpha behind main circle) */}
-        <View style={styles.depthShadow} />
+        {state !== "locked" && <View style={styles.depthShadow} />}
 
         <TouchableOpacity
           activeOpacity={1}
@@ -210,12 +231,20 @@ export default function LessonNode({
               state === "locked" && styles.lockedCircle,
             ]}
           >
-            {/* SVG Node - Now mostly icon content */}
-            {getNodeSVG()}
+            {/* SVG Node - dimmed when locked */}
+            <View
+              style={[
+                styles.iconContainer,
+                state === "locked" && styles.lockedIcon,
+              ]}
+            >
+              {getNodeSVG()}
+            </View>
           </View>
 
           {/* Badge - Top Right overlap */}
           {completed && <CheckmarkBadge />}
+          {!completed && !unlocked && <LockBadge />}
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -282,13 +311,16 @@ const styles = StyleSheet.create({
 
   // LOCKED: White Background, Gray Border
   lockedCircle: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#F1F5F9",
     borderColor: "#CBD5E1",
-    borderWidth: 5,
+    borderWidth: 4,
   },
 
   iconContainer: {
     zIndex: 1,
+  },
+  lockedIcon: {
+    opacity: 0.3,
   },
 
   badgeContainer: {
@@ -308,6 +340,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 2,
     shadowOffset: { width: 0, height: 2 },
+  },
+  lockBadgeContainer: {
+    backgroundColor: "#E2E8F0",
+    borderColor: "#FFFFFF",
   },
   badgeCircle: {
     // Inner part of badge is just the icon container now

@@ -71,8 +71,8 @@ const LessonTooltip = ({
     explicitProgressPercent !== undefined
       ? explicitProgressPercent
       : isCompleted
-        ? 1
-        : 0;
+      ? 1
+      : 0;
 
   return (
     <View style={[tooltipStyles.container, style]}>
@@ -524,7 +524,7 @@ export default function MapScreen({ navigation, route }: Props) {
     React.useState<Lesson | null>(null);
   // New: selected unit (step) index. When null → show unit selector
   const [selectedUnitIdx, setSelectedUnitIdx] = React.useState<number | null>(
-    null,
+    null
   );
 
   // Sync route params with local state
@@ -539,7 +539,7 @@ export default function MapScreen({ navigation, route }: Props) {
 
   // New state for Tooltip
   const [activeTooltipId, setActiveTooltipId] = React.useState<number | null>(
-    null,
+    null
   );
   const handleBackgroundPress = () => {
     if (activeTooltipId) setActiveTooltipId(null);
@@ -612,7 +612,12 @@ export default function MapScreen({ navigation, route }: Props) {
       console.error("Error marking lesson as attempted:", error);
     }
 
-    navigation.navigate("Lesson", { lessonId });
+    // Pass unitId through to LessonScreen so it can request
+    // the correct lesson variant when codes are duplicated.
+    navigation.navigate("Lesson", {
+      lessonId,
+      unitId: activeStep?.unitId,
+    });
   };
 
   const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
@@ -638,7 +643,7 @@ export default function MapScreen({ navigation, route }: Props) {
       lesson,
       stepIdx: selectedUnitIdx ?? stepIdx,
       step,
-    })),
+    }))
   );
 
   // Calculate node positions for each lesson (only within active unit)
@@ -680,7 +685,22 @@ export default function MapScreen({ navigation, route }: Props) {
     const completed = hasSublessons
       ? areAllSublessonsCompleted(lesson, completedLessons)
       : completedLessons.includes(lesson.id);
-    const unlocked = isLessonUnlocked(lesson.id, completedLessons);
+
+    // Lock all lesson nodes except the first one in the unit.
+    // A node becomes unlocked only after all sublessons of the previous node
+    // are completed (or the previous node itself is completed if it has no sublessons).
+    let unlocked = false;
+    if (idx === 0) {
+      unlocked = true;
+    } else {
+      const prevLesson = allLessons[idx - 1].lesson;
+      const prevHasSublessons =
+        prevLesson.sublessons && prevLesson.sublessons.length > 0;
+      const prevCompleted = prevHasSublessons
+        ? areAllSublessonsCompleted(prevLesson, completedLessons)
+        : completedLessons.includes(prevLesson.id);
+      unlocked = prevCompleted;
+    }
 
     // Current lesson is the first uncompleted, unlocked lesson
     let current = false;
@@ -864,10 +884,10 @@ export default function MapScreen({ navigation, route }: Props) {
               activeStep?.step === 1
                 ? "מבוא לשוק ההון"
                 : activeStep?.step === 2
-                  ? "ניתוח טכני"
-                  : activeStep?.step === 3
-                    ? "השקעות לטווח ארוך"
-                    : "ניתוח פונדמנטלי"
+                ? "ניתוח טכני"
+                : activeStep?.step === 3
+                ? "השקעות לטווח ארוך"
+                : "ניתוח פונדמנטלי"
             }
             progress={progressPercentage}
           />
@@ -895,23 +915,34 @@ export default function MapScreen({ navigation, route }: Props) {
             {/* Unit Header Card matching Figma */}
             <View style={styles.headerCard}>
               <View style={styles.headerRow}>
+
+                                              {/* Actions Row */}
+              <View style={styles.headerActionsRow}>
+                <TouchableOpacity
+                  style={styles.backToUnitsButton}
+                  activeOpacity={0.8}
+                  onPress={() => setSelectedUnitIdx(null)}
+                >
+                  <Text style={styles.backToUnitsText}>חזרה לבחירת קורס</Text>
+                </TouchableOpacity>
+              </View>
                 {/* Text Right */}
                 <View style={styles.headerTextContainer}>
                   <Text style={styles.headerTitle}>
                     {activeStep?.step === 1
                       ? "מבוא לשוק ההון"
                       : activeStep?.step === 2
-                        ? "ניתוח טכני"
-                        : activeStep?.step === 3
-                          ? "השקעות לטווח ארוך"
-                          : "ניתוח פונדמנטלי"}
+                      ? "ניתוח טכני"
+                      : activeStep?.step === 3
+                      ? "השקעות לטווח ארוך"
+                      : "ניתוח פונדמנטלי"}
                   </Text>
                   <Text style={styles.headerSubtitle}>
                     {activeStep?.step === 1
                       ? "מושגי יסוד ומונחים"
                       : activeStep?.step === 2
-                        ? "תמיכה והתנגדות"
-                        : "אסטרטגיות מתקדמות"}
+                      ? "תמיכה והתנגדות"
+                      : "אסטרטגיות מתקדמות"}
                   </Text>
                 </View>
 
@@ -919,7 +950,11 @@ export default function MapScreen({ navigation, route }: Props) {
                 <View style={styles.headerIconContainer}>
                   <TechnicalAnalysisIcon size={56} />
                 </View>
+
+
               </View>
+
+
 
               {/* Progress Bar Row */}
               <View style={styles.headerProgressRow}>
@@ -957,7 +992,9 @@ export default function MapScreen({ navigation, route }: Props) {
                   const controlY = dy * 0.5; // Control point distance
 
                   // M Start C Control1 Control2 End
-                  const d = `M ${x0} ${y0} C ${x0} ${y0 + controlY} ${x1} ${y1 - controlY} ${x1} ${y1}`;
+                  const d = `M ${x0} ${y0} C ${x0} ${y0 + controlY} ${x1} ${
+                    y1 - controlY
+                  } ${x1} ${y1}`;
 
                   return (
                     <Path
@@ -992,8 +1029,8 @@ export default function MapScreen({ navigation, route }: Props) {
                 const status = completed
                   ? "completed"
                   : !unlocked
-                    ? "locked"
-                    : "active";
+                  ? "locked"
+                  : "active";
                 const isTooltipVisible = activeTooltipId === lesson.id;
 
                 return (
@@ -1027,7 +1064,7 @@ export default function MapScreen({ navigation, route }: Props) {
                         const sublessons = lesson.sublessons || [];
                         const totalSub = sublessons.length;
                         const doneSub = sublessons.filter((s: any) =>
-                          completedLessons.includes(s.id),
+                          completedLessons.includes(s.id)
                         ).length;
 
                         // Default logic if no sublessons found: use 0 or 1 based on main lesson completion
@@ -1058,6 +1095,7 @@ export default function MapScreen({ navigation, route }: Props) {
                             <LessonNode
                               title={lesson.title}
                               unlocked={unlocked}
+                              lessonId={lesson.id}
                               onStart={() => {
                                 // Toggle tooltip logic
                                 if (activeTooltipId === lesson.id) {
@@ -1193,6 +1231,24 @@ const styles = StyleSheet.create({
   headerProgressRow: {
     flexDirection: "row",
     alignItems: "center",
+  },
+  headerActionsRow: {
+    marginTop: 12,
+    flexDirection: "row-reverse",
+    justifyContent: "flex-start",
+  },
+  backToUnitsButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "#3B82F6",
+    backgroundColor: "#EFF6FF",
+  },
+  backToUnitsText: {
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    color: "#1D4ED8",
   },
   headerProgressText: {
     fontSize: 14,

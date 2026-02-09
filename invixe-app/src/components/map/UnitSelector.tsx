@@ -25,9 +25,9 @@ export default function UnitSelector({
   onSelectUnit,
 }: UnitSelectorProps) {
   const { lessonsRegistry } = useLessons();
-  const { firstName } = useUser();
+  const { firstName, currentUserEmail } = useUser();
   const greetingName =
-    firstName && firstName.trim().length > 0 ? firstName.trim() : "חבר";
+    firstName && firstName.trim().length > 0 ? firstName.trim() : (currentUserEmail ? currentUserEmail.split("@")[0] : "חבר\ה");
   const unitProgress = React.useMemo(() => {
     return lessonsRegistry.map((step) => {
       const total = step.lessons.length;

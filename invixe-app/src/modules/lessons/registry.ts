@@ -3,6 +3,8 @@ import { LessonMetadata } from "./types";
 export interface StepRegistry {
   step: number;
   lessons: LessonMetadata[];
+  // Optional backend identifiers (coming from API)
+  unitId?: string; // Supabase unit UUID
 }
 
 export const lessonsRegistry: StepRegistry[] = [
