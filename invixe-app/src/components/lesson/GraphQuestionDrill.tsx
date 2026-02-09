@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Image, Modal } from "react-native";
 import { parseSVGCode } from "../../utils/svgParser";
+import HtmlText from "../ui/HtmlText";
 
 export interface GraphQuestionChoice {
   id: string;
@@ -233,14 +234,13 @@ export default function GraphQuestionDrill({
                 }
               }}
             >
-              <Text
+              <HtmlText
+                value={choice.text}
                 style={[
                   styles.choiceText,
                   (submitted || isSelected) && styles.choiceTextSelected,
                 ]}
-              >
-                {choice.text}
-              </Text>
+              />
             </Pressable>
           );
         })}

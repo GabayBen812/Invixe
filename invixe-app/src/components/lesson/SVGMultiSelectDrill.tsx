@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet, Image } from "react-native";
 import Svg, { SvgProps, SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
+import HtmlText from "../ui/HtmlText";
 
 export interface SVGMultiSelectOption {
   id: string;
@@ -372,7 +373,7 @@ function SVGMultiSelectDrill({
 
   return (
     <View style={[styles.container, isYesNoQuestion && styles.containerYesNo]}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {title ? <HtmlText value={title} style={styles.title} /> : null}
       {options && options.length > 0 ? (
         isYesNoQuestion ? (
           // Yes/No question design with timeline - horizontal layout (no panel)

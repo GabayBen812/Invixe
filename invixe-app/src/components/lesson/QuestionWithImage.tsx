@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import HtmlText from '../ui/HtmlText';
 
 interface Choice {
   id: string;
@@ -166,9 +167,7 @@ export default function QuestionWithImage({
                 }
               }}
             >
-              <Text style={textStyle}>
-                {choice.text}
-              </Text>
+              <HtmlText value={choice.text} style={textStyle} />
             </Pressable>
           );
         })}

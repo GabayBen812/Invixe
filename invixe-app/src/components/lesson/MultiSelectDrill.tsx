@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
+import HtmlText from "../ui/HtmlText";
 
 export interface MultiSelectOption {
   id: string;
@@ -97,7 +98,7 @@ export default function MultiSelectDrill({
 
   return (
     <View style={styles.container}>
-      {title ? <Text style={styles.title}>{title}</Text> : null}
+      {title ? <HtmlText value={title} style={styles.title} /> : null}
       <View
         style={[
           styles.optionsContainer,

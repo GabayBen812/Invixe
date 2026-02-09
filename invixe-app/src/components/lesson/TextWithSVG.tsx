@@ -1,6 +1,7 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
+import HtmlText from '../ui/HtmlText';
 
 interface Props {
   text?: string;
@@ -68,7 +69,7 @@ export default function TextWithSVG({
       >
         <View style={styles.explainContainer}>
           {!!text && (
-            <Text style={styles.explainText}>{text}</Text>
+            <HtmlText value={text} style={styles.explainText} />
           )}
           <View style={styles.svgContainer}>
             {parsedSVG || (

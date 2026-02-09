@@ -100,12 +100,12 @@ export default function TopBar() {
           <LightningIcon />
           <Text style={styles.count}>{lightnings}</Text>
         </View>
-        <Pressable
+        {/* <Pressable
           onPress={() => openDictionary()}
           style={styles.dictionaryButton}
         >
           <DictionaryIcon />
-        </Pressable>
+        </Pressable> */}
       </View>
     </View>
   );

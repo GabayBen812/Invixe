@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
+import HtmlText from "../ui/HtmlText";
 
 interface Choice {
   id: string;
@@ -218,14 +219,13 @@ export default function QuestionWithSVG({
                   }
                 }}
               >
-                <Text
+                <HtmlText
+                  value={choice.text}
                   style={[
                     styles.choiceText,
                     (submitted || isSelected) && styles.choiceTextSelected,
                   ]}
-                >
-                  {choice.text}
-                </Text>
+                />
               </Pressable>
             );
           })}

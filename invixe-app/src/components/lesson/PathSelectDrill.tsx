@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import HtmlText from "../ui/HtmlText";
 
 export interface PathOption {
   id: string;
@@ -68,14 +69,13 @@ export default function PathSelectDrill({
               }}
               disabled={isCompleted}
             >
-              <Text
+              <HtmlText
+                value={option.text}
                 style={[
                   styles.optionText,
                   isCompleted && styles.optionTextCompleted,
                 ]}
-              >
-                {option.text}
-              </Text>
+              />
               {isCompleted && <Text style={styles.completedIndicator}>✓</Text>}
             </Pressable>
           );

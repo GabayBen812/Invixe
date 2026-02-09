@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import CharacterPrimarySVG from './CharacterPrimarySVG';
+import HtmlText from '../ui/HtmlText';
 
 export interface DialogMessage {
   id: string;
@@ -33,14 +34,13 @@ export default function Dialog({
   const opacityAnim = new Animated.Value(0);
 
   const currentMessage = messages[currentMessageIndex];
+  const messageHasHtml = currentMessage && /<[^>]+>/.test(currentMessage.text);
 
   useEffect(() => {
     if (currentMessage) {
       // Reset animations
       slideInAnim.setValue(50);
       opacityAnim.setValue(0);
-      setDisplayedText('');
-      setIsTyping(true);
       setShowMessage(true);
 
       // Animate message appearance
@@ -58,6 +58,15 @@ export default function Dialog({
         }),
       ]).start();
 
+      if (messageHasHtml) {
+        setDisplayedText(currentMessage.text);
+        setIsTyping(false);
+        return;
+      }
+
+      setDisplayedText('');
+      setIsTyping(true);
+
       // Type out the message
       let charIndex = 0;
       const typeInterval = setInterval(() => {
@@ -67,8 +76,6 @@ export default function Dialog({
         } else {
           setIsTyping(false);
           clearInterval(typeInterval);
-          
-          // Auto advance to next message
           if (autoAdvance && currentMessageIndex < messages.length - 1) {
             setTimeout(() => {
               setCurrentMessageIndex(prev => prev + 1);
@@ -138,10 +145,17 @@ export default function Dialog({
         {/* Message Bubble */}
         <View style={styles.bubbleContainer}>
           <View style={[styles.bubble, { backgroundColor: currentMessage.characterId ? '#FFFFFF' : '#F3F4F6' }]}>
-            <Text style={[styles.messageText, { color: currentMessage.characterId ? '#1F2937' : '#6B7280' }]}>
-              {displayedText}
-              {isTyping && <Text style={styles.cursor}>|</Text>}
-            </Text>
+            {messageHasHtml ? (
+              <HtmlText
+                value={displayedText}
+                style={[styles.messageText, { color: currentMessage.characterId ? '#1F2937' : '#6B7280' }]}
+              />
+            ) : (
+              <Text style={[styles.messageText, { color: currentMessage.characterId ? '#1F2937' : '#6B7280' }]}>
+                {displayedText}
+                {isTyping && <Text style={styles.cursor}>|</Text>}
+              </Text>
+            )}
           </View>
         </View>
 

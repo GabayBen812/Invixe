@@ -55,6 +55,7 @@ import GraphQuestionDrill from "../components/lesson/GraphQuestionDrill";
 import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
+import HtmlText from "../components/ui/HtmlText";
 
 // Normalize Supabase public URLs in case old hosts are stored in lesson data
 const OLD_SUPABASE_HOST = "https://msmkiolnyhtnvjabfinh.supabase.co";
@@ -1621,7 +1622,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     <View style={styles.textWithImageWrapper}>
                       {step.message && (
                         <View style={styles.explainTextContainer}>
-                          <Text style={styles.explainText}>{step.message}</Text>
+                          <HtmlText value={step.message} style={styles.explainText} />
                         </View>
                       )}
                       {imageUrl ? (
@@ -2670,7 +2671,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                               !isSubmitted && { transform: [{ scale: 0.985 }] },
                           ]}
                         >
-                          <Text style={textStyle}>{choice.text}</Text>
+                          <HtmlText value={choice.text} style={textStyle} />
                         </Pressable>
                       );
                     })}
@@ -2705,18 +2706,19 @@ export default function LessonScreen({ navigation, route }: Props) {
                           styles.choiceCardCorrect,
                       ]}
                     >
-                      <Text
+                      <HtmlText
+                        value={choice.text}
                         style={[
                           styles.choiceText,
-                          selectedChoiceIdx === idx &&
-                            styles.choiceTextSelected,
+                          selectedChoiceIdx === idx
+                            ? styles.choiceTextSelected
+                            : undefined,
                           answerMode === "correct" &&
-                            idx === selectedChoiceIdx &&
-                            styles.choiceTextCorrect,
+                          idx === selectedChoiceIdx
+                            ? styles.choiceTextCorrect
+                            : undefined,
                         ]}
-                      >
-                        {choice.text}
-                      </Text>
+                      />
                     </Pressable>
                   ))}
                   {selectedChoiceIdx !== null && (

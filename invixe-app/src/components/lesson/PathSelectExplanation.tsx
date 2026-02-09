@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
+import HtmlText from "../ui/HtmlText";
 
 interface Props {
   explanation: string;
@@ -182,7 +183,7 @@ export default function PathSelectExplanation({
     <View style={styles.container}>
       <View style={styles.explanationContainer}>
         {explanation && (
-          <Text style={styles.explanationText}>{explanation}</Text>
+          <HtmlText value={explanation} style={styles.explanationText} />
         )}
 
         {imageUrl && (

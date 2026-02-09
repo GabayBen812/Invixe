@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import CharacterPrimarySVG from "./CharacterPrimarySVG";
+import HtmlText from "../ui/HtmlText";
 
 interface SpeechBubbleProps {
   message: string;
@@ -99,15 +100,19 @@ export default function SpeechBubble({
   if (isRight) alignSelf = "flex-end";
   if (isCenter) alignSelf = "center";
 
+  // When message contains HTML, show full text at once (no typing) and render as HTML
+  const hasHtml = /<[^>]+>/.test(message);
+  const effectiveDisableTyping = disableTyping || hasHtml;
+
   // Typing animation state
-  const [typed, setTyped] = React.useState(disableTyping ? message : "");
-  const [typing, setTyping] = React.useState(!disableTyping);
+  const [typed, setTyped] = React.useState(effectiveDisableTyping ? message : "");
+  const [typing, setTyping] = React.useState(!effectiveDisableTyping);
   const slideIn = React.useRef(new Animated.Value(20)).current;
   const opacity = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
-    setTyped(disableTyping ? message : "");
-    setTyping(!disableTyping);
+    setTyped(effectiveDisableTyping ? message : "");
+    setTyping(!effectiveDisableTyping);
     if (disableEnterAnim) {
       slideIn.setValue(0);
       opacity.setValue(1);
@@ -123,7 +128,7 @@ export default function SpeechBubble({
       ]).start();
     }
 
-    if (disableTyping) return;
+    if (effectiveDisableTyping) return;
     let i = 0;
     const interval = setInterval(() => {
       i += 1;
@@ -138,7 +143,7 @@ export default function SpeechBubble({
       });
     }, typingSpeedMs);
     return () => clearInterval(interval);
-  }, [message, disableTyping, typingSpeedMs, disableEnterAnim]);
+  }, [message, effectiveDisableTyping, typingSpeedMs, disableEnterAnim]);
 
   // Typing dots animation
   const dot1 = React.useRef(new Animated.Value(0)).current;
@@ -190,7 +195,11 @@ export default function SpeechBubble({
 
   const messageArea = (
     <View style={styles.messageArea}>
-      <Text style={styles.text}>{typed}</Text>
+      {hasHtml ? (
+        <HtmlText value={typed} style={styles.text} />
+      ) : (
+        <Text style={styles.text}>{typed}</Text>
+      )}
       {(typing || buttonText) && (
         <View style={styles.bottomRow}>
           {typing && typed.length < message.length ? (

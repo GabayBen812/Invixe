@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import Svg, { Path, Circle, SvgUri } from "react-native-svg";
 import SpeechBubble from "./SpeechBubble";
+import HtmlText from "../ui/HtmlText";
 
 interface ExplanationDrillProps {
   step: any;
@@ -65,9 +66,10 @@ export default function ExplanationDrill({ step }: ExplanationDrillProps) {
             <View style={styles.iconContainer}>
               <InfoIcon />
             </View>
-            <Text style={styles.explanationText}>
-              {explanationText || "No explanation text provided."}
-            </Text>
+            <HtmlText
+              value={explanationText || "No explanation text provided."}
+              style={styles.explanationText}
+            />
           </View>
         </View>
       </ScrollView>
