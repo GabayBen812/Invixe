@@ -193,7 +193,8 @@ const characterImages: { [key: string]: any } = {
 
 type Props = NativeStackScreenProps<RootStackParamList, "Lesson">;
 
-const inMemorySteps: Record<number, LessonStep[]> = {};
+// Cache lesson steps in memory keyed by `${unitId}:${lessonId}` or `${lessonId}`
+const inMemorySteps: Record<string, LessonStep[]> = {};
 
 // Character image resolver
 function getCharacterImg(characterImgKey?: string) {
@@ -3037,7 +3038,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               }}
             >
               <Text style={styles.continueButtonText}>
-                {step.activityConfig.explanation.buttonText || "המשך"}
+                {step.activityConfig?.explanation?.buttonText || "המשך"}
               </Text>
             </Pressable>
           </View>

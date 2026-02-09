@@ -45,7 +45,21 @@ export interface LessonStep {
   showCharacter?: boolean; // Whether to show character in speech bubble (default: true)
   visual?: string; // Optional visual key for SVGs or images
   // Optional interactive activity configuration
-  activity?: 'selectCandles' | 'multiSelect' | 'carouselSelect' | 'dragMatch' | 'sequenceBuild' | 'dialog' | 'textWithImageExplain' | 'svgMultiSelect' | 'questionWithImage' | 'questionWithSVG' | 'textWithSVG' | 'simple_question' | 'pathSelect';
+  activity?:
+    | 'selectCandles'
+    | 'multiSelect'
+    | 'carouselSelect'
+    | 'dragMatch'
+    | 'sequenceBuild'
+    | 'dialog'
+    | 'textWithImageExplain'
+    | 'svgMultiSelect'
+    | 'questionWithImage'
+    | 'questionWithSVG'
+    | 'textWithSVG'
+    | 'simple_question'
+    | 'pathSelect'
+    | 'explanation';
   activityConfig?: {
     // Simple question config (single choice with explanations)
     rewards?: number; // Points/rewards for correct answer
@@ -183,6 +197,15 @@ export interface LessonStep {
       correctExplanation?: string;
       wrongExplanation?: string;
     };
+    // Standalone explanation screen (image + rich text)
+    explanation?: {
+      imagePublicUrl?: string; // Public URL for explanation image (e.g. Supabase)
+      imageUrl?: string; // Fallback URL (blob or other)
+      imageType?: 'svg' | 'png'; // Explicit type hint
+      explanationText?: string; // Main explanation body text
+      buttonText?: string; // Optional button label (e.g. 'המשך')
+    };
+
     // Path/Topic selection drill - allows users to explore multiple topics
     pathSelect?: {
       choices: Array<{
