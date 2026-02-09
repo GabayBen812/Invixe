@@ -69,7 +69,10 @@ export default function LoginScreen({ navigation }: Props) {
         throw new Error(data.error || "Login failed");
       }
       const data = await res.json();
-      await setCurrentUser(data.phone || phone); // Use returned phone/email or input
+      await setCurrentUser(data.phone || phone, {
+        firstName: data.firstName,
+        lastName: data.lastName,
+      }); // Use returned phone/email or input
       navigation.navigate("Map", {});
     } catch (e: any) {
       const msg = e.message || "Network error";

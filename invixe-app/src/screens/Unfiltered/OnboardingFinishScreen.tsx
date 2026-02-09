@@ -37,8 +37,13 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       });
       if (!res.ok) throw new Error("Registration failed");
 
+      const resBody = await res.json().catch(() => ({}));
+
       // Set the current user immediately
-      await setCurrentUser(data.phone);
+      await setCurrentUser(data.phone, {
+        firstName: resBody.firstName ?? data.firstName,
+        lastName: resBody.lastName ?? data.lastName,
+      });
 
       setSuccess(true);
       reset();

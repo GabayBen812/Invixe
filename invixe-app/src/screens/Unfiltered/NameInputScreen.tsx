@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -12,17 +12,17 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
 
-type Props = NativeStackScreenProps<RootStackParamList, "PhoneLogin">;
+type Props = NativeStackScreenProps<RootStackParamList, "NameInput">;
 
-export default function PhoneLoginScreen({ navigation }: Props) {
-  const { setPhone, setPassword, data } = useRegistration();
-  const [phone, setPhoneLocal] = useState(data.phone);
-  const [password, setPasswordLocal] = useState(data.password);
+export default function NameInputScreen({ navigation }: Props) {
+  const { data, setFirstName, setLastName } = useRegistration();
+  const [firstName, setFirstNameLocal] = useState(data.firstName);
+  const [lastName, setLastNameLocal] = useState(data.lastName);
 
   const handleNext = () => {
-    setPhone(phone);
-    setPassword(password);
-    navigation.navigate("NameInput");
+    setFirstName(firstName.trim());
+    setLastName(lastName.trim());
+    navigation.navigate("AgeSelect");
   };
 
   return (
@@ -35,24 +35,26 @@ export default function PhoneLoginScreen({ navigation }: Props) {
           source={require("../../assets/Characters/character_orange_noback.png")}
           style={styles.character}
         />
+        <Text style={styles.title}>נכיר קצת יותר</Text>
+        <Text style={styles.subtitle}>איך קוראים לך?</Text>
         <TextInput
           style={styles.input}
-          placeholder="שם משתמש"
+          placeholder="שם פרטי"
           placeholderTextColor="#8CA0AE"
-          value={phone}
-          onChangeText={setPhoneLocal}
-          keyboardType="default"
+          value={firstName}
+          onChangeText={setFirstNameLocal}
+          textAlign="right"
         />
         <TextInput
           style={styles.input}
-          placeholder="סיסמה"
+          placeholder="שם משפחה"
           placeholderTextColor="#8CA0AE"
-          value={password}
-          onChangeText={setPasswordLocal}
-          secureTextEntry
+          value={lastName}
+          onChangeText={setLastNameLocal}
+          textAlign="right"
         />
         <TouchableOpacity style={styles.button} onPress={handleNext}>
-          <Text style={styles.buttonText}>התחבר</Text>
+          <Text style={styles.buttonText}>המשך</Text>
         </TouchableOpacity>
       </View>
     </ImageBackground>
@@ -66,7 +68,20 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     resizeMode: "contain",
-    marginBottom: 32,
+    marginBottom: 24,
+  },
+  title: {
+    fontSize: 24,
+    color: "#3372D8",
+    marginBottom: 8,
+    textAlign: "center",
+    fontWeight: "bold",
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#5E7686",
+    marginBottom: 16,
+    textAlign: "center",
   },
   input: {
     width: 260,
@@ -75,8 +90,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     paddingHorizontal: 20,
     fontSize: 16,
-    marginBottom: 16,
-    textAlign: "right",
+    marginBottom: 12,
     color: "#0F2233",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
@@ -93,3 +107,4 @@ const styles = StyleSheet.create({
   },
   buttonText: { color: "white", fontSize: 20, fontWeight: "bold" },
 });
+

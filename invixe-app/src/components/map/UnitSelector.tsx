@@ -11,6 +11,7 @@ import {
   FundamentalIcon,
 } from "./MapAssets";
 import { useLessons } from "../../context/LessonsContext";
+import { useUser } from "../../context/UserContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 
@@ -24,6 +25,9 @@ export default function UnitSelector({
   onSelectUnit,
 }: UnitSelectorProps) {
   const { lessonsRegistry } = useLessons();
+  const { firstName } = useUser();
+  const greetingName =
+    firstName && firstName.trim().length > 0 ? firstName.trim() : "חבר";
   const unitProgress = React.useMemo(() => {
     return lessonsRegistry.map((step) => {
       const total = step.lessons.length;
@@ -56,7 +60,7 @@ export default function UnitSelector({
         <View style={styles.hero}>
           <View style={styles.heroRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.heroTitle}>ברוך הבא יונתן!</Text>
+              <Text style={styles.heroTitle}>{`ברוך הבא ${greetingName}!`}</Text>
               <Text style={styles.heroSubtitle}>בחר קורס להתחיל או להמשיך</Text>
             </View>
             <View style={styles.heroIconContainer}>

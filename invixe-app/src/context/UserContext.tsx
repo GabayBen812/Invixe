@@ -23,6 +23,8 @@ interface UserContextType {
   lessonAttempts: LessonAttempt[];
   coins: number;
   lightnings: number;
+  firstName: string | null;
+  lastName: string | null;
   currentUserEmail: string | null;
   setCompletedLessons: (lessons: number[]) => void;
   setLessonAttempts: (attempts: LessonAttempt[]) => void;
@@ -30,7 +32,10 @@ interface UserContextType {
   markLessonAttempted: (lessonId: number) => void;
   setCoins: (coins: number) => void;
   setLightnings: (lightnings: number) => void;
-  setCurrentUser: (email: string) => void;
+  setCurrentUser: (
+    email: string,
+    profile?: { firstName?: string; lastName?: string },
+  ) => void;
   logout: () => void;
   refreshUserData: () => void;
 }
@@ -44,6 +49,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   );
   const [coins, setCoinsState] = useState<number>(0);
   const [lightnings, setLightningsState] = useState<number>(0);
+  const [firstName, setFirstNameState] = useState<string | null>(null);
+  const [lastName, setLastNameState] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
 
   // Fetch user data from backend
@@ -56,6 +63,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         setLessonAttemptsState([]);
         setCoinsState(0);
         setLightningsState(0);
+        setFirstNameState(null);
+        setLastNameState(null);
         return;
       }
 
@@ -70,6 +79,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLessonAttemptsState(data.lessonAttempts || []);
       setCoinsState(data.coins || 0);
       setLightningsState(data.lightnings || 0);
+      setFirstNameState((prev) => data.firstName ?? prev ?? null);
+      setLastNameState((prev) => data.lastName ?? prev ?? null);
     } catch (e) {
       console.error("Error fetching user data:", e);
       // Keep empty if fetch fails
@@ -85,8 +96,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   // Set current user and fetch their data
-  const setCurrentUser = async (email: string) => {
+  const setCurrentUser = async (
+    email: string,
+    profile?: { firstName?: string; lastName?: string },
+  ) => {
     setCurrentUserEmail(email);
+    if (profile) {
+      if (profile.firstName !== undefined) {
+        setFirstNameState(profile.firstName || null);
+      }
+      if (profile.lastName !== undefined) {
+        setLastNameState(profile.lastName || null);
+      }
+    }
     await fetchUserData(email);
   };
 
@@ -96,6 +118,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     setLessonAttemptsState([]);
     setCoinsState(0);
     setLightningsState(0);
+    setFirstNameState(null);
+    setLastNameState(null);
   };
 
   // Update progress in backend
@@ -240,6 +264,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         lessonAttempts,
         coins,
         lightnings,
+        firstName,
+        lastName,
         currentUserEmail,
         setCompletedLessons,
         setLessonAttempts,

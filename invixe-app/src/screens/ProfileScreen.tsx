@@ -16,6 +16,10 @@ import theme from "../theme";
 import { useUser } from "../context/UserContext";
 import Svg, { Path, Rect, Circle } from "react-native-svg";
 import { API_BASE_URL } from "../config/api";
+import {
+  DICTIONARY_ENTRIES,
+  isEntryUnlocked,
+} from "../data/dictionary";
 
 // --- Icons ---
 
@@ -69,8 +73,16 @@ interface StockPrice {
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
 export default function ProfileScreen({ navigation }: Props) {
-  const { coins, lightnings, completedLessons, logout, currentUserEmail } =
-    useUser();
+  const {
+    coins,
+    lightnings,
+    completedLessons,
+    lessonAttempts,
+    logout,
+    currentUserEmail,
+    firstName,
+    lastName,
+  } = useUser();
   const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
   const [stockPrices, setStockPrices] = useState<StockPrice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,9 +197,71 @@ export default function ProfileScreen({ navigation }: Props) {
     return name ? name.charAt(0).toUpperCase() : "?";
   };
 
-  const userName = "יונתן אסייג"; // Mock for now or derive from email if available
-  const userInitials = "יא";
-  const streakDays = 12; // Mock
+  const resolvedFirstName =
+    firstName && firstName.trim().length > 0
+      ? firstName.trim()
+      : currentUserEmail
+        ? currentUserEmail.split("@")[0]
+        : "לומד";
+  const resolvedLastName =
+    lastName && lastName.trim().length > 0 ? lastName.trim() : "";
+
+  const userName = resolvedLastName
+    ? `${resolvedFirstName} ${resolvedLastName}`
+    : resolvedFirstName;
+
+  const userInitials = (() => {
+    const firstInitial = resolvedFirstName.charAt(0);
+    const lastInitial = resolvedLastName.charAt(0);
+    const combined = `${firstInitial}${lastInitial}`.trim();
+    if (combined.length > 0) {
+      return combined;
+    }
+    return resolvedFirstName.slice(0, 2).toUpperCase();
+  })();
+
+  // Calculate current daily streak based on lessonAttempts.lastAttempted
+  const getCurrentStreakDays = () => {
+    if (!lessonAttempts || lessonAttempts.length === 0) return 0;
+
+    const today = new Date();
+    let streak = 0;
+
+    // Walk backwards day by day until we hit a day with no attempts
+    // Stop after a reasonable upper bound to avoid infinite loops
+    for (let offset = 0; offset < 365; offset++) {
+      const day = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - offset,
+      );
+      const dayStr = day.toDateString();
+
+      const hasAttemptThatDay = lessonAttempts.some((attempt) => {
+        const d = new Date(attempt.lastAttempted);
+        return d.toDateString() === dayStr;
+      });
+
+      if (!hasAttemptThatDay) {
+        // If there are no attempts today, streak is 0
+        if (offset === 0) {
+          return 0;
+        }
+        break;
+      }
+
+      streak += 1;
+    }
+
+    return streak;
+  };
+
+  const streakDays = getCurrentStreakDays();
+
+  // Number of dictionary terms currently unlocked for this user
+  const unlockedTermsCount = DICTIONARY_ENTRIES.filter((entry) =>
+    isEntryUnlocked(entry, completedLessons),
+  ).length;
 
   // --- Redesigned UI ---
   return (
@@ -222,8 +296,7 @@ export default function ProfileScreen({ navigation }: Props) {
           </View>
           <View style={styles.statCard}>
             <BookIcon />
-            <Text style={styles.statValue}>64</Text>
-            {/* Mocking Terms count for now as per design */}
+            <Text style={styles.statValue}>{unlockedTermsCount}</Text>
             <Text style={styles.statLabel}>מושגים</Text>
           </View>
         </View>
@@ -231,10 +304,6 @@ export default function ProfileScreen({ navigation }: Props) {
         {/* Portfolio Section */}
         <View style={styles.portfolioContainer}>
           <View style={styles.portfolioHeader}>
-            <View>
-              <Text style={styles.portfolioTitle}>תיק ההשקעות שלך</Text>
-              <Text style={styles.portfolioSubtitle}>תיק לימודי מדמה</Text>
-            </View>
             <View style={{ alignItems: "flex-end" }}>
               <Text style={styles.portfolioTotalValue}>
                 $
@@ -252,6 +321,10 @@ export default function ProfileScreen({ navigation }: Props) {
                 {getTotalGainLoss() >= 0 ? "+" : ""}
                 {getGainLossPercent().toFixed(1)}%
               </Text>
+            </View>
+            <View>
+              <Text style={styles.portfolioTitle}>תיק ההשקעות שלך</Text>
+              <Text style={styles.portfolioSubtitle}>תיק לימודי מדמה</Text>
             </View>
           </View>
 

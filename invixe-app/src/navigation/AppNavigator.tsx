@@ -10,6 +10,7 @@ import SplashScreen from "../screens/Unfiltered/SplashScreen";
 import AgeSelectScreen from "../screens/Unfiltered/AgeSelectScreen";
 import GoalSelectScreen from "../screens/Unfiltered/GoalSelectScreen";
 import OnboardingFinishScreen from "../screens/Unfiltered/OnboardingFinishScreen";
+import NameInputScreen from "../screens/Unfiltered/NameInputScreen";
 import MapScreen from "../screens/MapScreen";
 import LessonScreen from "../screens/LessonScreen";
 import LessonCompleteScreen from "../screens/LessonCompleteScreen";
@@ -25,6 +26,7 @@ export type RootStackParamList = {
   Register: undefined;
   OnboardingIntro: undefined;
   PhoneLogin: undefined;
+  NameInput: undefined;
   AgeSelect: undefined;
   GoalSelect: undefined;
   OnboardingFinish: undefined;
@@ -55,6 +57,7 @@ export default function AppNavigator() {
           component={OnboardingIntroScreen}
         />
         <Stack.Screen name="PhoneLogin" component={PhoneLoginScreen} />
+        <Stack.Screen name="NameInput" component={NameInputScreen} />
         <Stack.Screen name="AgeSelect" component={AgeSelectScreen} />
         <Stack.Screen name="GoalSelect" component={GoalSelectScreen} />
         <Stack.Screen
