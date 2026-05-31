@@ -28,29 +28,6 @@ export default function UnitSelector({
   const { firstName, currentUserEmail } = useUser();
   const greetingName =
     firstName && firstName.trim().length > 0 ? firstName.trim() : (currentUserEmail ? currentUserEmail.split("@")[0] : "חבר\ה");
-  const unitProgress = React.useMemo(() => {
-    return lessonsRegistry.map((step) => {
-      const total = step.lessons.length;
-      const done = step.lessons.filter((l) =>
-        completedLessons.includes(l.id),
-      ).length;
-      return { total, done, pct: total > 0 ? done / total : 0 };
-    });
-  }, [completedLessons, lessonsRegistry]);
-
-  const { overallProgress, totalCompleted, totalLessons } =
-    React.useMemo(() => {
-      const total = lessonsRegistry.flatMap((s) => s.lessons).length;
-      const done = lessonsRegistry
-        .flatMap((s) => s.lessons)
-        .filter((l) => completedLessons.includes(l.id)).length;
-      return {
-        overallProgress: total > 0 ? done / total : 0,
-        totalCompleted: done,
-        totalLessons: total,
-      };
-    }, [completedLessons, lessonsRegistry]);
-
   return (
     <View style={{ flex: 1 }}>
       <ScrollView

@@ -1,7 +1,15 @@
 import React, { useMemo, useState, useEffect, useRef } from "react";
-import { View, Text, Pressable, StyleSheet, Image } from "react-native";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Image,
+  useWindowDimensions,
+} from "react-native";
 import Svg, { SvgProps, SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
+import { useDrillViewportHeight } from "./DrillViewport";
 import HtmlText from "../ui/HtmlText";
 
 export interface SVGMultiSelectOption {
@@ -161,6 +169,33 @@ function SVGMultiSelectDrill({
   const isYesNoQuestion =
     options.length === 2 && options.filter((o) => o.correct).length === 1;
 
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const drillViewportHeight = useDrillViewportHeight();
+
+  /** Lesson yes/no SVGs embed all copy in the graphic — need a tall, non-shrinking frame. */
+  const yesNoMediaSize = useMemo(() => {
+    const timelineWidth = 36;
+    const rowPadding = 20;
+    const cardWidth = Math.max(
+      148,
+      Math.floor(
+        (screenWidth - rowPadding * 2 - timelineWidth - 12) / 2 - 20,
+      ),
+    );
+    const heightFromAspect = Math.round(cardWidth * 2.25);
+    const viewportBudget =
+      drillViewportHeight > 120
+        ? drillViewportHeight - 20
+        : Math.floor(screenHeight * 0.44);
+    const cardHeight = Math.min(
+      Math.max(heightFromAspect, 280),
+      Math.max(viewportBudget, 280),
+    );
+    return { width: cardWidth, height: cardHeight };
+  }, [screenWidth, screenHeight, drillViewportHeight]);
+
+  const yesNoBlockMinHeight = yesNoMediaSize.height + 56;
+
   // For yes/no questions, only allow selecting one option (toggle behavior)
   const handleYesNoToggle = (id: string) => {
     if (submitted) return;
@@ -262,21 +297,38 @@ function SVGMultiSelectDrill({
   // Cache for parsed SVG code (only used for svgCode prop, not URLs)
   const parsedCacheRef = useRef<Record<string, React.ReactElement | null>>({});
 
+  const renderYesNoMediaFrame = (content: React.ReactNode) => (
+    <View
+      style={[
+        styles.yesNoSvgFrame,
+        {
+          width: yesNoMediaSize.width,
+          height: yesNoMediaSize.height,
+        },
+      ]}
+    >
+      {content}
+    </View>
+  );
+
   const renderSVG = (
     option: SVGMultiSelectOption,
     isYesNoMode: boolean = false,
   ) => {
+    const mediaW = yesNoMediaSize.width;
+    const mediaH = yesNoMediaSize.height;
+
     // Handle PNG images
     if (option.inputType === "png" || option.pngPublicUrl || option.pngUrl) {
       const pngUrl = option.pngPublicUrl || option.pngUrl;
       if (pngUrl) {
         if (isYesNoMode) {
-          return (
+          return renderYesNoMediaFrame(
             <Image
               source={{ uri: pngUrl }}
-              style={styles.yesNoPngImage}
+              style={{ width: mediaW, height: mediaH }}
               resizeMode="contain"
-            />
+            />,
           );
         }
         return (
@@ -307,7 +359,16 @@ function SVGMultiSelectDrill({
 
     // If we have a URL, use SvgUri (native, reliable)
     if (svgUrl) {
-      // Display SVG from URL as-is
+      if (isYesNoMode) {
+        return renderYesNoMediaFrame(
+          <SvgUri
+            uri={svgUrl}
+            width={mediaW}
+            height={mediaH}
+            preserveAspectRatio="xMidYMid meet"
+          />,
+        );
+      }
       return <SvgUri uri={svgUrl} />;
     }
 
@@ -328,16 +389,15 @@ function SVGMultiSelectDrill({
         parsedCacheRef.current[cacheKey] = parsedSVG;
 
         if (isYesNoMode) {
-          // For yes/no mode, use larger fixed size that fills the container
           const fixedSVG = React.cloneElement(
             parsedSVG as React.ReactElement<any>,
             {
-              width: 120,
-              height: 120,
+              width: mediaW,
+              height: mediaH,
               preserveAspectRatio: "xMidYMid meet",
             } as any,
           );
-          return fixedSVG;
+          return renderYesNoMediaFrame(fixedSVG);
         }
         // For regular mode, use fixed size
         const fixedSVG = React.cloneElement(
@@ -372,13 +432,24 @@ function SVGMultiSelectDrill({
   }
 
   return (
-    <View style={[styles.container, isYesNoQuestion && styles.containerYesNo]}>
+    <View
+      style={[
+        styles.container,
+        isYesNoQuestion && styles.containerYesNo,
+        isYesNoQuestion && { minHeight: yesNoBlockMinHeight },
+      ]}
+    >
       {title ? <HtmlText value={title} style={styles.title} /> : null}
       {options && options.length > 0 ? (
         isYesNoQuestion ? (
           // Yes/No question design with timeline - horizontal layout (no panel)
-          <View style={styles.yesNoContainer}>
-            <View style={[styles.yesNoRow, { position: "relative" }]}>
+          <View
+            style={[
+              styles.yesNoContainer,
+              { minHeight: yesNoBlockMinHeight },
+            ]}
+          >
+            <View style={styles.yesNoRow}>
               {/* Left option */}
               {options[0] &&
                 (() => {
@@ -415,7 +486,12 @@ function SVGMultiSelectDrill({
                       style={[
                         styles.yesNoBox,
                         styles.yesNoBoxLeft,
-                        { backgroundColor, borderColor, borderWidth },
+                        {
+                          backgroundColor,
+                          borderColor,
+                          borderWidth,
+                          minHeight: yesNoMediaSize.height + 44,
+                        },
                       ]}
                     >
                       {opt.label ? (
@@ -495,7 +571,12 @@ function SVGMultiSelectDrill({
                       style={[
                         styles.yesNoBox,
                         styles.yesNoBoxRight,
-                        { backgroundColor, borderColor, borderWidth },
+                        {
+                          backgroundColor,
+                          borderColor,
+                          borderWidth,
+                          minHeight: yesNoMediaSize.height + 44,
+                        },
                       ]}
                     >
                       {opt.label ? (
@@ -670,12 +751,12 @@ const styles = StyleSheet.create({
     paddingTop: 10,
   },
   containerYesNo: {
-    flex: 1,
-    justifyContent: "center",
+    width: "100%",
+    flexShrink: 0,
+    justifyContent: "flex-start",
     alignItems: "center",
-    paddingTop: 0,
-    paddingBottom: 0,
-    marginTop: -150,
+    paddingTop: 4,
+    paddingBottom: 8,
   },
   panel: {
     width: "100%",
@@ -790,21 +871,23 @@ const styles = StyleSheet.create({
   // Yes/No question styles
   yesNoContainer: {
     width: "100%",
-    paddingVertical: 20,
-    paddingHorizontal: 16,
+    flexShrink: 0,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   yesNoRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "stretch",
     justifyContent: "space-between",
   },
   yesNoBox: {
     flex: 1,
+    flexShrink: 0,
     borderRadius: 12,
-    padding: 16,
+    padding: 10,
     justifyContent: "flex-start",
     alignItems: "center",
-    position: "relative",
+    alignSelf: "stretch",
   },
   yesNoBoxLeft: {
     marginRight: 12,
@@ -835,13 +918,16 @@ const styles = StyleSheet.create({
   yesNoSvgWrapper: {
     alignItems: "center",
     justifyContent: "center",
-    flex: 1,
     width: "100%",
-    minHeight: 100,
+  },
+  yesNoSvgFrame: {
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   yesNoPngImage: {
-    width: 120,
-    height: 120,
+    width: "100%",
+    height: "100%",
     resizeMode: "contain",
   },
   yesNoDotUnselected: {
@@ -865,11 +951,7 @@ const styles = StyleSheet.create({
     width: 40,
     alignItems: "center",
     justifyContent: "center",
-    position: "absolute",
-    left: "50%",
-    marginLeft: -20,
-    top: -40,
-    bottom: -40,
+    alignSelf: "stretch",
     zIndex: 0,
   },
   timelineLine: {

@@ -1,7 +1,27 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet, Image, Modal } from "react-native";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  Pressable,
+  StyleSheet,
+  Image,
+  Modal,
+  useWindowDimensions,
+} from "react-native";
+import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
-import HtmlText from "../ui/HtmlText";
+import { fetchRemoteText } from "../../utils/remoteAssetCache";
+import { useChoiceDrillLayout } from "../../hooks/useChoiceDrillLayout";
+import DrillChoiceLabel from "./DrillChoiceLabel";
+import {
+  DRILL_MEDIA_STACK_GAP,
+  getDrillChoicePlainText,
+  getDrillChoiceText,
+} from "../../utils/drillFitLayout";
+import {
+  getAlternateSupabaseUrl,
+  normalizeSupabaseUrl,
+} from "../../utils/supabaseUrl";
 
 export interface GraphQuestionChoice {
   id: string;
@@ -57,6 +77,21 @@ export default function GraphQuestionDrill({
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [fullScreenOpen, setFullScreenOpen] = useState(false);
+  const { width: screenWidth } = useWindowDimensions();
+  const visibleChoices = choices.filter(
+    (c) =>
+      getDrillChoicePlainText(c).length > 0 ||
+      !!(c as GraphQuestionChoice).pngUrl ||
+      !!(c as GraphQuestionChoice).svgPublicUrl ||
+      !!(c as GraphQuestionChoice).svgUrl,
+  );
+  const layout = useChoiceDrillLayout(
+    visibleChoices.length || choices.length,
+    { hasMedia: true },
+  );
+  const stackGap = DRILL_MEDIA_STACK_GAP;
+  const blockMinHeight =
+    layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
 
   // Active media - always use the main graph, don't change based on selected choice
   const activeSvgCode = useMemo(() => {
@@ -69,10 +104,18 @@ export default function GraphQuestionDrill({
     return svgPublicUrl || svgUrl;
   }, [mediaType, svgPublicUrl, svgUrl]);
 
+  const [pngUri, setPngUri] = useState<string | null>(null);
+  const triedAlternatePngRef = useRef(false);
+
   const activePngUrl = useMemo(() => {
     if (mediaType !== "png") return null;
-    return pngUrl || null;
+    return normalizeSupabaseUrl(pngUrl) || pngUrl || null;
   }, [mediaType, pngUrl]);
+
+  useEffect(() => {
+    triedAlternatePngRef.current = false;
+    setPngUri(activePngUrl);
+  }, [activePngUrl]);
 
   // Fetch SVG text when only URL is available
   const [svgCache, setSvgCache] = useState<string | null>(null);
@@ -89,11 +132,8 @@ export default function GraphQuestionDrill({
     let cancelled = false;
     const fetchSVG = async () => {
       try {
-        const res = await fetch(urlToUse);
-        if (!cancelled && res.ok) {
-          const text = await res.text();
-          setSvgCache(text);
-        }
+        const text = await fetchRemoteText(urlToUse);
+        if (!cancelled) setSvgCache(text);
       } catch {
         if (!cancelled) setSvgCache(null);
       }
@@ -162,10 +202,22 @@ export default function GraphQuestionDrill({
   }, [mediaType, activeSvgCode, svgCache]);
 
   return (
-    <View style={styles.container}>
-      {/* Media */}
-      <View style={styles.mediaWrapper}>
-        <View style={styles.mediaContainer} pointerEvents="none">
+    <View
+      style={[
+        styles.container,
+        {
+          paddingVertical: layout.containerPadding,
+          paddingHorizontal: layout.containerPadding + 4,
+          gap: stackGap,
+          minHeight: blockMinHeight,
+        },
+      ]}
+    >
+      <View style={[styles.mediaWrapper, { flexShrink: 0 }]}>
+        <View
+          style={[styles.mediaContainer, { height: layout.mediaHeight }]}
+          pointerEvents="none"
+        >
           {mediaType === "svg" ? (
             parsedSVG ? (
               <View style={styles.svgContainer}>{parsedSVG}</View>
@@ -174,11 +226,19 @@ export default function GraphQuestionDrill({
                 <Text style={styles.mediaPlaceholderText}>SVG</Text>
               </View>
             )
-          ) : activePngUrl ? (
+          ) : pngUri ? (
             <Image
-              source={{ uri: activePngUrl } as any}
+              source={{ uri: pngUri } as any}
               style={styles.pngImage}
               resizeMode="contain"
+              onError={() => {
+                if (!activePngUrl || triedAlternatePngRef.current) return;
+                const alternate = getAlternateSupabaseUrl(activePngUrl);
+                if (alternate) {
+                  triedAlternatePngRef.current = true;
+                  setPngUri(alternate);
+                }
+              }}
             />
           ) : (
             <View style={styles.mediaPlaceholder}>
@@ -203,10 +263,16 @@ export default function GraphQuestionDrill({
         </Pressable>
       </View>
 
-      {/* Choices */}
-      <View style={styles.choicesContainer}>
-        {choices.map((choice) => {
+      <View
+        style={[
+          styles.choicesContainer,
+          { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
+        ]}
+      >
+        {visibleChoices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
+          const labelColor =
+            submitted || isSelected ? "#FFFFFF" : "#374151";
           const isCorrectChoice = choice.correct;
           let buttonStyle: any = styles.choiceButton;
 
@@ -227,20 +293,75 @@ export default function GraphQuestionDrill({
           return (
             <Pressable
               key={choice.id}
-              style={buttonStyle}
+              style={[
+                buttonStyle,
+                {
+                  paddingVertical: layout.choicePaddingVertical,
+                  paddingHorizontal: layout.choicePaddingHorizontal,
+                  marginBottom: 0,
+                },
+              ]}
               onPress={() => {
                 if (!submitted) {
                   setSelectedChoice(choice.id);
                 }
               }}
             >
-              <HtmlText
-                value={choice.text}
-                style={[
-                  styles.choiceText,
-                  (submitted || isSelected) && styles.choiceTextSelected,
-                ]}
-              />
+              <View style={styles.choiceTextWrap}>
+                {getDrillChoicePlainText(choice) ? (
+                  <DrillChoiceLabel
+                    choice={choice}
+                    color={labelColor}
+                    style={[
+                      styles.choiceText,
+                      {
+                        fontSize: layout.choiceFontSize,
+                        lineHeight: layout.choiceLineHeight,
+                      },
+                      (submitted || isSelected) && styles.choiceTextSelected,
+                    ]}
+                  />
+                ) : (() => {
+                  const mediaUrl =
+                    normalizeSupabaseUrl(choice.pngUrl) ||
+                    choice.pngUrl ||
+                    normalizeSupabaseUrl(choice.svgPublicUrl) ||
+                    choice.svgPublicUrl ||
+                    choice.svgUrl;
+                  if (!mediaUrl) {
+                    const fallback = getDrillChoiceText(choice);
+                    return fallback ? (
+                      <Text
+                        style={[
+                          styles.choiceText,
+                          { color: labelColor, fontSize: layout.choiceFontSize },
+                        ]}
+                      >
+                        {fallback.replace(/<[^>]+>/g, " ").trim()}
+                      </Text>
+                    ) : null;
+                  }
+                  const mediaW = Math.min(screenWidth * 0.38, 160);
+                  const mediaH = Math.max(44, layout.choiceLineHeight * 2);
+                  if (choice.pngUrl || mediaUrl.includes(".png")) {
+                    return (
+                      <Image
+                        source={{ uri: mediaUrl }}
+                        style={{ width: mediaW, height: mediaH }}
+                        resizeMode="contain"
+                      />
+                    );
+                  }
+                  return (
+                    <SvgUri
+                      uri={mediaUrl}
+                      width={mediaW}
+                      height={mediaH}
+                      preserveAspectRatio="xMidYMid meet"
+                    />
+                  );
+                })()}
+              </View>
             </Pressable>
           );
         })}
@@ -269,9 +390,9 @@ export default function GraphQuestionDrill({
             </Pressable>
 
             {/* Full-screen image/SVG */}
-            {mediaType === "png" && activePngUrl ? (
+            {mediaType === "png" && pngUri ? (
               <Image
-                source={{ uri: activePngUrl }}
+                source={{ uri: pngUri }}
                 style={styles.fullScreenImage}
                 resizeMode="contain"
               />
@@ -288,15 +409,12 @@ export default function GraphQuestionDrill({
 const styles = StyleSheet.create({
   container: {
     width: "100%",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
+    flexShrink: 0,
+    justifyContent: "flex-start",
     alignItems: "center",
   },
   mediaWrapper: {
     width: "100%",
-    marginTop: 12,
-    marginBottom: 20,
     position: "relative",
     zIndex: 100,
   },
@@ -311,7 +429,7 @@ const styles = StyleSheet.create({
   },
   mediaPlaceholder: {
     width: "100%",
-    height: 160,
+    height: "100%",
     backgroundColor: "#D4DDEE",
     borderRadius: 12,
     alignItems: "center",
@@ -324,27 +442,28 @@ const styles = StyleSheet.create({
   },
   pngImage: {
     width: "100%",
-    height: 220,
+    height: "100%",
   },
   svgContainer: {
     width: "100%",
-    height: 220,
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
   choicesContainer: {
-    width: "94%",
+    width: "100%",
     maxWidth: 480,
-    marginBottom: 20,
-    marginTop: 8,
+    flexShrink: 0,
+    alignSelf: "center",
+  },
+  choiceTextWrap: {
+    width: "100%",
+    alignItems: "center",
   },
   choiceButton: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginBottom: 12,
     borderWidth: 2,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
@@ -369,11 +488,9 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   choiceText: {
-    fontSize: 16,
     fontWeight: "bold",
     color: "#374151",
     textAlign: "center",
-    lineHeight: 22,
   },
   choiceTextSelected: {
     color: "#FFFFFF",

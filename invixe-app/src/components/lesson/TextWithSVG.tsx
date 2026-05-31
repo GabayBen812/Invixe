@@ -1,7 +1,10 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
+import { fetchRemoteText } from '../../utils/remoteAssetCache';
 import HtmlText from '../ui/HtmlText';
+import { useDrillViewportHeight } from './DrillViewport';
+import { computeStackDrillLayout } from '../../utils/drillFitLayout';
 
 interface Props {
   text?: string;
@@ -24,19 +27,24 @@ export default function TextWithSVG({
 }: Props) {
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = useRef<React.ReactElement | null>(null);
+  const viewportHeight = useDrillViewportHeight();
+  const layout = useMemo(
+    () =>
+      computeStackDrillLayout(viewportHeight > 0 ? viewportHeight : 360, {
+        hasImage: true,
+        textLines: text ? Math.min(6, Math.ceil(text.length / 35)) : 2,
+      }),
+    [viewportHeight, text],
+  );
 
-  // Fetch SVG from URL if available
   useEffect(() => {
     const fetchSVG = async () => {
       const url = svgPublicUrl || svgUrl;
       if (url && !svgCode && !svgCache) {
         try {
-          const response = await fetch(url);
-          if (response.ok) {
-            const svgText = await response.text();
-            setSvgCache(svgText);
-            parsedCacheRef.current = null; // Clear parsed cache so it will be re‑parsed
-          }
+          const svgText = await fetchRemoteText(url);
+          setSvgCache(svgText);
+          parsedCacheRef.current = null;
         } catch (error) {
           console.error('Failed to fetch SVG:', error);
         }
@@ -45,12 +53,10 @@ export default function TextWithSVG({
     fetchSVG();
   }, [svgPublicUrl, svgUrl, svgCode, svgCache]);
 
-  // Memoize SVG parsing to avoid re-parsing on every render
   const parsedSVG = useMemo(() => {
     const svgToParse = svgCode || svgCache;
     if (!svgToParse) return null;
 
-    // If we've already parsed this exact SVG, reuse it
     if (parsedCacheRef.current) {
       return parsedCacheRef.current;
     }
@@ -62,24 +68,28 @@ export default function TextWithSVG({
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.explainContainer}>
-          {!!text && (
-            <HtmlText value={text} style={styles.explainText} />
+      <View style={[styles.explainContainer, { gap: layout.gap }]}>
+        {!!text && (
+          <HtmlText
+            value={text}
+            style={[
+              styles.explainText,
+              {
+                fontSize: layout.textFontSize,
+                lineHeight: layout.textLineHeight,
+                marginBottom: layout.gap,
+              },
+            ]}
+          />
+        )}
+        <View style={[styles.svgContainer, { height: layout.imageHeight }]}>
+          {parsedSVG || (
+            <View style={styles.svgPlaceholder}>
+              <Text style={styles.svgPlaceholderText}>SVG</Text>
+            </View>
           )}
-          <View style={styles.svgContainer}>
-            {parsedSVG || (
-              <View style={styles.svgPlaceholder}>
-                <Text style={styles.svgPlaceholderText}>SVG</Text>
-              </View>
-            )}
-          </View>
         </View>
-      </ScrollView>
+      </View>
       {showButton && (
         <Pressable
           style={styles.simpleTextButton}
@@ -99,45 +109,33 @@ const styles = StyleSheet.create({
     width: '100%',
     flex: 1,
     alignItems: 'center',
-  },
-  scrollView: {
-    width: '100%',
-    flex: 1,
-  },
-  scrollContent: {
-    alignItems: 'center',
-    paddingBottom: 20,
+    justifyContent: 'center',
   },
   explainContainer: {
     width: '92%',
     maxWidth: 500,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
     borderRadius: 16,
     alignItems: 'center',
-    marginBottom: 16,
   },
   explainText: {
     color: '#0D2033',
     fontWeight: '700',
-    fontSize: 18,
     textAlign: 'center',
-    marginBottom: 12,
   },
   svgContainer: {
     width: '100%',
-    minHeight: 220,
-    maxHeight: 400,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
-    padding: 16,
+    padding: 8,
   },
   svgPlaceholder: {
     width: '100%',
-    height: 200,
+    height: '100%',
     backgroundColor: '#E2E8F0',
     borderRadius: 8,
     alignItems: 'center',
@@ -154,7 +152,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 28,
     alignSelf: 'center',
-    marginBottom: 20,
+    marginTop: 8,
   },
   confirmButtonText: {
     color: '#FFFFFF',
@@ -162,4 +160,3 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
-

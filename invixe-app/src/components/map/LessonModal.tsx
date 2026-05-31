@@ -1,7 +1,13 @@
 import React from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, TouchableWithoutFeedback, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import theme from "../../theme";
-import ProgressBar from "./ProgressBar";
 import { XPStarSVG } from "./MapAssets";
 
 type Lesson = {
@@ -38,27 +44,33 @@ export default function LessonModal({ visible, onClose, selectedMainLesson, comp
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={styles.modalOverlay}>
-          <TouchableWithoutFeedback>
-            <View style={styles.modalContent}>
-              <View style={styles.modalHeader}>
-                <View style={styles.modalHeaderText}>
-                  <Text style={styles.modalTitle}>{selectedMainLesson.title}</Text>
-                </View>
-                <TouchableWithoutFeedback onPress={onClose}>
-                  <View style={styles.modalCloseButton}>
-                    <Text style={{ color: "#64748B", fontSize: 20 }}>×</Text>
-                  </View>
-                </TouchableWithoutFeedback>
-              </View>
+      <View style={styles.modalOverlay}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="סגור" />
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <View style={styles.modalHeaderText}>
+              <Text style={styles.modalTitle}>{selectedMainLesson.title}</Text>
+            </View>
+            <Pressable
+              onPress={onClose}
+              style={styles.modalCloseButton}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="סגור"
+            >
+              <Text style={styles.modalCloseButtonText}>×</Text>
+            </Pressable>
+          </View>
 
-              {selectedMainLesson.sublessons ? (
-                <ScrollView 
-                  style={styles.modalLessonsScrollContainer} 
-                  showsVerticalScrollIndicator={false}
-                  contentContainerStyle={styles.modalLessonsScrollContent}
-                >
+          {selectedMainLesson.sublessons ? (
+            <ScrollView
+              style={styles.modalLessonsScrollContainer}
+              contentContainerStyle={styles.modalLessonsScrollContent}
+              showsVerticalScrollIndicator
+              nestedScrollEnabled
+              keyboardShouldPersistTaps="handled"
+              bounces
+            >
                   {selectedMainLesson.sublessons.map((sublesson, idx) => {
                     const isCompleted = completedLessons.includes(sublesson.id);
                     const isCurrent = !isCompleted && selectedMainLesson.sublessons!.slice(0, idx).every((l) => completedLessons.includes(l.id));
@@ -122,13 +134,10 @@ export default function LessonModal({ visible, onClose, selectedMainLesson, comp
                       </Pressable>
                     );
                   })}
-                </ScrollView>
-              ) : null}
-
-            </View>
-          </TouchableWithoutFeedback>
+            </ScrollView>
+          ) : null}
         </View>
-      </TouchableWithoutFeedback>
+      </View>
     </Modal>
   );
 }
@@ -136,18 +145,24 @@ export default function LessonModal({ visible, onClose, selectedMainLesson, comp
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(30, 41, 59, 0.7)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,
   },
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(30, 41, 59, 0.7)",
+  },
   modalContent: {
+    flexDirection: "column",
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 24,
     width: "100%",
     maxWidth: 380,
     maxHeight: "85%",
+    zIndex: 1,
+    overflow: "hidden",
     shadowColor: "#1E293B",
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.25,
@@ -171,14 +186,25 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  modalCloseButtonText: {
+    color: "#64748B",
+    fontSize: 20,
+  },
   modalTitle: {
     fontSize: 22,
     fontFamily: theme.font.bold,
     color: theme.colors.text,
     textAlign: "right",
   },
-  modalLessonsScrollContainer: { maxHeight: 400, marginBottom: theme.spacing.md },
-  modalLessonsScrollContent: { paddingBottom: 8 },
+  modalLessonsScrollContainer: {
+    flexGrow: 0,
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  modalLessonsScrollContent: {
+    paddingBottom: theme.spacing.md,
+    flexGrow: 1,
+  },
   modalLessonItem: {
     flexDirection: "row",
     alignItems: "center",

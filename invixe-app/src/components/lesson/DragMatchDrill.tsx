@@ -17,6 +17,7 @@ import {
   Hammer,
 } from "../../assets/Candels";
 import { parseSVGCode } from "../../utils/svgParser";
+import { fetchRemoteText } from "../../utils/remoteAssetCache";
 
 interface SlotSpec {
   id: string;
@@ -131,16 +132,14 @@ export default function DragMatchDrill({
       const promises = slots.map(async (slot) => {
         if (slot.svgPublicUrl && !svgCache[slot.id]) {
           try {
-            const response = await fetch(slot.svgPublicUrl);
-            const text = await response.text();
+            const text = await fetchRemoteText(slot.svgPublicUrl);
             setSvgCache((prev) => ({ ...prev, [slot.id]: text }));
           } catch (e) {
             console.error(`Failed to fetch SVG for ${slot.id}:`, e);
           }
         } else if (slot.svgUrl && !svgCache[slot.id]) {
           try {
-            const response = await fetch(slot.svgUrl);
-            const text = await response.text();
+            const text = await fetchRemoteText(slot.svgUrl);
             setSvgCache((prev) => ({ ...prev, [slot.id]: text }));
           } catch (e) {
             console.error(`Failed to fetch SVG for ${slot.id}:`, e);

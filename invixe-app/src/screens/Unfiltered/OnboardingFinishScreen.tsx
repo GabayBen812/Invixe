@@ -14,6 +14,7 @@ import { useRegistration } from "../../../context/RegistrationContext";
 import { useUser } from "../../context/UserContext";
 
 import { API_BASE_URL } from "../../config/api";
+import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 
 const API_URL = `${API_BASE_URL}/register`;
 
@@ -30,7 +31,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetchWithTimeout(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),

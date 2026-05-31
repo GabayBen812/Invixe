@@ -1,7 +1,16 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { StepRegistry } from '../modules/lessons/registry';
-import { LessonStep } from '../modules/lessons/types';
-import { API_BASE_URL } from '../config/api';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { LessonStep, StepRegistry } from "../modules/lessons/types";
+import { API_BASE_URL } from "../config/api";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { getCachedRegistry, setCachedRegistry } from "../utils/storage";
 
 type LessonsContextType = {
   lessonsRegistry: StepRegistry[];
@@ -13,64 +22,86 @@ const LessonsContext = createContext<LessonsContextType | undefined>(undefined);
 
 const API_BASE = API_BASE_URL;
 
+function normalizeRegistry(data: unknown): StepRegistry[] {
+  return ((data as StepRegistry[]) || []).map((step) => {
+    const raw = step as StepRegistry & {
+      unitid?: string;
+      unit_id?: string;
+    };
+    return {
+      ...raw,
+      unitId: raw.unitId ?? raw.unitid ?? raw.unit_id,
+    };
+  });
+}
+
 export function LessonsProvider({ children }: { children: React.ReactNode }) {
   const [lessonsRegistry, setLessonsRegistry] = useState<StepRegistry[]>([]);
-  const [loadingRegistry, setLoadingRegistry] = useState<boolean>(false);
-  const [stepsCache, setStepsCache] = useState<Record<string, LessonStep[]>>(
-    {},
-  );
+  const [loadingRegistry, setLoadingRegistry] = useState(true);
+  const stepsCacheRef = useRef<Record<string, LessonStep[]>>({});
 
   useEffect(() => {
     let cancelled = false;
+
     async function loadRegistry() {
+      const cached = await getCachedRegistry<StepRegistry[]>();
+      if (cached?.length && !cancelled) {
+        setLessonsRegistry(cached);
+        setLoadingRegistry(false);
+      }
+
       try {
-        setLoadingRegistry(true);
-        const res = await fetch(`${API_BASE}/v2/lessons/registry`);
+        const res = await fetchWithTimeout(`${API_BASE}/v2/lessons/registry`);
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = await res.json();
-        const normalized: StepRegistry[] = (data || []).map((step: any) => ({
-          ...step,
-          unitId: step.unitId ?? step.unitid ?? step.unit_id ?? null,
-        }));
-        if (!cancelled) setLessonsRegistry(normalized);
+        const normalized = normalizeRegistry(data);
+        if (!cancelled) {
+          setLessonsRegistry(normalized);
+          void setCachedRegistry(normalized);
+        }
       } catch (e) {
-        console.error('Failed to load lessons registry', e);
-        if (!cancelled) setLessonsRegistry([]);
+        console.error("Failed to load lessons registry", e);
+        if (!cancelled && !cached?.length) {
+          setLessonsRegistry([]);
+        }
       } finally {
         if (!cancelled) setLoadingRegistry(false);
       }
     }
+
     loadRegistry();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const getLessonSteps = async (
-    lessonId: number,
-    unitId?: string,
-  ): Promise<LessonStep[]> => {
-    const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
-    if (stepsCache[cacheKey]) return stepsCache[cacheKey];
-    try {
-      const url = unitId
-        ? `${API_BASE}/v2/lessons/${lessonId}/steps?unitId=${encodeURIComponent(
-            unitId,
-          )}`
-        : `${API_BASE}/v2/lessons/${lessonId}/steps`;
-      console.log("Fetching lesson steps", { lessonId, unitId, url });
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`status ${res.status}`);
-      const data = (await res.json()) as LessonStep[];
-      setStepsCache((prev) => ({ ...prev, [cacheKey]: data || [] }));
-      return data || [];
-    } catch (e) {
-      console.error('Failed to load lesson steps', lessonId, e);
-      return [];
-    }
-  };
+  const getLessonSteps = useCallback(
+    async (lessonId: number, unitId?: string): Promise<LessonStep[]> => {
+      const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
+      const cached = stepsCacheRef.current[cacheKey];
+      if (cached) return cached;
+
+      try {
+        const url = unitId
+          ? `${API_BASE}/v2/lessons/${lessonId}/steps?unitId=${encodeURIComponent(unitId)}`
+          : `${API_BASE}/v2/lessons/${lessonId}/steps`;
+        const res = await fetchWithTimeout(url);
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        const data = (await res.json()) as LessonStep[];
+        const steps = data || [];
+        stepsCacheRef.current[cacheKey] = steps;
+        return steps;
+      } catch (e) {
+        console.error("Failed to load lesson steps", lessonId, e);
+        return [];
+      }
+    },
+    [],
+  );
 
   const value = useMemo(
     () => ({ lessonsRegistry, loadingRegistry, getLessonSteps }),
-    [lessonsRegistry, loadingRegistry],
+    [lessonsRegistry, loadingRegistry, getLessonSteps],
   );
 
   return (
@@ -82,8 +113,6 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
 
 export function useLessons() {
   const ctx = useContext(LessonsContext);
-  if (!ctx) throw new Error('useLessons must be used within LessonsProvider');
+  if (!ctx) throw new Error("useLessons must be used within LessonsProvider");
   return ctx;
 }
-
-

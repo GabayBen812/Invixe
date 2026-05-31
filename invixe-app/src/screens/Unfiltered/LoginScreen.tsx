@@ -18,6 +18,7 @@ import { useUser } from "../../context/UserContext";
 import Svg, { Path } from "react-native-svg";
 
 import { API_BASE_URL } from "../../config/api";
+import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 
 const API_URL = `${API_BASE_URL}/login`;
 
@@ -58,7 +59,7 @@ export default function LoginScreen({ navigation }: Props) {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(API_URL, {
+      const res = await fetchWithTimeout(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone, password }),
@@ -69,11 +70,11 @@ export default function LoginScreen({ navigation }: Props) {
         throw new Error(data.error || "Login failed");
       }
       const data = await res.json();
-      await setCurrentUser(data.phone || phone, {
+      navigation.navigate("Map", {});
+      void setCurrentUser(data.phone || phone, {
         firstName: data.firstName,
         lastName: data.lastName,
-      }); // Use returned phone/email or input
-      navigation.navigate("Map", {});
+      });
     } catch (e: any) {
       const msg = e.message || "Network error";
       setError(getHebrewError(msg));

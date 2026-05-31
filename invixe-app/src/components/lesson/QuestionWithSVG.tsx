@@ -2,7 +2,13 @@ import React, { useState, useMemo, useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
-import HtmlText from "../ui/HtmlText";
+import { fetchRemoteText } from "../../utils/remoteAssetCache";
+import { useChoiceDrillLayout } from "../../hooks/useChoiceDrillLayout";
+import DrillChoiceLabel from "./DrillChoiceLabel";
+import {
+  DRILL_MEDIA_STACK_GAP,
+  getDrillChoicePlainText,
+} from "../../utils/drillFitLayout";
 
 interface Choice {
   id: string;
@@ -50,6 +56,17 @@ export default function QuestionWithSVG({
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [svgCache, setSvgCache] = useState<string | null>(null);
+  const useGridLayout = choices.length > 4;
+  const visibleChoices = choices.filter(
+    (c) => getDrillChoicePlainText(c).length > 0,
+  );
+  const layout = useChoiceDrillLayout(visibleChoices.length || choices.length, {
+    hasMedia: true,
+    gridCols: useGridLayout ? 2 : 1,
+  });
+  const stackGap = DRILL_MEDIA_STACK_GAP;
+  const blockMinHeight =
+    layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
 
   const handleSubmit = () => {
     if (selectedChoice && choices && Array.isArray(choices)) {
@@ -94,11 +111,8 @@ export default function QuestionWithSVG({
       const url = svgPublicUrl || svgUrl;
       if (url && !svgCode && !svgCache) {
         try {
-          const response = await fetch(url);
-          if (response.ok) {
-            const svgText = await response.text();
-            setSvgCache(svgText);
-          }
+          const svgText = await fetchRemoteText(url);
+          setSvgCache(svgText);
         } catch (error) {
           console.error("Failed to fetch SVG:", error);
         }
@@ -170,31 +184,45 @@ export default function QuestionWithSVG({
     return null;
   };
 
-  // Use grid layout if more than 4 choices
-  const useGridLayout = choices.length > 4;
-
   return (
-    <View style={styles.container}>
-      {/* SVG */}
+    <View
+      style={[
+        styles.container,
+        {
+          paddingHorizontal: layout.containerPadding + 6,
+          paddingVertical: layout.containerPadding,
+          gap: stackGap,
+          minHeight: blockMinHeight,
+        },
+      ]}
+    >
       {renderSVG() && (
-        <View style={styles.svgContainer}>
+        <View
+          style={[
+            styles.svgContainer,
+            { height: layout.mediaHeight },
+          ]}
+        >
           <View style={styles.svgWrapper}>{renderSVG()}</View>
         </View>
       )}
 
-      {/* Choices */}
       <View
-        style={[styles.choicesContainer, useGridLayout && styles.choicesGrid]}
+        style={[
+          styles.choicesContainer,
+          useGridLayout && styles.choicesGrid,
+          { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
+        ]}
       >
-        {choices &&
-          Array.isArray(choices) &&
-          choices.map((choice) => {
+        {visibleChoices.map((choice) => {
             if (!choice || !choice.id) {
               console.warn("QuestionWithSVG: Invalid choice object:", choice);
               return null;
             }
             const isSelected = selectedChoice === choice.id;
             const isCorrectChoice = choice.correct;
+            const labelColor =
+              submitted || isSelected ? "#FFFFFF" : "#374151";
             let buttonStyle: any[] = [styles.choiceButton];
 
             if (submitted) {
@@ -212,48 +240,58 @@ export default function QuestionWithSVG({
             return (
               <Pressable
                 key={choice.id}
-                style={[buttonStyle, useGridLayout && styles.choiceButtonGrid]}
+                style={[
+                  buttonStyle,
+                  useGridLayout && styles.choiceButtonGrid,
+                  {
+                    paddingVertical: layout.choicePaddingVertical,
+                    paddingHorizontal: layout.choicePaddingHorizontal,
+                    marginBottom: 0,
+                  },
+                ]}
                 onPress={() => {
                   if (!submitted) {
                     setSelectedChoice(choice.id);
                   }
                 }}
               >
-                <HtmlText
-                  value={choice.text}
-                  style={[
-                    styles.choiceText,
-                    (submitted || isSelected) && styles.choiceTextSelected,
-                  ]}
-                />
+                <View style={styles.choiceTextWrap}>
+                  <DrillChoiceLabel
+                    choice={choice}
+                    color={labelColor}
+                    style={[
+                      styles.choiceText,
+                      {
+                        fontSize: layout.choiceFontSize,
+                        lineHeight: layout.choiceLineHeight,
+                      },
+                      (submitted || isSelected) && styles.choiceTextSelected,
+                    ]}
+                  />
+                </View>
               </Pressable>
             );
           })}
       </View>
-
-      {/* Reserve space for global continue button (always reserve space even if not visible) */}
-      <View style={styles.buttonArea} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 0,
-    paddingBottom: 0,
+    width: "100%",
+    flexShrink: 0,
+    justifyContent: "flex-start",
   },
   svgContainer: {
-    marginBottom: 16,
-    marginTop: 10,
     alignItems: "center",
     justifyContent: "center",
     width: "100%",
+    flexShrink: 0,
   },
   svgWrapper: {
     width: "100%",
-    height: 180,
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -271,20 +309,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   choicesContainer: {
-    marginBottom: 24,
     width: "100%",
+    flexShrink: 0,
+  },
+  choiceTextWrap: {
+    width: "100%",
+    alignItems: "center",
   },
   choicesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "space-between",
+    justifyContent: "center",
+    columnGap: 8,
   },
   choiceButton: {
     backgroundColor: "#FFFFFF",
     borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    marginBottom: 12,
     borderWidth: 2,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
@@ -296,8 +336,6 @@ const styles = StyleSheet.create({
   },
   choiceButtonGrid: {
     width: "48%",
-    paddingVertical: 14,
-    paddingHorizontal: 12,
   },
   choiceButtonSelected: {
     borderColor: "#3F9FFF",
@@ -312,18 +350,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFEEEE",
   },
   choiceText: {
-    fontSize: 16,
     fontWeight: "bold",
     color: "#374151",
     textAlign: "center",
-    lineHeight: 22,
   },
   choiceTextSelected: {
     color: "#1E40AF",
     fontWeight: "600",
-  },
-  buttonArea: {
-    minHeight: 120,
-    width: "100%",
   },
 });

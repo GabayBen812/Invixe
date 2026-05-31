@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,76 +6,159 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Image,
+  Pressable,
+  useWindowDimensions,
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
+import PortfolioSparkline from "../components/profile/PortfolioSparkline";
+import ProfileStatTile from "../components/profile/ProfileStatTile";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
-import Svg, { Path, Rect, Circle } from "react-native-svg";
+import { useLessons } from "../context/LessonsContext";
+import Svg, { Path, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
 import { API_BASE_URL } from "../config/api";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import {
   DICTIONARY_ENTRIES,
   isEntryUnlocked,
 } from "../data/dictionary";
+import {
+  countUnitsInProgress,
+  findFirstIncompleteLesson,
+} from "../modules/lessons/lessonNavigation";
+import {
+  formatIls,
+  formatPercent,
+  normalizePortfolioHolding,
+  normalizeStockPrice,
+  type NormalizedHolding,
+  type NormalizedStockPrice,
+} from "../utils/portfolioNormalize";
 
-// --- Icons ---
+type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
-const FireIcon = () => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
+const ICON_STROKE = "#475569";
+
+function getInvestorBadge(completedLessonsCount: number): string {
+  if (completedLessonsCount >= 30) return "משקיע מנוסה 🏆";
+  if (completedLessonsCount >= 10) return "משקיע מתקדם 📈";
+  return "משקיע מתחיל 🥇";
+}
+
+const StatBookIcon = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
     <Path
-      d="M12 22c4.97 0 9-4.03 9-9c0-4.97-9-13-9-13S3 8.03 3 13c0 4.97 4.03 9 9 9z"
-      fill="#FFA000"
+      d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinecap="round"
     />
     <Path
-      d="M12 18c2.21 0 4-1.79 4-4c0-2.21-4-7-4-7s-4 4.79-4 7c0 2.21 1.79 4 4 4z"
+      d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinejoin="round"
+    />
+  </Svg>
+);
+
+const StatDocIcon = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M14 2v6h6M16 13H8M16 17H8M10 9H8"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+const StatCapIcon = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M22 10v6M2 10l10-5 10 5-10 5z"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M6 12v5c0 1.1 2.7 2 6 2s6-.9 6-2v-5"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+    />
+  </Svg>
+);
+
+const StatXpIcon = () => (
+  <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M3 17l6-6 4 4 8-10"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M14 5h7v7"
+      stroke={ICON_STROKE}
+      strokeWidth={1.8}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
+
+const StreakBackground = () => (
+  <Svg style={StyleSheet.absoluteFill} preserveAspectRatio="none">
+    <Defs>
+      <LinearGradient id="streakGrad" x1="0" y1="0" x2="1" y2="1">
+        <Stop offset="0%" stopColor="#8E2A2A" />
+        <Stop offset="50%" stopColor="#5C1616" />
+        <Stop offset="100%" stopColor="#2C0A0A" />
+      </LinearGradient>
+    </Defs>
+    <Rect x="0" y="0" width="100%" height="100%" fill="url(#streakGrad)" />
+  </Svg>
+);
+
+const Flame = ({ x, scale = 1, opacity = 1 }: { x: number; scale?: number; opacity?: number }) => (
+  <Svg
+    width={70 * scale}
+    height={70 * scale}
+    viewBox="0 0 120 80"
+    style={[styles.flameSvg, { left: x, opacity }]}
+  >
+    <Path
+      d="M60 8c-8 14-22 18-22 32 0 14 10 24 22 24s22-10 22-24c0-14-14-18-22-32z"
+      fill="#F79009"
+    />
+    <Path
+      d="M60 26c-4 8-12 10-12 17 0 7 6 13 12 13s12-6 12-13c0-7-8-9-12-17z"
       fill="#FFCA28"
     />
   </Svg>
 );
 
-const LessonsIcon = () => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M4 11h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zm10 0h6a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zM4 21h6a1 1 0 0 0 1-1v-6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1zm13 0c2.21 0 4-1.79 4-4s-1.79-4-4-4s-4 1.79-4 4s1.79 4 4 4z"
-      fill="#4285F4"
-    />
-  </Svg>
+const StreakFlames = () => (
+  <>
+    <Flame x={4} scale={0.85} opacity={0.7} />
+    <Flame x={46} scale={1.1} opacity={0.95} />
+    <Flame x={104} scale={0.8} opacity={0.6} />
+  </>
 );
-
-const BookIcon = () => (
-  <Svg width={32} height={32} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"
-      fill="#5C6BC0"
-    />
-  </Svg>
-);
-
-interface PortfolioHolding {
-  id: string;
-  symbol: string;
-  shares: number;
-  avgPrice: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface StockPrice {
-  symbol: string;
-  price: number;
-  change: number;
-  changePercent: number;
-}
-
-type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
 export default function ProfileScreen({ navigation }: Props) {
+  const { width: screenWidth } = useWindowDimensions();
   const {
     coins,
-    lightnings,
     completedLessons,
     lessonAttempts,
     logout,
@@ -83,98 +166,154 @@ export default function ProfileScreen({ navigation }: Props) {
     firstName,
     lastName,
   } = useUser();
-  const [portfolio, setPortfolio] = useState<PortfolioHolding[]>([]);
-  const [stockPrices, setStockPrices] = useState<StockPrice[]>([]);
+  const { lessonsRegistry } = useLessons();
+  const [portfolio, setPortfolio] = useState<NormalizedHolding[]>([]);
+  const [stockPrices, setStockPrices] = useState<NormalizedStockPrice[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchPortfolio();
-  }, []);
-
-  useEffect(() => {
-    if (portfolio.length > 0) {
-      fetchStockPrices();
+    if (currentUserEmail) {
+      loadProfileData();
     }
-  }, [portfolio]);
+  }, [currentUserEmail]);
 
-  const handleLogout = () => {
-    logout();
-    navigation.reset({
-      index: 0,
-      routes: [{ name: "Welcome" }],
-    });
-  };
-
-  const fetchPortfolio = async () => {
+  const loadProfileData = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/user/portfolio`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch portfolio");
+      const portfolioUrl = currentUserEmail
+        ? `${API_BASE_URL}/user/portfolio?email=${encodeURIComponent(currentUserEmail)}`
+        : `${API_BASE_URL}/user/portfolio`;
+      const portfolioRes = await fetchWithTimeout(portfolioUrl);
+      if (!portfolioRes.ok) throw new Error("Failed to fetch portfolio");
+      const portfolioData = await portfolioRes.json();
+      const holdings = (portfolioData.portfolio || []).map(
+        (row: Record<string, unknown>) => normalizePortfolioHolding(row),
+      );
+      setPortfolio(holdings);
+
+      if (holdings.length === 0) {
+        setStockPrices([]);
+        return;
       }
-      const data = await response.json();
-      setPortfolio(data.portfolio || []);
+
+      const symbols = holdings.map((h) => h.symbol).join(",");
+      const pricesRes = await fetchWithTimeout(
+        `${API_BASE_URL}/stocks/prices?symbols=${symbols}`,
+      );
+      if (!pricesRes.ok) throw new Error("Failed to fetch stock prices");
+      const pricesData = await pricesRes.json();
+      const prices = (pricesData.prices || [])
+        .map((row: Record<string, unknown>) => normalizeStockPrice(row))
+        .filter(Boolean) as NormalizedStockPrice[];
+      setStockPrices(prices);
     } catch (error) {
-      console.error("Error fetching portfolio:", error);
+      console.error("Error loading profile:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStockPrices = async () => {
-    try {
-      const symbols = portfolio.map((h) => h.symbol).join(",");
-      const response = await fetch(
-        `${API_BASE_URL}/stocks/prices?symbols=${symbols}`,
-      );
-      if (!response.ok) {
-        throw new Error("Failed to fetch stock prices");
-      }
-      const data = await response.json();
-      setStockPrices(data.prices || []);
-    } catch (error) {
-      console.error("Error fetching stock prices:", error);
-      // Mock data for demo
-      const mockPrices = portfolio.map((holding) => ({
-        symbol: holding.symbol,
-        price: 100 + Math.random() * 200,
-        change: (Math.random() - 0.5) * 10,
-        changePercent: (Math.random() - 0.5) * 5,
-      }));
-      setStockPrices(mockPrices);
+  const priceBySymbol = useMemo(() => {
+    const map = new Map<string, NormalizedStockPrice>();
+    stockPrices.forEach((p) => map.set(p.symbol.toUpperCase(), p));
+    return map;
+  }, [stockPrices]);
+
+  const getCurrentPrice = (holding: NormalizedHolding) => {
+    const quote = priceBySymbol.get(holding.symbol.toUpperCase());
+    const price = quote?.price ?? holding.avgPrice;
+    return Number.isFinite(price) ? price : 0;
+  };
+
+  const getHoldingChangePercent = (holding: NormalizedHolding) => {
+    const quote = priceBySymbol.get(holding.symbol.toUpperCase());
+    if (quote && Number.isFinite(quote.changePercent) && quote.changePercent !== 0) {
+      return quote.changePercent;
     }
+    if (holding.avgPrice <= 0) return 0;
+    const current = getCurrentPrice(holding);
+    return ((current - holding.avgPrice) / holding.avgPrice) * 100;
   };
 
-  // Updated getCurrentPrice: fallback to avgPrice if no price found
-  const getCurrentPrice = (symbol: string, avgPrice: number) => {
-    const priceData = stockPrices.find((p) => p.symbol === symbol);
-    // If no price found, fallback to avgPrice (so gain/loss is 0)
-    return priceData?.price || avgPrice;
-  };
-
-  const getTotalValue = () => {
-    return portfolio.reduce((total, holding) => {
-      const currentPrice = getCurrentPrice(holding.symbol, holding.avgPrice);
-      return total + holding.shares * currentPrice;
+  const portfolioStats = useMemo(() => {
+    const totalValue = portfolio.reduce((sum, h) => {
+      return sum + h.shares * getCurrentPrice(h);
     }, 0);
-  };
+    const totalCost = portfolio.reduce(
+      (sum, h) => sum + h.shares * h.avgPrice,
+      0,
+    );
+    const gainLoss = totalValue - totalCost;
+    const gainPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0;
+    return { totalValue, gainPercent, gainLoss };
+  }, [portfolio, priceBySymbol]);
 
-  const getTotalCost = () => {
-    return portfolio.reduce((total, holding) => {
-      return total + holding.shares * holding.avgPrice;
-    }, 0);
-  };
+  const holdingsPreview = useMemo(() => {
+    return [...portfolio]
+      .map((h) => ({
+        ...h,
+        changePercent: getHoldingChangePercent(h),
+      }))
+      .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent))
+      .slice(0, 4);
+  }, [portfolio, priceBySymbol]);
 
-  const getTotalGainLoss = () => {
-    const totalValue = getTotalValue();
-    const totalCost = getTotalCost();
-    return totalValue - totalCost;
-  };
+  const streakDays = useMemo(() => {
+    if (!lessonAttempts?.length) return 0;
+    const today = new Date();
+    let streak = 0;
+    for (let offset = 0; offset < 365; offset++) {
+      const day = new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        today.getDate() - offset,
+      );
+      const dayStr = day.toDateString();
+      const hasAttempt = lessonAttempts.some(
+        (a) => new Date(a.lastAttempted).toDateString() === dayStr,
+      );
+      if (!hasAttempt) {
+        if (offset === 0) return 0;
+        break;
+      }
+      streak += 1;
+    }
+    return streak;
+  }, [lessonAttempts]);
 
-  const getGainLossPercent = () => {
-    const totalCost = getTotalCost();
-    if (totalCost === 0) return 0;
-    return (getTotalGainLoss() / totalCost) * 100;
-  };
+  const unlockedTermsCount = DICTIONARY_ENTRIES.filter((entry) =>
+    isEntryUnlocked(entry, completedLessons),
+  ).length;
+
+  const coursesInProgress = countUnitsInProgress(
+    lessonsRegistry,
+    completedLessons,
+  );
+
+  const nextLesson = findFirstIncompleteLesson(
+    lessonsRegistry,
+    completedLessons,
+  );
+
+  const resolvedFirstName =
+    firstName?.trim() ||
+    (currentUserEmail ? currentUserEmail.split("@")[0] : "לומד");
+  const resolvedLastName = lastName?.trim() || "";
+  const userName = resolvedLastName
+    ? `${resolvedFirstName} ${resolvedLastName}`
+    : resolvedFirstName;
+
+  const userInitials = (() => {
+    const first = resolvedFirstName.charAt(0);
+    const last = resolvedLastName.charAt(0);
+    return (first + last).trim() || resolvedFirstName.slice(0, 2).toUpperCase();
+  })();
+
+  const chartTrend = Math.min(
+    1,
+    Math.max(0.2, 0.5 + portfolioStats.gainPercent / 20),
+  );
+
+  const sparklineWidth = Math.min(screenWidth - 80, 320);
 
   const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
     switch (tab) {
@@ -184,86 +323,70 @@ export default function ProfileScreen({ navigation }: Props) {
       case "graph":
         navigation.navigate("Sandbox");
         break;
-      case "profile":
-        // Already on profile screen, do nothing
-        break;
       case "shop":
         navigation.navigate("Shop");
         break;
-    }
-  };
-
-  const getInitial = (name: string) => {
-    return name ? name.charAt(0).toUpperCase() : "?";
-  };
-
-  const resolvedFirstName =
-    firstName && firstName.trim().length > 0
-      ? firstName.trim()
-      : currentUserEmail
-        ? currentUserEmail.split("@")[0]
-        : "לומד";
-  const resolvedLastName =
-    lastName && lastName.trim().length > 0 ? lastName.trim() : "";
-
-  const userName = resolvedLastName
-    ? `${resolvedFirstName} ${resolvedLastName}`
-    : resolvedFirstName;
-
-  const userInitials = (() => {
-    const firstInitial = resolvedFirstName.charAt(0);
-    const lastInitial = resolvedLastName.charAt(0);
-    const combined = `${firstInitial}${lastInitial}`.trim();
-    if (combined.length > 0) {
-      return combined;
-    }
-    return resolvedFirstName.slice(0, 2).toUpperCase();
-  })();
-
-  // Calculate current daily streak based on lessonAttempts.lastAttempted
-  const getCurrentStreakDays = () => {
-    if (!lessonAttempts || lessonAttempts.length === 0) return 0;
-
-    const today = new Date();
-    let streak = 0;
-
-    // Walk backwards day by day until we hit a day with no attempts
-    // Stop after a reasonable upper bound to avoid infinite loops
-    for (let offset = 0; offset < 365; offset++) {
-      const day = new Date(
-        today.getFullYear(),
-        today.getMonth(),
-        today.getDate() - offset,
-      );
-      const dayStr = day.toDateString();
-
-      const hasAttemptThatDay = lessonAttempts.some((attempt) => {
-        const d = new Date(attempt.lastAttempted);
-        return d.toDateString() === dayStr;
-      });
-
-      if (!hasAttemptThatDay) {
-        // If there are no attempts today, streak is 0
-        if (offset === 0) {
-          return 0;
-        }
+      case "profile":
         break;
-      }
-
-      streak += 1;
     }
-
-    return streak;
   };
 
-  const streakDays = getCurrentStreakDays();
+  const handleLogout = async () => {
+    await logout();
+    navigation.reset({ index: 0, routes: [{ name: "Welcome" }] });
+  };
 
-  // Number of dictionary terms currently unlocked for this user
-  const unlockedTermsCount = DICTIONARY_ENTRIES.filter((entry) =>
-    isEntryUnlocked(entry, completedLessons),
-  ).length;
+  const openTrading = () => navigation.navigate("Sandbox");
 
-  // --- Redesigned UI ---
+  const continueLearning = () => {
+    if (nextLesson) {
+      navigation.navigate("Lesson", {
+        lessonId: nextLesson.lessonId,
+        unitId: nextLesson.unitId,
+      });
+      return;
+    }
+    navigation.navigate("Map", {});
+  };
+
+  const renderChangeLabel = (changePercent: number) => {
+    const isPositive = changePercent > 0.05;
+    const isNegative = changePercent < -0.05;
+    const color = isPositive
+      ? theme.colors.growthGreen
+      : isNegative
+        ? theme.colors.error[600]
+        : "#94A3B8";
+    const arrow = isPositive ? "↑" : isNegative ? "↓" : "—";
+    return (
+      <Text style={[styles.holdingChange, { color }]}>
+        {formatPercent(changePercent)} {arrow}
+      </Text>
+    );
+  };
+
+  const renderHoldingRow = (
+    holding: NormalizedHolding & { changePercent: number },
+  ) => (
+    <Pressable
+      key={holding.id}
+      style={styles.holdingRow}
+      onPress={openTrading}
+    >
+      <View style={styles.holdingAvatar}>
+        <Text style={styles.holdingAvatarText}>
+          {holding.symbol.slice(0, 2).toUpperCase()}
+        </Text>
+      </View>
+      <View style={styles.holdingMeta}>
+        <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
+        <Text style={styles.holdingShares}>{holding.shares} מניות</Text>
+      </View>
+      {renderChangeLabel(holding.changePercent)}
+      <Text style={styles.holdingChevron}>›</Text>
+    </Pressable>
+  );
+
   return (
     <View style={styles.container}>
       <TopBar />
@@ -271,133 +394,137 @@ export default function ProfileScreen({ navigation }: Props) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header Section */}
-        <View style={styles.headerSection}>
-          <View style={styles.headerInfo}>
-            <Text style={styles.userName}>{userName}</Text>
-            <Text style={styles.userRole}>Beginner Investor</Text>
-          </View>
-          <View style={styles.avatarContainer}>
+        <View style={styles.profileHeader}>
+          <View style={styles.avatar}>
             <Text style={styles.avatarText}>{userInitials}</Text>
           </View>
-        </View>
-
-        {/* Stats Row */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <FireIcon />
-            <Text style={styles.statValue}>{streakDays}</Text>
-            <Text style={styles.statLabel}>רצף ימים</Text>
-          </View>
-          <View style={styles.statCard}>
-            <LessonsIcon />
-            <Text style={styles.statValue}>{completedLessons.length}</Text>
-            <Text style={styles.statLabel}>שיעורים</Text>
-          </View>
-          <View style={styles.statCard}>
-            <BookIcon />
-            <Text style={styles.statValue}>{unlockedTermsCount}</Text>
-            <Text style={styles.statLabel}>מושגים</Text>
+          <View style={styles.profileTextCol}>
+            <Text style={styles.userName}>{userName}</Text>
+            <View style={styles.profileMetaRow}>
+              <Text style={styles.badgeText}>
+                {getInvestorBadge(completedLessons.length)}
+              </Text>
+              <Text style={styles.xpText}>
+                {coins.toLocaleString("he-IL")} XP
+              </Text>
+            </View>
           </View>
         </View>
 
-        {/* Portfolio Section */}
-        <View style={styles.portfolioContainer}>
-          <View style={styles.portfolioHeader}>
-            <View style={{ alignItems: "flex-end" }}>
-              <Text style={styles.portfolioTotalValue}>
-                $
-                {getTotalValue().toLocaleString("en-US", {
-                  minimumFractionDigits: 0,
-                  maximumFractionDigits: 0,
-                })}
-              </Text>
-              <Text
-                style={[
-                  styles.portfolioGrowth,
-                  { color: getTotalGainLoss() >= 0 ? "#12B76A" : "#F04438" },
-                ]}
-              >
-                {getTotalGainLoss() >= 0 ? "+" : ""}
-                {getGainLossPercent().toFixed(1)}%
-              </Text>
-            </View>
-            <View>
-              <Text style={styles.portfolioTitle}>תיק ההשקעות שלך</Text>
-              <Text style={styles.portfolioSubtitle}>תיק לימודי מדמה</Text>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
+        <View style={styles.portfolioCard}>
+          <Text style={styles.sectionTitle}>התיק שלי</Text>
           {loading ? (
             <ActivityIndicator
-              size="large"
-              color={theme.colors.primaryBlue}
-              style={{ marginTop: 20 }}
+              color={theme.colors.primary[500]}
+              style={{ marginVertical: 24 }}
             />
-          ) : portfolio.length === 0 ? (
-            <View style={styles.emptyPortfolio}>
-              <Text style={styles.emptyText}>אין לך מניות עדיין</Text>
-              <Text style={styles.emptySubtext}>עבור לגרף כדי לקנות מניות</Text>
+          ) : (
+            <>
+              <Text style={styles.portfolioValue}>
+                {formatIls(portfolioStats.totalValue)}
+              </Text>
+              <View style={styles.gainRow}>
+                <Text style={styles.gainLabel}>סה״כ</Text>
+                <View
+                  style={[
+                    styles.gainPill,
+                    portfolioStats.gainPercent < -0.05 &&
+                      styles.gainPillNegative,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.gainPillText,
+                      portfolioStats.gainPercent < -0.05 &&
+                        styles.gainPillTextNegative,
+                    ]}
+                  >
+                    {formatPercent(portfolioStats.gainPercent)}{" "}
+                    {portfolioStats.gainPercent >= 0 ? "↑" : "↓"}
+                  </Text>
+                </View>
+              </View>
+              <PortfolioSparkline width={sparklineWidth} trend={chartTrend} />
+              <Pressable
+                onPress={openTrading}
+                hitSlop={8}
+                style={styles.portfolioLinkWrap}
+              >
+                <Text style={styles.linkText}>לכל האחזקות ›</Text>
+              </Pressable>
+            </>
+          )}
+        </View>
+
+        <View style={styles.statsGrid}>
+          <ProfileStatTile
+            icon={<StatBookIcon />}
+            iconBackground="#E0F2FE"
+            label="שיעורים הושלמו"
+            value={String(completedLessons.length)}
+          />
+          <ProfileStatTile
+            icon={<StatDocIcon />}
+            iconBackground="#EDE9FE"
+            label="מונחים נלמדו"
+            value={String(unlockedTermsCount)}
+            style={styles.statCellDividerStart}
+          />
+          <ProfileStatTile
+            icon={<StatXpIcon />}
+            iconBackground="#FEF0C7"
+            label="XP"
+            value={coins.toLocaleString("he-IL")}
+            style={styles.statCellDividerTop}
+          />
+          <ProfileStatTile
+            icon={<StatCapIcon />}
+            iconBackground="#D1FADF"
+            label="קורסים"
+            value={
+              coursesInProgress > 0
+                ? `${coursesInProgress} בתהליך`
+                : "0 בתהליך"
+            }
+            style={[styles.statCellDividerTop, styles.statCellDividerStart]}
+          />
+        </View>
+
+        <View style={styles.holdingsSection}>
+          <View style={styles.holdingsHeader}>
+            <Text style={styles.sectionTitle}>אחזקות</Text>
+            <Pressable onPress={openTrading} hitSlop={8}>
+              <Text style={styles.linkTextInline}>הצג הכל ›</Text>
+            </Pressable>
+          </View>
+          {loading ? null : portfolio.length === 0 ? (
+            <View style={styles.emptyHoldings}>
+              <Text style={styles.emptyHoldingsText}>אין לך מניות עדיין</Text>
+              <Pressable onPress={openTrading}>
+                <Text style={styles.linkTextInline}>עבור למסחר ›</Text>
+              </Pressable>
             </View>
           ) : (
-            <View style={styles.holdingsList}>
-              {portfolio.map((holding) => {
-                const currentPrice = getCurrentPrice(
-                  holding.symbol,
-                  holding.avgPrice,
-                );
-                const gainLossPercent =
-                  ((currentPrice - holding.avgPrice) / holding.avgPrice) * 100;
-                const isPositive = gainLossPercent >= 0;
-
-                return (
-                  <View key={holding.id} style={styles.holdingItem}>
-                    {/* Symbol Circle */}
-                    <View
-                      style={[
-                        styles.symbolCircle,
-                        { backgroundColor: isPositive ? "#E8F5E9" : "#FFEBEE" },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.symbolInitial,
-                          { color: isPositive ? "#1B5E20" : "#B71C1C" },
-                        ]}
-                      >
-                        {holding.symbol.charAt(0)}
-                        {holding.symbol.charAt(1)}
-                      </Text>
-                    </View>
-
-                    {/* Info */}
-                    <View style={styles.holdingInfo}>
-                      <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
-                      <Text style={styles.holdingShares}>
-                        {holding.shares} מניות
-                      </Text>
-                    </View>
-
-                    {/* Change */}
-                    <View style={styles.holdingChange}>
-                      <Text
-                        style={[
-                          styles.changeText,
-                          { color: isPositive ? "#12B76A" : "#F04438" },
-                        ]}
-                      >
-                        {isPositive ? "+" : ""}
-                        {gainLossPercent.toFixed(1)}%
-                      </Text>
-                      <Text style={styles.chevron}>›</Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
+            holdingsPreview.map(renderHoldingRow)
           )}
+        </View>
+
+        <View style={styles.streakCard}>
+          <StreakBackground />
+          <StreakFlames />
+          <View style={styles.streakContent}>
+            <Pressable style={styles.streakButton} onPress={continueLearning}>
+              <Text style={styles.streakButtonText}>המשך ›</Text>
+            </Pressable>
+            <View style={styles.streakTextCol}>
+              <Text style={styles.streakTitle}>רצף: {streakDays} ימים</Text>
+              <Text style={styles.streakSubtitle} numberOfLines={2}>
+                {nextLesson
+                  ? `השיעור הבא: ${nextLesson.title}`
+                  : "סיימת את כל השיעורים!"}
+              </Text>
+            </View>
+          </View>
         </View>
 
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
@@ -412,204 +539,301 @@ export default function ProfileScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E3EEF9", // Light blue background
+    backgroundColor: "#FFFFFF",
   },
   scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 100,
+    paddingHorizontal: 16,
+    paddingBottom: 110,
+    backgroundColor: "#FFFFFF",
   },
-  headerSection: {
-    flexDirection: "row",
-    justifyContent: "space-between", // Space between info and avatar
+  profileHeader: {
+    flexDirection: "row-reverse",
     alignItems: "center",
-    marginBottom: 30,
-    marginTop: 10,
-    paddingHorizontal: 10,
+    justifyContent: "flex-start",
+    marginTop: 4,
+    marginBottom: 18,
+    gap: 14,
   },
-  headerInfo: {
+  profileTextCol: {
     flex: 1,
-    alignItems: "flex-end", // Align text to right for Hebrew
-    marginRight: 16,
+    alignItems: "flex-end",
+    marginEnd: 4,
   },
   userName: {
     fontSize: 24,
-    fontWeight: "800", // Heavy bold
-    color: "#0D2033",
+    fontFamily: theme.font.bold,
+    color: theme.colors.text,
     textAlign: "right",
   },
-  userRole: {
-    fontSize: 16,
-    color: "#F79009", // Orange color
-    fontWeight: "600",
-    marginTop: 4,
-    textAlign: "right",
-  },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#0D2033", // Dark background
-    justifyContent: "center",
+  profileMetaRow: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 6,
+  },
+  xpText: {
+    fontSize: 16,
+    fontFamily: theme.font.bold,
+    color: theme.colors.growthGreen,
+    textAlign: "right",
+  },
+  badgeText: {
+    fontSize: 15,
+    fontFamily: theme.font.family,
+    color: theme.colors.warning[600],
+    textAlign: "right",
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#4F46E5",
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
   avatarText: {
     color: "#FFFFFF",
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 26,
+    fontFamily: theme.font.bold,
   },
-  statsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
+  portfolioCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#0D2033",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "#EAF1F9",
+    shadowColor: "#0F2233",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     elevation: 2,
   },
-  statValue: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#0D2033",
+  sectionTitle: {
+    fontSize: 17,
+    fontFamily: theme.font.bold,
+    color: theme.colors.text,
+    textAlign: "right",
+    marginBottom: 10,
+  },
+  portfolioValue: {
+    fontSize: 36,
+    fontFamily: theme.font.bold,
+    color: theme.colors.text,
+    textAlign: "right",
+    letterSpacing: -0.5,
+  },
+  gainRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
     marginTop: 8,
     marginBottom: 4,
   },
-  statLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#667085",
-    textTransform: "uppercase",
-  },
-  portfolioContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    padding: 24,
-    marginBottom: 24,
-    shadowColor: "#0D2033",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  portfolioHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-  },
-  portfolioTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0D2033",
-    marginBottom: 4,
-    textAlign: "right",
-  },
-  portfolioSubtitle: {
+  gainLabel: {
     fontSize: 14,
-    color: "#98A2B3",
-    fontWeight: "500",
+    color: theme.colors.neutral[500],
+    fontFamily: theme.font.family,
+  },
+  gainPill: {
+    backgroundColor: theme.colors.growthGreenLight,
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  gainPillNegative: {
+    backgroundColor: theme.colors.error[100],
+  },
+  gainPillText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: theme.colors.growthGreen,
+  },
+  gainPillTextNegative: {
+    color: theme.colors.error[600],
+  },
+  portfolioLinkWrap: {
+    alignSelf: "flex-end",
+    marginTop: 4,
+  },
+  linkText: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[500],
     textAlign: "right",
   },
-  portfolioTotalValue: {
-    fontSize: 28,
-    fontWeight: "800",
-    color: "#0D2033",
-    marginBottom: 4,
+  linkTextInline: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[500],
   },
-  portfolioGrowth: {
-    fontSize: 16,
-    fontWeight: "700",
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    marginBottom: 14,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#EAF1F9",
+    shadowColor: "#0F2233",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  divider: {
-    height: 1,
-    backgroundColor: "#EAECF0",
-    marginBottom: 16,
+  statCellDividerStart: {
+    borderStartWidth: 1,
+    borderStartColor: "#E1ECF8",
   },
-  holdingsList: {
-    gap: 12,
+  statCellDividerTop: {
+    borderTopWidth: 1,
+    borderTopColor: "#E1ECF8",
   },
-  holdingItem: {
+  holdingsSection: {
+    marginBottom: 14,
+  },
+  holdingsHeader: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 12,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    marginBottom: 8,
+    justifyContent: "space-between",
+    marginBottom: 10,
   },
-  symbolCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
+  holdingRow: {
+    flexDirection: "row",
     alignItems: "center",
-    marginLeft: 16, // Changed from marginRight to marginLeft for RTL
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#EAF1F9",
+    shadowColor: "#0F2233",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
   },
-  symbolInitial: {
-    fontSize: 18,
-    fontWeight: "700",
+  holdingAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#E0F2FE",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
   },
-  holdingInfo: {
+  holdingAvatarText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[500],
+  },
+  holdingMeta: {
     flex: 1,
     alignItems: "flex-end",
-    marginRight: 16,
+    marginLeft: 8,
   },
   holdingSymbol: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0D2033",
+    fontSize: 17,
+    fontFamily: theme.font.bold,
+    color: theme.colors.text,
     textAlign: "right",
   },
   holdingShares: {
     fontSize: 13,
-    color: "#667085",
+    color: theme.colors.neutral[500],
     marginTop: 2,
     textAlign: "right",
+    fontFamily: theme.font.family,
   },
   holdingChange: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    marginHorizontal: 6,
+  },
+  holdingChevron: {
+    fontSize: 22,
+    color: theme.colors.neutral[300],
+    fontWeight: "300",
+    marginRight: 2,
+  },
+  emptyHoldings: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#EAF1F9",
+  },
+  emptyHoldingsText: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: theme.colors.neutral[500],
+    marginBottom: 8,
+  },
+  streakCard: {
+    backgroundColor: "#5C1616",
+    borderRadius: 20,
+    padding: 18,
+    overflow: "hidden",
+    minHeight: 116,
+    marginBottom: 12,
+    justifyContent: "center",
+  },
+  flameSvg: {
+    position: "absolute",
+    bottom: -14,
+  },
+  streakContent: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    zIndex: 1,
+    gap: 12,
   },
-  changeText: {
+  streakButton: {
+    backgroundColor: theme.colors.primary[500],
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 22,
+    flexShrink: 0,
+  },
+  streakButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: "700",
-    marginRight: 8,
+    fontFamily: theme.font.bold,
   },
-  chevron: {
-    fontSize: 20,
-    color: "#D0D5DD",
-    fontWeight: "400",
+  streakTextCol: {
+    flex: 1,
+    alignItems: "flex-end",
   },
-  emptyPortfolio: {
-    alignItems: "center",
-    paddingVertical: 20,
+  streakTitle: {
+    fontSize: 22,
+    fontFamily: theme.font.bold,
+    color: "#FFFFFF",
+    textAlign: "right",
   },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0D2033",
-    marginBottom: 4,
-  },
-  emptySubtext: {
+  streakSubtitle: {
     fontSize: 14,
-    color: "#667085",
+    fontFamily: theme.font.family,
+    color: "rgba(255,255,255,0.78)",
+    marginTop: 4,
+    textAlign: "right",
+    lineHeight: 20,
   },
   logoutBtn: {
     alignSelf: "center",
-    marginTop: 10,
+    paddingVertical: 8,
   },
   logoutText: {
-    color: "#D92D20",
-    fontSize: 16,
-    fontWeight: "600",
+    color: theme.colors.error[600],
+    fontSize: 15,
+    fontFamily: theme.font.family,
   },
 });

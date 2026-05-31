@@ -19,6 +19,7 @@ import PageBackground from '../components/ui/PageBackground';
 import theme from '../theme';
 import { useUser } from '../context/UserContext';
 import { API_BASE_URL } from '../config/api';
+import { fetchWithTimeout } from '../utils/fetchWithTimeout';
 import { WebView } from 'react-native-webview';
 
 
@@ -47,8 +48,25 @@ interface DrawingPoint {
   y: number;
 }
 
+async function readApiError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  try {
+    const data = await response.json();
+    if (data?.error === 'Insufficient coins') return 'אין לך מספיק מטבעות';
+    if (data?.error === 'Insufficient shares') return 'אין לך מספיק מניות למכירה';
+    if (typeof data?.error === 'string' && data.error.length > 0) {
+      return data.error;
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return fallback;
+}
+
 export default function SandboxScreen({ navigation }: Props) {
-  const { coins, setCoins } = useUser();
+  const { coins, setCoins, currentUserEmail } = useUser();
   const [selectedStock, setSelectedStock] = useState(STOCKS[0]);
   const [stockData, setStockData] = useState<StockData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,7 +113,7 @@ export default function SandboxScreen({ navigation }: Props) {
   const fetchStockData = async (symbol: string, interval: string) => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/stocks/${symbol}?count=50&interval=${interval}`);
+      const response = await fetchWithTimeout(`${API_BASE_URL}/stocks/${symbol}?count=50&interval=${interval}`);
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
@@ -146,7 +164,7 @@ export default function SandboxScreen({ navigation }: Props) {
   // Fetch live price
   const fetchLivePrice = async (symbol: string) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/stocks/${symbol}/price`);
+      const response = await fetchWithTimeout(`${API_BASE_URL}/stocks/${symbol}/price`);
       if (!response.ok) return;
       const result = await response.json();
       setLivePrice(result.price);
@@ -161,18 +179,23 @@ export default function SandboxScreen({ navigation }: Props) {
     fetchLivePrice(selectedStock.symbol);
     const interval = setInterval(() => {
       fetchLivePrice(selectedStock.symbol);
-    }, 5000); // every 5 seconds
+    }, 15000);
     return () => clearInterval(interval);
   }, [selectedStock]);
 
-  // Fetch user holdings
+  // Fetch user holdings when signed-in user is known
   useEffect(() => {
-    fetchUserHoldings();
-  }, []);
+    if (currentUserEmail) {
+      fetchUserHoldings();
+    }
+  }, [currentUserEmail]);
 
   const fetchUserHoldings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/user/portfolio`);
+      const portfolioUrl = currentUserEmail
+        ? `${API_BASE_URL}/user/portfolio?email=${encodeURIComponent(currentUserEmail)}`
+        : `${API_BASE_URL}/user/portfolio`;
+      const response = await fetchWithTimeout(portfolioUrl);
       if (!response.ok) {
         throw new Error('Failed to fetch portfolio');
       }
@@ -250,28 +273,34 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/user/portfolio/buy`, {
+        const response = await fetchWithTimeout(`${API_BASE_URL}/user/portfolio/buy`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            email: currentUserEmail ?? undefined,
             symbol: selectedStock.symbol,
-            shares: shares,
-            price: livePrice
-          })
+            shares,
+            price: livePrice,
+          }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to buy stock');
+          const message = await readApiError(response, 'שגיאה בקניית המניות');
+          throw new Error(message);
         }
 
         const data = await response.json();
-        setCoins(data.newCoins);
+        if (typeof data.newCoins === 'number') {
+          setCoins(data.newCoins);
+        }
         fetchUserHoldings();
         setShowTradeModal(false);
         setTradeShares('');
         Alert.alert('הצלחה', `קנית ${shares} מניות של ${selectedStock.symbol}`);
       } catch (error) {
-        Alert.alert('שגיאה', 'שגיאה בקניית המניות');
+        const message =
+          error instanceof Error ? error.message : 'שגיאה בקניית המניות';
+        Alert.alert('שגיאה', message);
       }
     } else {
       const holding = getUserHolding(selectedStock.symbol);
@@ -281,28 +310,34 @@ export default function SandboxScreen({ navigation }: Props) {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/user/portfolio/sell`, {
+        const response = await fetchWithTimeout(`${API_BASE_URL}/user/portfolio/sell`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            email: currentUserEmail ?? undefined,
             symbol: selectedStock.symbol,
-            shares: shares,
-            price: livePrice
-          })
+            shares,
+            price: livePrice,
+          }),
         });
 
         if (!response.ok) {
-          throw new Error('Failed to sell stock');
+          const message = await readApiError(response, 'שגיאה במכירת המניות');
+          throw new Error(message);
         }
 
         const data = await response.json();
-        setCoins(data.newCoins);
+        if (typeof data.newCoins === 'number') {
+          setCoins(data.newCoins);
+        }
         fetchUserHoldings();
         setShowTradeModal(false);
         setTradeShares('');
         Alert.alert('הצלחה', `מכרת ${shares} מניות של ${selectedStock.symbol}`);
       } catch (error) {
-        Alert.alert('שגיאה', 'שגיאה במכירת המניות');
+        const message =
+          error instanceof Error ? error.message : 'שגיאה במכירת המניות';
+        Alert.alert('שגיאה', message);
       }
     }
   };

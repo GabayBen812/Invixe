@@ -1,10 +1,13 @@
 import React, { useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import HtmlText from "../ui/HtmlText";
+import DrillChoiceLabel from "./DrillChoiceLabel";
+import { getDrillChoicePlainText } from "../../utils/drillFitLayout";
 
 export interface PathOption {
   id: string;
-  text: string;
+  text?: string;
+  label?: string;
+  speechbubbleText?: string;
   explanation?: string;
   explanationImageUrl?: string;
   explanationImagePath?: string;
@@ -45,20 +48,31 @@ export default function PathSelectDrill({
   onContinue,
   completedOptions,
 }: Props) {
-  const allCompleted =
-    options.length > 0 && options.every((opt) => completedOptions.has(opt.id));
+  const hasExploredAtLeastOne = completedOptions.size >= 1;
+  const visibleOptions = options.filter(
+    (o) => getDrillChoicePlainText(o as Record<string, unknown>).length > 0,
+  );
+  const choiceGap = 12;
 
   return (
     <View style={styles.container}>
-      <View style={styles.optionsContainer}>
-        {options.map((option) => {
+      {hasExploredAtLeastOne && (
+        <Text style={styles.hintText}>
+          אפשר להמשיך לשלב הבא או לבחור שאלה נוספת
+        </Text>
+      )}
+      <View style={[styles.optionsContainer, { gap: choiceGap }]}>
+        {visibleOptions.map((option) => {
           const isCompleted = completedOptions.has(option.id);
-
           return (
             <Pressable
               key={option.id}
               style={[
                 styles.optionCard,
+                {
+                  paddingVertical: 14,
+                  paddingHorizontal: 16,
+                },
                 isCompleted && styles.optionCardCompleted,
                 isCompleted && styles.optionCardDisabled,
               ]}
@@ -69,8 +83,9 @@ export default function PathSelectDrill({
               }}
               disabled={isCompleted}
             >
-              <HtmlText
-                value={option.text}
+              <DrillChoiceLabel
+                choice={option}
+                color={isCompleted ? "#666666" : "#0D2033"}
                 style={[
                   styles.optionText,
                   isCompleted && styles.optionTextCompleted,
@@ -89,23 +104,29 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     alignItems: "center",
-    paddingHorizontal: 16,
+    justifyContent: "flex-start",
+    paddingHorizontal: 4,
+    paddingTop: 4,
+  },
+  hintText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#5A6B7D",
+    textAlign: "center",
+    marginBottom: 12,
+    paddingHorizontal: 8,
   },
   optionsContainer: {
     width: "100%",
     maxWidth: 480,
-    gap: 12,
   },
   optionCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "#3F9FFF",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 60,
   },
   optionCardCompleted: {
     backgroundColor: "#F0F0F0",
@@ -116,7 +137,6 @@ const styles = StyleSheet.create({
     // Additional disabled styling if needed
   },
   optionText: {
-    fontSize: 16,
     fontWeight: "700",
     color: "#0D2033",
     textAlign: "center",

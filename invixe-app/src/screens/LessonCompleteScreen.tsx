@@ -1,101 +1,211 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ActivityIndicator,
   Pressable,
-  ScrollView,
   Image,
+  useWindowDimensions,
 } from "react-native";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  CommonActions,
+  NativeStackScreenProps,
+} from "@react-navigation/native";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import Button from "../components/ui/Button";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
 import { useLessons } from "../context/LessonsContext";
+import { useDictionary } from "../context/DictionaryContext";
 import {
-  getNextLessonId,
-  getStepIndexForLesson,
-} from "../modules/lessons/registry";
-import Svg, {
-  Path,
-  G,
-  Mask,
-  Ellipse,
-  Defs,
-  Rect,
-  Pattern,
-  Use,
-  Image as SvgImage,
-  SvgXml,
-} from "react-native-svg";
+  findLessonInRegistry,
+  getNextLessonFromRegistry,
+  getStepIndexForLessonInRegistry,
+} from "../modules/lessons/lessonNavigation";
+import {
+  computeAccuracyPercent,
+  formatLessonDuration,
+  gradeFromAccuracy,
+} from "../utils/lessonResults";
+import Svg, { Path } from "react-native-svg";
 import TopBar from "../components/ui/TopBar";
 //@ts-ignore
 import TrophyImage from "../assets/nodes/Trophy.png";
-
-const COIN_ICON = (
-  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.31-8.86c-1.77-.45-2.34-.94-2.34-1.67 0-.84.79-1.43 2.1-1.43 1.38 0 1.9.66 1.94 1.64h1.71c-.05-1.34-.87-2.57-2.49-2.97V5H10.9v1.69c-1.51.32-2.72 1.3-2.72 2.81 0 1.79 1.49 2.69 3.66 3.21 1.95.46 2.34 1.15 2.34 1.87 0 .53-.39 1.39-2.1 1.39-1.6 0-2.23-.72-2.32-1.64H8.04c.1 1.7 1.36 2.66 2.86 2.97V19h2.5v-1.68c1.51-.29 2.72-1.16 2.72-2.77-.01-1.54-1.31-2.46-3.66-3.09z"
-      fill="#2E7D32"
-    />
-  </Svg>
-);
-
-const LIGHTNING_ICON = (
-  <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M7 2v11h3v9l7-12h-4l4-8z"
-      stroke="#673AB7"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
-
-import { TROPHY_BASE64 } from "../assets/trophyData";
+//@ts-ignore
+import MoneyIconSource from "../assets/money.svg";
 
 import { API_BASE_URL } from "../config/api";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
 const API_URL = `${API_BASE_URL}/user/add-coins`;
+const TOP_BAR_HEIGHT = 90;
+const SCREEN_EDGE_PADDING = 20;
 
 type Props = NativeStackScreenProps<RootStackParamList, "LessonComplete">;
 
+type LayoutMetrics = {
+  scale: number;
+  sectionGap: number;
+  trophySize: number;
+  gradeLetterSize: number;
+  ringSize: number;
+  ringBorder: number;
+  statValueSize: number;
+  statPillPadV: number;
+  rewardValueSize: number;
+  rewardPadV: number;
+  rewardIcon: number;
+  btnPadV: number;
+  btnFont: number;
+  titleSize: number;
+  subtitleSize: number;
+  summarySize: number;
+  badgeFont: number;
+  hintFont: number;
+  heroPadV: number;
+  cardPad: number;
+};
+
+function useCompactLayout(): LayoutMetrics & { bottomInset: number } {
+  const { height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const availableHeight =
+    height - TOP_BAR_HEIGHT - insets.bottom - SCREEN_EDGE_PADDING;
+  const scale = Math.min(1, Math.max(0.78, availableHeight / 620));
+
+  return {
+    scale,
+    bottomInset: insets.bottom,
+    sectionGap: Math.round(5 * scale),
+    trophySize: Math.round(72 * scale),
+    gradeLetterSize: Math.round(36 * scale),
+    ringSize: Math.round(64 * scale),
+    ringBorder: Math.max(2, Math.round(3 * scale)),
+    statValueSize: Math.round(17 * scale),
+    statPillPadV: Math.round(7 * scale),
+    rewardValueSize: Math.round(18 * scale),
+    rewardPadV: Math.round(8 * scale),
+    rewardIcon: Math.round(22 * scale),
+    btnPadV: Math.round(11 * scale),
+    btnFont: Math.round(15 * scale),
+    titleSize: Math.round(22 * scale),
+    subtitleSize: Math.round(14 * scale),
+    summarySize: Math.round(12 * scale),
+    badgeFont: Math.round(11 * scale),
+    hintFont: Math.round(12 * scale),
+    heroPadV: Math.round(10 * scale),
+    cardPad: Math.round(10 * scale),
+  };
+}
+
+function StatPill({
+  label,
+  value,
+  accent,
+  metrics,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+  metrics: LayoutMetrics;
+}) {
+  return (
+    <View style={[styles.statPill, { paddingVertical: metrics.statPillPadV }]}>
+      <Text
+        style={[
+          styles.statPillValue,
+          { color: accent, fontSize: metrics.statValueSize },
+        ]}
+      >
+        {value}
+      </Text>
+      <Text style={styles.statPillLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function AccuracyRing({
+  percent,
+  color,
+  metrics,
+}: {
+  percent: number | null;
+  color: string;
+  metrics: LayoutMetrics;
+}) {
+  const display = percent === null ? "—" : `${percent}%`;
+  const ringFont = Math.round(16 * metrics.scale);
+  return (
+    <View
+      style={[
+        styles.gradeRingInner,
+        {
+          width: metrics.ringSize,
+          height: metrics.ringSize,
+          borderRadius: metrics.ringSize / 2,
+          borderWidth: metrics.ringBorder,
+          borderColor: color,
+        },
+      ]}
+    >
+      <Text style={[styles.gradeRingPercent, { color, fontSize: ringFont }]}>
+        {display}
+      </Text>
+      <Text style={styles.gradeRingSub}>דיוק</Text>
+    </View>
+  );
+}
+
 export default function LessonCompleteScreen({ navigation, route }: Props) {
-  const { coins, setCoins, lightnings } = useUser();
-  const { lessonsRegistry } = useLessons();
-  const [loading, setLoading] = useState(false);
+  const layout = useCompactLayout();
+  const { setCoins } = useUser();
+  const { lessonsRegistry, loadingRegistry } = useLessons();
+  const { openDictionary } = useDictionary();
+  const [coinsLoading, setCoinsLoading] = useState(false);
   const [error, setError] = useState("");
+  const navigatingRef = useRef(false);
 
   const lessonId = route.params?.lessonId;
-  const currentLesson = React.useMemo(() => {
-    if (!lessonId) return null;
-    // Helper to find lesson in registry
-    for (const step of lessonsRegistry) {
-      const found = step.lessons.find((l) => l.id === lessonId);
-      if (found) return found;
-      for (const l of step.lessons) {
-        if (l.sublessons) {
-          const sub = l.sublessons.find((s) => s.id === lessonId);
-          if (sub) return sub;
-        }
-      }
-    }
-    return null;
+  const unitIdFromRoute = route.params?.unitId;
+  const earnedCoins = route.params?.coinsEarned ?? 0;
+  const correctCount = route.params?.correctCount ?? 0;
+  const totalGraded = route.params?.totalGraded ?? 0;
+  const durationMs = route.params?.durationMs ?? 0;
+  const lightningsEarned = route.params?.lightningsEarned ?? 0;
+
+  const accuracy = useMemo(
+    () => computeAccuracyPercent(correctCount, totalGraded),
+    [correctCount, totalGraded],
+  );
+  const grade = useMemo(() => gradeFromAccuracy(accuracy), [accuracy]);
+  const timeSpent = useMemo(
+    () => formatLessonDuration(durationMs),
+    [durationMs],
+  );
+
+  const currentLesson = useMemo(() => {
+    if (!lessonId || !lessonsRegistry.length) return null;
+    return findLessonInRegistry(lessonsRegistry, lessonId)?.lesson ?? null;
   }, [lessonsRegistry, lessonId]);
 
-  // Get earned coins from params, default to 10 if not provided
-  const earnedCoins = route.params?.coinsEarned ?? 10;
-  const earnedXP = 70; // Mock data for now
+  const nextLesson = useMemo(() => {
+    if (!lessonId || !lessonsRegistry.length) return null;
+    return getNextLessonFromRegistry(lessonsRegistry, lessonId);
+  }, [lessonsRegistry, lessonId]);
+
+  const mapUnitIndex = useMemo(() => {
+    if (!lessonId || !lessonsRegistry.length) return undefined;
+    const idx = getStepIndexForLessonInRegistry(lessonsRegistry, lessonId);
+    return idx !== null ? idx : undefined;
+  }, [lessonsRegistry, lessonId]);
 
   useEffect(() => {
-    // Show content immediately, add coins in background
     const addCoins = async () => {
-      setLoading(true);
+      if (earnedCoins <= 0) return;
+      setCoinsLoading(true);
       try {
-        const res = await fetch(API_URL, {
+        const res = await fetchWithTimeout(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ coins: earnedCoins }),
@@ -105,146 +215,327 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           throw new Error(data.error || "Failed to add coins");
         }
         const data = await res.json();
-        // Update local coins state
         setCoins(data.newCoins);
-      } catch (e: any) {
+      } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : "Network error";
         console.error("Error adding coins:", e);
-        setError(e.message || "Network error");
+        setError(message);
       } finally {
-        setLoading(false);
+        setCoinsLoading(false);
       }
     };
-    // Small delay to ensure screen is rendered first, then add coins
+
     const timer = setTimeout(() => {
-      if (earnedCoins > 0) {
-        addCoins();
-      }
+      void addCoins();
     }, 100);
     return () => clearTimeout(timer);
-  }, [earnedCoins]); // Add dependency
+  }, [earnedCoins, setCoins]);
 
-  const handleContinue = () => {
-    if (!route.params?.lessonId) {
-      handleHome();
+  const resetToMap = useCallback(
+    (selectedUnitIdx?: number) => {
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 0,
+          routes: [
+            {
+              name: "Map",
+              params:
+                selectedUnitIdx !== undefined
+                  ? { selectedUnitIdx }
+                  : undefined,
+            },
+          ],
+        }),
+      );
+    },
+    [navigation],
+  );
+
+  const resetToLesson = useCallback(
+    (
+      targetLessonId: number,
+      targetUnitId?: string,
+      selectedUnitIdx?: number,
+    ) => {
+      const mapParams =
+        selectedUnitIdx !== undefined ? { selectedUnitIdx } : undefined;
+      navigation.dispatch(
+        CommonActions.reset({
+          index: 1,
+          routes: [
+            { name: "Map", params: mapParams },
+            {
+              name: "Lesson",
+              params: { lessonId: targetLessonId, unitId: targetUnitId },
+            },
+          ],
+        }),
+      );
+    },
+    [navigation],
+  );
+
+  const handleContinue = useCallback(() => {
+    if (navigatingRef.current) return;
+    if (!lessonId) {
+      resetToMap();
       return;
     }
-    // Find next lesson
-    const nextLessonId = getNextLessonId(route.params.lessonId);
-    if (nextLessonId) {
-      // Navigate to next lesson
-      navigation.replace("Lesson", { lessonId: nextLessonId });
-    } else {
-      // No next lesson, go to Map
-      handleHome();
+    if (loadingRegistry && !lessonsRegistry.length) return;
+
+    navigatingRef.current = true;
+    const next =
+      nextLesson ??
+      (lessonsRegistry.length
+        ? getNextLessonFromRegistry(lessonsRegistry, lessonId)
+        : null);
+
+    if (next) {
+      resetToLesson(next.lessonId, next.unitId ?? unitIdFromRoute, next.stepIndex);
+      return;
     }
-  };
+    resetToMap(mapUnitIndex);
+  }, [
+    lessonId,
+    loadingRegistry,
+    lessonsRegistry,
+    nextLesson,
+    resetToLesson,
+    resetToMap,
+    mapUnitIndex,
+    unitIdFromRoute,
+  ]);
 
-  const handleHome = () => {
-    // Determine which unit this lesson belongs to
-    const unitIndex = getStepIndexForLesson(route.params.lessonId);
-    navigation.navigate("Map", {
-      selectedUnitIdx: unitIndex !== null ? unitIndex : undefined,
-    });
-  };
+  const handleHome = useCallback(() => {
+    if (navigatingRef.current) return;
+    navigatingRef.current = true;
+    resetToMap(mapUnitIndex);
+  }, [resetToMap, mapUnitIndex]);
 
-  // Performance stats
-  const accuracy = 88; // Placeholder
-  const timeSpent = "3:20"; // Placeholder
+  const canNavigate = !loadingRegistry || lessonsRegistry.length > 0;
+  const hasNextLesson = !!nextLesson;
+  const continueLabel = hasNextLesson ? "המשך ללמוד" : "חזרה למפה";
+
+  const summaryLine =
+    totalGraded > 0
+      ? `${correctCount} מתוך ${totalGraded} תשובות נכונות`
+      : "סיימת את כל שלבי השיעור";
+
+  const bodyPadding = useMemo(
+    () => ({
+      paddingHorizontal: SCREEN_EDGE_PADDING,
+      paddingBottom: Math.max(layout.bottomInset, 10) + 6,
+    }),
+    [layout.bottomInset],
+  );
+
+  const stackGap = layout.sectionGap;
 
   return (
     <View style={styles.container}>
       <TopBar />
-      <View style={styles.contentContainer}>
-        <View style={styles.trophyContainer}>
+      <View style={[styles.body, bodyPadding]}>
+        <View style={[styles.contentStack, { gap: stackGap }]}>
+        <View style={[styles.heroCard, { paddingVertical: layout.heroPadV }]}>
+          <View style={styles.heroBadge}>
+            <Text style={[styles.heroBadgeText, { fontSize: layout.badgeFont }]}>
+              {grade.label}
+            </Text>
+          </View>
           <Image
             source={TrophyImage}
-            style={{ width: 140, height: 140 }} // הגדלתי מעט ל-140 כדי שייראה ברור
+            style={{
+              width: layout.trophySize,
+              height: layout.trophySize,
+              marginBottom: 4,
+            }}
             resizeMode="contain"
           />
+          <Text style={[styles.title, { fontSize: layout.titleSize }]}>
+            כל הכבוד!
+          </Text>
+          <Text
+            style={[styles.subtitle, { fontSize: layout.subtitleSize }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.85}
+          >
+            סיימת את {currentLesson?.title || "השיעור"}
+          </Text>
+          <Text
+            style={[styles.summaryLine, { fontSize: layout.summarySize }]}
+            numberOfLines={1}
+          >
+            {summaryLine}
+          </Text>
         </View>
 
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>כל הכבוד!</Text>
-          <Text style={styles.subtitle}>
-            סיימת את {currentLesson?.title || "השיעור"}!
-          </Text>
-          <Text style={styles.instruction}>
-            לחצו על המילון מושגים כדי לראות מה למדתם
-          </Text>
-        </View>
-
-        <View style={styles.gradeCard}>
-          <View style={styles.gradeHeader}>
-            <View style={styles.gradeCircle}>
-              <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-                <Path
-                  d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"
-                  fill="#FFA000"
-                />
-              </Svg>
+        <View style={[styles.resultsCard, { padding: layout.cardPad }]}>
+          <View style={styles.gradeRow}>
+            <View style={styles.gradeLetterBlock}>
+              <Text
+                style={[
+                  styles.gradeLetter,
+                  {
+                    color: grade.color,
+                    fontSize: layout.gradeLetterSize,
+                    lineHeight: layout.gradeLetterSize + 4,
+                  },
+                ]}
+              >
+                {grade.letter}
+              </Text>
+              <Text style={styles.gradeLetterCaption}>ציון</Text>
             </View>
-            <View>
-              <Text style={styles.gradeText}>B+</Text>
-              <Text style={styles.gradeLabel}>ציון</Text>
-            </View>
+            <AccuracyRing
+              percent={accuracy}
+              color={grade.color}
+              metrics={layout}
+            />
           </View>
 
           <View style={styles.statsRow}>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxTitle}>דיוק</Text>
-              <View style={styles.statContent}>
-                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                  <Path
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"
-                    fill="#D32F2F"
-                  />
-                </Svg>
-                <Text style={styles.statValue}>{accuracy}%</Text>
-              </View>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxTitle}>זמן</Text>
-              <View style={styles.statContent}>
-                <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
-                  <Path
-                    d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"
-                    fill="#D32F2F"
-                  />
-                </Svg>
-                <Text style={styles.statValue}>{timeSpent}</Text>
-              </View>
-            </View>
+            <StatPill
+              label="זמן"
+              value={timeSpent}
+              accent={theme.colors.primary[500]}
+              metrics={layout}
+            />
+            <StatPill
+              label="שאלות"
+              value={totalGraded > 0 ? String(totalGraded) : "—"}
+              accent={theme.colors.neutral[700]}
+              metrics={layout}
+            />
           </View>
         </View>
 
-        <View style={styles.rewardsContainer}>
-          <View style={[styles.rewardCard, { backgroundColor: "#B9F6CA" }]}>
-            <View style={styles.rewardIconCircle}>{COIN_ICON}</View>
-            <Text style={[styles.rewardValue, { color: "#2E7D32" }]}>
-              +{earnedCoins}
-            </Text>
-            <Text style={[styles.rewardLabel, { color: "#2E7D32" }]}>
-              מטבעות
-            </Text>
+        <View style={[styles.midSection, { gap: stackGap }]}>
+          <View style={styles.rewardsRow}>
+            <View
+              style={[
+                styles.rewardCard,
+                styles.rewardCardCoins,
+                { paddingVertical: layout.rewardPadV },
+              ]}
+            >
+              <MoneyIconSource
+                width={layout.rewardIcon}
+                height={layout.rewardIcon}
+              />
+              <Text
+                style={[
+                  styles.rewardValue,
+                  { fontSize: layout.rewardValueSize },
+                ]}
+              >
+                +{earnedCoins}
+              </Text>
+              <Text style={styles.rewardLabel}>מטבעות</Text>
+              {coinsLoading ? (
+                <ActivityIndicator
+                  size="small"
+                  color={theme.colors.success[600]}
+                  style={styles.rewardLoader}
+                />
+              ) : null}
+            </View>
+            {lightningsEarned > 0 ? (
+              <View
+                style={[
+                  styles.rewardCard,
+                  styles.rewardCardLightning,
+                  { paddingVertical: layout.rewardPadV },
+                ]}
+              >
+                <Svg
+                  width={layout.rewardIcon}
+                  height={layout.rewardIcon}
+                  viewBox="0 0 28 27"
+                  fill="none"
+                >
+                  <Path
+                    d="M17.6562 1.99915L9.71582 3.07922L6.21582 15.0792L10.957 16.9991H19.6562L12.9043 24.3312L20.9043 12.3312L16.8203 9.99915H19.6562L17.6562 1.99915Z"
+                    fill="#62D24C"
+                    stroke="#368642"
+                  />
+                </Svg>
+                <Text
+                  style={[
+                    styles.rewardValueLightning,
+                    { fontSize: layout.rewardValueSize },
+                  ]}
+                >
+                  +{lightningsEarned}
+                </Text>
+                <Text style={styles.rewardLabelLightning}>ברקים</Text>
+              </View>
+            ) : null}
           </View>
+
+          <Pressable
+            style={[styles.dictionaryHint, { paddingVertical: layout.statPillPadV }]}
+            onPress={() => openDictionary()}
+          >
+            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+              <Path
+                d="M19 2H5C3.89543 2 3 2.89543 3 4V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V4C21 2.89543 20.1046 2 19 2Z"
+                fill={theme.colors.primary[400]}
+              />
+            </Svg>
+            <Text
+              style={[styles.dictionaryHintText, { fontSize: layout.hintFont }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+            >
+              פתחו את מילון המושגים לראות מה למדתם
+            </Text>
+          </Pressable>
+        </View>
         </View>
 
-        <View style={styles.buttonsContainer}>
-          <Pressable style={styles.continueButton} onPress={handleContinue}>
-            {loading ? (
-              <ActivityIndicator color="white" />
+        <View style={[styles.buttonsContainer, { gap: stackGap }]}>
+          <Pressable
+            style={[
+              styles.continueButton,
+              { paddingVertical: layout.btnPadV },
+              !canNavigate && styles.buttonDisabled,
+            ]}
+            onPress={handleContinue}
+            disabled={!canNavigate}
+          >
+            {!canNavigate ? (
+              <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.continueButtonText}>המשך ללמוד</Text>
+              <Text
+                style={[styles.continueButtonText, { fontSize: layout.btnFont }]}
+              >
+                {continueLabel}
+              </Text>
             )}
           </Pressable>
 
-          <Pressable style={styles.homeButton} onPress={handleHome}>
-            <Text style={styles.homeButtonText}>חזרה לבית</Text>
+          <Pressable
+            style={[
+              styles.homeButton,
+              { paddingVertical: layout.btnPadV },
+              !canNavigate && styles.buttonDisabled,
+            ]}
+            onPress={handleHome}
+            disabled={!canNavigate}
+          >
+            <Text style={[styles.homeButtonText, { fontSize: layout.btnFont }]}>
+              חזרה לבית
+            </Text>
           </Pressable>
-        </View>
 
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? (
+            <Text style={styles.errorText} numberOfLines={1}>
+              {error}
+            </Text>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -253,178 +544,227 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E3EEF9",
+    backgroundColor: theme.colors.surface.bg,
   },
-  contentContainer: {
+  body: {
     flex: 1,
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    justifyContent: "center", // Center content vertically
-    gap: 20, // Add consistent spacing between elements
+    minHeight: 0,
   },
-  trophyContainer: {
+  contentStack: {
+    flex: 1,
+    width: "100%",
     justifyContent: "center",
-  },
-  textContainer: {
     alignItems: "center",
-    marginBottom: 10,
+  },
+  heroCard: {
+    width: "100%",
+    backgroundColor: theme.colors.surface.card,
+    borderRadius: theme.radius.lg,
+    paddingHorizontal: theme.spacing.sm,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: theme.colors.border.subtle,
+    shadowColor: theme.colors.neutral[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    flexShrink: 1,
+  },
+  heroBadge: {
+    backgroundColor: theme.colors.info[100],
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: theme.radius.pill,
+    marginBottom: 4,
+  },
+  heroBadgeText: {
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[600],
   },
   title: {
-    fontSize: 28, // Reduced from 32
     fontFamily: theme.font.bold,
-    color: "#1565C0",
-    marginBottom: 4,
+    color: theme.colors.primary[600],
     textAlign: "center",
   },
   subtitle: {
-    fontSize: 16, // Reduced from 18
     fontFamily: theme.font.bold,
-    color: "#0D47A1",
-    marginBottom: 4,
+    color: theme.colors.neutral[900],
     textAlign: "center",
-  },
-  instruction: {
-    fontSize: 12, // Reduced from 14
-    fontFamily: theme.font.family,
-    color: "#546E7A",
-    textAlign: "center",
-    maxWidth: 250,
-  },
-  gradeCard: {
-    backgroundColor: "#FFECB3",
-    borderRadius: 16, // Slightly reduced radius
+    marginTop: 2,
+    paddingHorizontal: 4,
     width: "100%",
-    padding: 12, // Reduced padding
-    marginBottom: 0, // Removed margin bottom to use gap instead
-    alignItems: "center",
   },
-  gradeHeader: {
+  summaryLine: {
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[500],
+    textAlign: "center",
+    marginTop: 2,
+  },
+  resultsCard: {
+    width: "100%",
+    backgroundColor: theme.colors.surface.card,
+    borderRadius: theme.radius.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border.subtle,
+    gap: 6,
+    flexShrink: 0,
+  },
+  gradeRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12, // Reduced margin
-    gap: 12,
+    justifyContent: "space-around",
+    paddingHorizontal: 8,
   },
-  gradeCircle: {
-    width: 50, // Reduced from 60
-    height: 50, // Reduced from 60
-    borderRadius: 25,
-    backgroundColor: "#FFCA28",
+  gradeLetterBlock: {
+    alignItems: "center",
+  },
+  gradeLetter: {
+    fontFamily: theme.font.bold,
+  },
+  gradeLetterCaption: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[500],
+    textAlign: "center",
+  },
+  gradeRingInner: {
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "#FFA000",
+    backgroundColor: theme.colors.neutral[100],
   },
-  gradeText: {
-    fontSize: 24, // Reduced from 32
-    fontWeight: "bold",
-    color: "#FFA000",
+  gradeRingPercent: {
+    fontFamily: theme.font.bold,
   },
-  gradeLabel: {
-    fontSize: 12, // Reduced from 14
-    color: "#FFA000",
+  gradeRingSub: {
+    fontSize: 11,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[500],
   },
   statsRow: {
     flexDirection: "row",
-    width: "100%",
-    justifyContent: "space-around",
-    alignItems: "center",
+    gap: 8,
   },
-  statBox: {
-    alignItems: "center",
+  statPill: {
     flex: 1,
-    backgroundColor: "#FFECB3",
-    borderWidth: 1,
-    borderColor: "#FFCA28",
-    borderRadius: 8,
-    padding: 6, // Reduced padding
-    height: 70, // Reduced from 80
-    justifyContent: "space-between",
-  },
-  statDivider: {
-    width: 12,
-  },
-  statBoxTitle: {
-    fontSize: 10, // Reduced from 12
-    fontWeight: "bold",
-    color: "#FFA000",
-    marginBottom: 2,
-  },
-  statContent: {
-    flexDirection: "row",
+    borderRadius: theme.radius.md,
+    borderWidth: 1.5,
+    borderColor: theme.colors.border.subtle,
+    backgroundColor: theme.colors.neutral[100],
     alignItems: "center",
-    gap: 4,
   },
-  statValue: {
-    fontSize: 16, // Reduced from 18
-    fontWeight: "bold",
-    color: "#000",
+  statPillValue: {
+    fontFamily: theme.font.bold,
   },
-  rewardsContainer: {
-    flexDirection: "row",
-    gap: 12, // Reduced gap
-    marginBottom: 20, // Reduced margin
+  statPillLabel: {
+    fontSize: 11,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[500],
+    marginTop: 1,
+  },
+  midSection: {
     width: "100%",
+    flexShrink: 0,
+  },
+  rewardsRow: {
+    flexDirection: "row",
+    gap: 6,
     justifyContent: "center",
+    width: "100%",
   },
   rewardCard: {
-    borderRadius: 16,
-    padding: 12, // Reduced padding
+    flex: 1,
+    borderRadius: theme.radius.md,
+    paddingHorizontal: 8,
     alignItems: "center",
-    width: 130, // Reduced width
-    height: 90, // Reduced height
-    justifyContent: "center",
+    gap: 2,
   },
-  rewardIconCircle: {
-    marginBottom: 4,
+  rewardCardCoins: {
+    backgroundColor: theme.colors.success[100],
+    borderWidth: 1,
+    borderColor: "rgba(18, 183, 106, 0.25)",
+  },
+  rewardCardLightning: {
+    backgroundColor: "#E8F8E0",
+    borderWidth: 1,
+    borderColor: "rgba(54, 134, 66, 0.25)",
   },
   rewardValue: {
-    fontSize: 20, // Reduced from 24
-    fontWeight: "bold",
-    marginBottom: 0,
+    fontFamily: theme.font.bold,
+    color: theme.colors.success[600],
+  },
+  rewardValueLightning: {
+    fontFamily: theme.font.bold,
+    color: "#368642",
   },
   rewardLabel: {
-    fontSize: 12, // Reduced from 14
+    fontSize: 11,
+    fontFamily: theme.font.family,
+    color: theme.colors.success[600],
+  },
+  rewardLabelLightning: {
+    fontSize: 11,
+    fontFamily: theme.font.family,
+    color: "#368642",
+  },
+  rewardLoader: {
+    marginTop: 2,
+  },
+  dictionaryHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    width: "100%",
+    backgroundColor: theme.colors.surface.card,
+    borderRadius: theme.radius.md,
+    borderWidth: 1,
+    borderColor: theme.colors.border.subtle,
+  },
+  dictionaryHintText: {
+    fontFamily: theme.font.family,
+    color: theme.colors.primary[600],
+    textAlign: "center",
+    flex: 1,
   },
   buttonsContainer: {
     width: "100%",
-    gap: 8, // Reduced gap
+    flexShrink: 0,
+    paddingTop: 4,
   },
   continueButton: {
-    backgroundColor: "#1976D2",
-    paddingVertical: 14, // Reduced from 16
-    borderRadius: 12,
+    backgroundColor: theme.colors.primary[500],
+    borderRadius: theme.radius.md,
     alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
+    shadowColor: theme.colors.primary[500],
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowRadius: 4,
+    elevation: 3,
   },
   continueButtonText: {
-    color: "white",
-    fontSize: 16, // Reduced from 18
-    fontWeight: "bold",
+    color: theme.colors.white,
+    fontFamily: theme.font.bold,
   },
   homeButton: {
-    backgroundColor: "white",
-    paddingVertical: 14, // Reduced from 16
-    borderRadius: 12,
+    backgroundColor: theme.colors.surface.card,
+    borderRadius: theme.radius.md,
     alignItems: "center",
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    borderWidth: 2,
+    borderColor: theme.colors.primary[500],
   },
   homeButtonText: {
-    color: "#1976D2",
-    fontSize: 16, // Reduced from 18
-    fontWeight: "bold",
+    color: theme.colors.primary[500],
+    fontFamily: theme.font.bold,
+  },
+  buttonDisabled: {
+    opacity: 0.55,
   },
   errorText: {
-    color: "red",
-    marginTop: 10,
+    color: theme.colors.error[600],
     textAlign: "center",
+    fontFamily: theme.font.family,
+    fontSize: 11,
   },
 });

@@ -1,16 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
-import HtmlText from '../ui/HtmlText';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
+import { useChoiceDrillLayout } from '../../hooks/useChoiceDrillLayout';
+import DrillChoiceLabel from './DrillChoiceLabel';
+import {
+  DRILL_MEDIA_STACK_GAP,
+  getDrillChoicePlainText,
+} from '../../utils/drillFitLayout';
+import { normalizeSupabaseUrl } from '../../utils/supabaseUrl';
 
 interface Choice {
   id: string;
   text: string;
+  label?: string;
+  speechbubbleText?: string;
   correct: boolean;
 }
 
 interface Props {
   question: string;
-  imageSource: any; // Image source (require() or {uri: ''})
+  imageSource: any;
   choices: Choice[];
   submitText?: string;
   correctExplanation?: string;
@@ -26,10 +34,8 @@ interface Props {
 }
 
 export default function QuestionWithImage({ 
-  question, 
   imageSource, 
   choices, 
-  submitText = 'בדוק',
   correctExplanation,
   wrongExplanation,
   onSubmit,
@@ -39,19 +45,33 @@ export default function QuestionWithImage({
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
-  const [isCorrect, setIsCorrect] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
-  // Preload image when component mounts
-  useEffect(() => {
+  const visibleChoices = useMemo(
+    () => choices.filter((c) => getDrillChoicePlainText(c).length > 0),
+    [choices],
+  );
+  const layout = useChoiceDrillLayout(visibleChoices.length || choices.length, {
+    hasMedia: true,
+  });
+
+  const resolvedSource = useMemo(() => {
     if (imageSource && typeof imageSource === 'object' && imageSource.uri) {
-      Image.prefetch(imageSource.uri)
+      const normalized = normalizeSupabaseUrl(imageSource.uri);
+      return normalized ? { uri: normalized } : imageSource;
+    }
+    return imageSource;
+  }, [imageSource]);
+
+  useEffect(() => {
+    if (resolvedSource && typeof resolvedSource === 'object' && resolvedSource.uri) {
+      Image.prefetch(resolvedSource.uri)
         .then(() => setImageLoading(false))
         .catch(() => setImageLoading(false));
     } else {
       setImageLoading(false);
     }
-  }, [imageSource]);
+  }, [resolvedSource]);
 
   const handleSubmit = () => {
     if (selectedChoice) {
@@ -59,9 +79,7 @@ export default function QuestionWithImage({
       const correct = selectedChoiceData?.correct || false;
       const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
       setSubmitted(true);
-      setIsCorrect(correct);
       setShowingExplanation(true);
-      // Immediately call onSubmit to show bottom sheet
       onSubmit({ 
         correct,
         selectedChoiceId: selectedChoice || '',
@@ -71,24 +89,9 @@ export default function QuestionWithImage({
     }
   };
 
-  const handleContinue = () => {
-    const selectedChoiceData = choices.find(c => c.id === selectedChoice);
-    const correct = selectedChoiceData?.correct || false;
-    const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
-    onSubmit({ 
-      correct,
-      selectedChoiceId: selectedChoice || '',
-      isCorrect: correct,
-      explanation
-    });
-  };
-
-  // Expose submit handler for global button
   useEffect(() => {
     if (onSubmitTriggerRef) {
       onSubmitTriggerRef.current = () => {
-        // Only handle submit if we haven't submitted yet
-        // After submission, the bottom sheet will handle continuation
         if (!showingExplanation && selectedChoice) {
           handleSubmit();
         }
@@ -101,7 +104,6 @@ export default function QuestionWithImage({
     };
   }, [onSubmitTriggerRef, showingExplanation, selectedChoice, correctExplanation, wrongExplanation]);
 
-  // Notify parent about state changes
   useEffect(() => {
     if (onStateChange) {
       onStateChange({
@@ -111,17 +113,30 @@ export default function QuestionWithImage({
     }
   }, [onStateChange, showingExplanation, selectedChoice]);
 
+  const stackGap = DRILL_MEDIA_STACK_GAP;
+  const blockMinHeight =
+    layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
+
   return (
-    <View style={styles.container}>
-      {/* Image */}
-      <View style={styles.imageContainer}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingVertical: layout.containerPadding,
+          paddingHorizontal: layout.containerPadding + 8,
+          gap: stackGap,
+          minHeight: blockMinHeight,
+        },
+      ]}
+    >
+      <View style={[styles.imageContainer, { height: layout.mediaHeight }]}>
         {imageLoading && (
           <View style={styles.imageLoadingContainer}>
             <ActivityIndicator size="large" color="#3F9FFF" />
           </View>
         )}
         <Image 
-          source={imageSource} 
+          source={resolvedSource} 
           style={[styles.image, imageLoading && styles.imageHidden]} 
           resizeMode="contain"
           onLoadStart={() => setImageLoading(true)}
@@ -130,44 +145,74 @@ export default function QuestionWithImage({
         />
       </View>
 
-      {/* Choices */}
-      <View style={styles.choicesContainer}>
-        {choices.map((choice) => {
+      <View
+        style={[
+          styles.choicesContainer,
+          { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
+        ]}
+      >
+        {visibleChoices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
-          let buttonStyle: any[] = [styles.choiceButton];
-          let textStyle: any[] = [styles.choiceText];
+          const labelColor =
+            submitted && (isSelected || isCorrectChoice)
+              ? '#FFFFFF'
+              : submitted
+                ? '#374151'
+                : isSelected
+                  ? '#FFFFFF'
+                  : '#374151';
+          let buttonStyle: object[] = [styles.choiceButton];
+          let textStyle: object[] = [
+            styles.choiceText,
+            {
+              fontSize: layout.choiceFontSize,
+              lineHeight: layout.choiceLineHeight,
+            },
+          ];
           
           if (submitted) {
             if (isSelected && isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
-              textStyle = [styles.choiceText, styles.choiceTextCorrect];
+              textStyle = [styles.choiceText, styles.choiceTextCorrect, { fontSize: layout.choiceFontSize }];
             } else if (isSelected && !isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
-              textStyle = [styles.choiceText, styles.choiceTextWrong];
+              textStyle = [styles.choiceText, styles.choiceTextWrong, { fontSize: layout.choiceFontSize }];
             } else if (!isSelected && isCorrectChoice) {
               buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
-              textStyle = [styles.choiceText, styles.choiceTextCorrect];
+              textStyle = [styles.choiceText, styles.choiceTextCorrect, { fontSize: layout.choiceFontSize }];
             } else {
               buttonStyle = [styles.choiceButton, styles.choiceButtonDisabled];
-              textStyle = [styles.choiceText, styles.choiceTextDisabled];
+              textStyle = [styles.choiceText, styles.choiceTextDisabled, { fontSize: layout.choiceFontSize }];
             }
           } else if (isSelected) {
             buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
-            textStyle = [styles.choiceText, styles.choiceTextSelected];
+            textStyle = [styles.choiceText, styles.choiceTextSelected, { fontSize: layout.choiceFontSize }];
           }
 
           return (
             <Pressable
               key={choice.id}
-              style={buttonStyle}
+              style={[
+                ...buttonStyle,
+                {
+                  paddingVertical: layout.choicePaddingVertical,
+                  paddingHorizontal: layout.choicePaddingHorizontal,
+                },
+              ]}
               onPress={() => {
                 if (!submitted) {
                   setSelectedChoice(choice.id);
                 }
               }}
             >
-              <HtmlText value={choice.text} style={textStyle} />
+              <View style={styles.choiceTextWrap}>
+                <DrillChoiceLabel
+                  choice={choice}
+                  color={labelColor}
+                  style={textStyle}
+                />
+              </View>
             </Pressable>
           );
         })}
@@ -178,57 +223,51 @@ export default function QuestionWithImage({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    width: "100%",
+    flexShrink: 0,
+    justifyContent: "flex-start",
   },
   imageContainer: {
-    marginBottom: 24,
+    width: '100%',
     alignItems: 'center',
-    backgroundColor: 'transparent',
-    borderRadius: 12,
-    padding: 16,
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   image: {
     width: '100%',
-    maxWidth: 400,
-    height: 250,
-    maxHeight: 300,
+    height: '100%',
   },
   imageHidden: {
     opacity: 0,
   },
   imageLoadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'transparent',
   },
   choicesContainer: {
-    marginBottom: 24,
+    width: '100%',
+    flexShrink: 0,
   },
   choiceButton: {
-    width: '90%',
+    width: '100%',
     maxWidth: 420,
     backgroundColor: '#FFFFFF',
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    marginVertical: 10,
+    borderRadius: 14,
     alignItems: 'center',
     alignSelf: 'center',
+  },
+  choiceTextWrap: {
+    width: '100%',
+    alignItems: 'center',
   },
   choiceButtonSelected: {
     backgroundColor: '#3372D8',
     shadowColor: '#3F9FFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.35,
-    shadowRadius: 8,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   choiceButtonCorrect: {
     backgroundColor: '#12B76A',
@@ -243,7 +282,6 @@ const styles = StyleSheet.create({
   choiceText: {
     color: '#0D2033',
     fontWeight: '700',
-    fontSize: 18,
     textAlign: 'center',
   },
   choiceTextSelected: {

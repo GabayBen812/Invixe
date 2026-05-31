@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Image,
@@ -8,10 +8,16 @@ import {
   Pressable,
   ActivityIndicator,
   Easing,
-  ScrollView,
 } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../utils/svgParser";
+import { fetchRemoteText } from "../utils/remoteAssetCache";
+import { preloadLessonAssetsCached } from "../utils/lessonAssetPreload";
+import {
+  getAlternateSupabaseUrl,
+  normalizeSupabaseUrl,
+} from "../utils/supabaseUrl";
+import { countGradedFromDrillResult } from "../utils/lessonResults";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep } from "../modules/lessons/types";
@@ -22,6 +28,8 @@ import SpeechBubble from "../components/lesson/SpeechBubble";
 import PageBackground from "../components/ui/PageBackground";
 import { useUser } from "../context/UserContext";
 import TopBar from "../components/ui/TopBar";
+import DrillViewport from "../components/lesson/DrillViewport";
+import { useChoiceDrillLayout } from "../hooks/useChoiceDrillLayout";
 import {
   HammerCandleSVG,
   BullishCandleSVG,
@@ -52,28 +60,12 @@ import QuestionWithImage from "../components/lesson/QuestionWithImage";
 import QuestionWithSVG from "../components/lesson/QuestionWithSVG";
 import TextWithSVG from "../components/lesson/TextWithSVG";
 import GraphQuestionDrill from "../components/lesson/GraphQuestionDrill";
+import DrillChoiceLabel from "../components/lesson/DrillChoiceLabel";
+import { getDrillChoicePlainText, normalizeDrillChoices } from "../utils/drillFitLayout";
 import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
 import HtmlText from "../components/ui/HtmlText";
-
-// Normalize Supabase public URLs in case old hosts are stored in lesson data
-const OLD_SUPABASE_HOST = "https://msmkiolnyhtnvjabfinh.supabase.co";
-const NEW_SUPABASE_HOST = "https://mkdwubjposlywjiinwkn.supabase.co";
-
-const normalizeSupabaseUrl = (
-  url?: string | null,
-): string | null => {
-  if (!url || typeof url !== "string") return null;
-  const trimmed = url.trim();
-  if (!trimmed) return null;
-
-  if (trimmed.startsWith(OLD_SUPABASE_HOST)) {
-    return NEW_SUPABASE_HOST + trimmed.slice(OLD_SUPABASE_HOST.length);
-  }
-
-  return trimmed;
-};
 
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
@@ -89,6 +81,19 @@ const ImageWithFallback = ({
 }) => {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showSpinner, setShowSpinner] = useState(false);
+  const [activeUri, setActiveUri] = useState(() => normalizeSupabaseUrl(uri) || uri);
+  const triedAlternateRef = React.useRef(false);
+
+  React.useEffect(() => {
+    triedAlternateRef.current = false;
+    setActiveUri(normalizeSupabaseUrl(uri) || uri);
+    setHasError(false);
+    setIsLoading(true);
+    setShowSpinner(false);
+    const spinnerTimer = setTimeout(() => setShowSpinner(true), 150);
+    return () => clearTimeout(spinnerTimer);
+  }, [uri]);
 
   return (
     <>
@@ -117,10 +122,18 @@ const ImageWithFallback = ({
         </View>
       ) : (
         <Image
-          source={{ uri }}
+          source={{ uri: activeUri }}
           style={style}
           resizeMode="contain"
           onError={(error) => {
+            const alternate = getAlternateSupabaseUrl(activeUri);
+            if (alternate && !triedAlternateRef.current) {
+              triedAlternateRef.current = true;
+              setIsLoading(true);
+              setShowSpinner(false);
+              setActiveUri(alternate);
+              return;
+            }
             console.error(
               "Failed to load image for textWithImageExplain step",
               stepId,
@@ -131,15 +144,11 @@ const ImageWithFallback = ({
             setIsLoading(false);
           }}
           onLoad={() => {
-            console.log(
-              "Successfully loaded image for textWithImageExplain step",
-              stepId,
-            );
             setIsLoading(false);
           }}
         />
       )}
-      {isLoading && !hasError && (
+      {isLoading && showSpinner && !hasError && (
         <View
           style={[
             style,
@@ -205,10 +214,102 @@ function getCharacterImg(characterImgKey?: string) {
   return characterImages["character_orange_noback.png"];
 }
 
+type SimpleChoice = { text: string; correct?: boolean };
+
+function SimpleQuestionChoiceList({
+  choices,
+  selectedChoiceIdx,
+  isSubmitted,
+  onSelect,
+}: {
+  choices: SimpleChoice[];
+  selectedChoiceIdx: number | null;
+  isSubmitted: boolean;
+  onSelect: (idx: number) => void;
+}) {
+  const layout = useChoiceDrillLayout(choices.length, { hasMedia: false });
+
+  return (
+    <View
+      style={[
+        styles.choices,
+        styles.choicesSimpleQuestion,
+        { gap: layout.choiceGap, paddingHorizontal: 8 },
+      ]}
+    >
+      {choices.map((choice, idx) => {
+        const isSelected = selectedChoiceIdx === idx;
+        const isCorrect = choice.correct === true;
+        let cardStyle: object[] = [styles.choiceCard];
+        let textStyle: object[] = [
+          styles.choiceText,
+          {
+            fontSize: layout.choiceFontSize,
+            lineHeight: layout.choiceLineHeight,
+          },
+        ];
+
+        if (isSubmitted) {
+          if (isSelected && isCorrect) {
+            cardStyle.push(styles.choiceCardCorrect);
+            textStyle.push(styles.choiceTextCorrect);
+          } else if (isSelected && !isCorrect) {
+            cardStyle.push(styles.choiceCardWrong);
+            textStyle.push(styles.choiceTextWrong);
+          } else if (!isSelected && isCorrect) {
+            cardStyle.push(styles.choiceCardCorrect);
+            textStyle.push(styles.choiceTextCorrect);
+          } else {
+            cardStyle.push(styles.choiceCardDisabled);
+            textStyle.push(styles.choiceTextDisabled);
+          }
+        } else if (isSelected) {
+          cardStyle.push(styles.choiceCardSelected);
+          textStyle.push(styles.choiceTextSelected);
+        }
+
+        return (
+          <Pressable
+            key={choice.text}
+            onPress={() => {
+              if (!isSubmitted) onSelect(idx);
+            }}
+            style={({ pressed }) => [
+              ...cardStyle,
+              {
+                paddingVertical: layout.choicePaddingVertical,
+                paddingHorizontal: layout.choicePaddingHorizontal,
+                marginVertical: 0,
+              },
+              pressed && !isSubmitted && { transform: [{ scale: 0.985 }] },
+            ]}
+          >
+            <DrillChoiceLabel
+              choice={choice}
+              color={
+                isSubmitted && isSelected && isCorrect
+                  ? "#FFFFFF"
+                  : isSubmitted && isSelected && !isCorrect
+                    ? "#0D2033"
+                    : isSelected
+                      ? "#FFFFFF"
+                      : "#0D2033"
+              }
+              style={textStyle}
+            />
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 export default function LessonScreen({ navigation, route }: Props) {
   const [stepId, setStepId] = useState("intro");
   const [fadeAnim] = useState(new Animated.Value(1));
+  const slideAnim = useRef(new Animated.Value(0)).current;
   const [progressAnim] = useState(new Animated.Value(0));
+  const stepTransitionLockRef = useRef(false);
   const lessonId = route.params?.lessonId || 1;
   const {
     completedLessons,
@@ -240,6 +341,11 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [graphQuestionCanSubmit, setGraphQuestionCanSubmit] = useState(false);
   const graphQuestionSubmitRef = useRef<(() => void) | null>(null);
   const carouselSubmitRef = useRef<(() => void) | null>(null);
+  const carouselRetryRef = useRef<(() => void) | null>(null);
+  const [carouselFeedback, setCarouselFeedback] = useState({
+    showing: false,
+    isCorrect: false,
+  });
   const [dragMatchCanSubmit, setDragMatchCanSubmit] = useState(false);
   const dragMatchSubmitRef = useRef<(() => void) | null>(null);
   const [sequenceBuildCanSubmit, setSequenceBuildCanSubmit] = useState(false);
@@ -275,39 +381,115 @@ export default function LessonScreen({ navigation, route }: Props) {
     } | null>(null);
   const visitedStepsRef = useRef<Set<string>>(new Set());
 
+  const runStepTransition = useCallback(
+    (applyStepChange: () => void) => {
+      if (stepTransitionLockRef.current) return;
+      stepTransitionLockRef.current = true;
+
+      const outMs = 200;
+      const inMs = 280;
+
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: outMs,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 10,
+          duration: outMs,
+          easing: Easing.in(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]).start(({ finished }) => {
+        if (!finished) {
+          stepTransitionLockRef.current = false;
+          return;
+        }
+        applyStepChange();
+        slideAnim.setValue(-14);
+        fadeAnim.setValue(0);
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: inMs,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+          Animated.timing(slideAnim, {
+            toValue: 0,
+            duration: inMs,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          stepTransitionLockRef.current = false;
+        });
+      });
+    },
+    [fadeAnim, slideAnim],
+  );
+
   useEffect(() => {
     if (route.params?.lessonId) {
       setStepId("intro");
       visitedStepsRef.current.clear();
       visitedStepsRef.current.add("intro");
-      // Initialize progress to 0
+      fadeAnim.setValue(1);
+      slideAnim.setValue(0);
       progressAnim.setValue(0);
+      lessonStartedAtRef.current = Date.now();
+      setSessionCoins(0);
+      sessionCoinsRef.current = 0;
+      sessionLightningsRef.current = 0;
+      sessionGradedRef.current = { correctCount: 0, totalGraded: 0 };
     }
   }, [route.params?.lessonId]);
 
   const [currentLessonSteps, setCurrentLessonSteps] = useState<LessonStep[]>(
     [],
   );
+  const [lessonContentReady, setLessonContentReady] = useState(false);
+  const [preloadStatusText, setPreloadStatusText] = useState("טוען שיעור...");
 
   const unitId = route.params?.unitId;
 
   useEffect(() => {
     let cancelled = false;
+    setLessonContentReady(false);
+    setPreloadStatusText("טוען שיעור...");
+    setCurrentLessonSteps([]);
+
     (async () => {
       const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
-      const cached = inMemorySteps[cacheKey];
-      if (cached) {
-        if (!cancelled) setCurrentLessonSteps(cached);
-        return;
+      let steps = inMemorySteps[cacheKey];
+      if (!steps) {
+        steps = await getLessonSteps(lessonId, unitId);
+        inMemorySteps[cacheKey] = steps;
       }
-      const steps = await getLessonSteps(lessonId, unitId);
-      inMemorySteps[cacheKey] = steps;
-      if (!cancelled) setCurrentLessonSteps(steps);
-    })();
+      if (cancelled) return;
+
+      setCurrentLessonSteps(steps);
+      setPreloadStatusText("מכין את השיעור...");
+      const result = await preloadLessonAssetsCached(cacheKey, steps);
+      if (cancelled) return;
+
+      if (result.timedOut && result.total > 0) {
+        console.warn(
+          `Lesson asset preload timed out (${result.loaded}/${result.total} loaded)`,
+        );
+      }
+      setLessonContentReady(true);
+    })().catch((err) => {
+      console.error("Failed to prepare lesson:", err);
+      if (!cancelled) setLessonContentReady(true);
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [lessonId, unitId]);
+  }, [lessonId, unitId, getLessonSteps]);
 
   // Track current step as visited and update progress
   useEffect(() => {
@@ -339,114 +521,6 @@ export default function LessonScreen({ navigation, route }: Props) {
     }
   }, [stepId, currentLessonSteps]);
 
-  // Preload images and SVGs for current step and next step
-  useEffect(() => {
-    if (!stepId || currentLessonSteps.length === 0) return;
-
-    const currentStep =
-      currentLessonSteps.find((s: LessonStep) => s && s.id === stepId) ||
-      currentLessonSteps[0] ||
-      null;
-    if (!currentStep) return;
-
-    // Preload image for current step if it has one
-    const rawImageUrl =
-      currentStep.activityConfig?.questionWithImage?.uploadedImagePublicUrl ||
-      currentStep.activityConfig?.questionWithImage?.uploadedImageUrl;
-    const imageUrl = normalizeSupabaseUrl(rawImageUrl);
-
-    if (imageUrl && typeof imageUrl === "string") {
-      Image.prefetch(imageUrl).catch((err) => {
-        console.warn("Failed to preload image:", err);
-      });
-    }
-
-    // Preload SVGs for current step if it's svgMultiSelect
-    if (currentStep.activity === "svgMultiSelect") {
-      // Handle both formats: svgOptions (app format) and svgMultiSelect.options (builder format)
-      const svgOptions =
-        currentStep.activityConfig?.svgOptions ||
-        currentStep.activityConfig?.svgMultiSelect?.options ||
-        [];
-      const preloadPromises = svgOptions.map((opt: any) => {
-        // Preload PNG images
-        if (opt.inputType === "png" || opt.pngPublicUrl || opt.pngUrl) {
-          const pngUrl = opt.pngPublicUrl || opt.pngUrl;
-          if (pngUrl && typeof pngUrl === "string") {
-            return Image.prefetch(pngUrl).catch((err) => {
-              console.warn("Failed to preload PNG:", err);
-              return null;
-            });
-          }
-        }
-        // Preload SVG images
-        const svgUrl = opt.svgPublicUrl || opt.svgUrl;
-        if (svgUrl && typeof svgUrl === "string") {
-          return fetch(svgUrl)
-            .then((res) => (res.ok ? res.text() : null))
-            .catch((err) => {
-              console.warn("Failed to preload SVG:", err);
-              return null;
-            });
-        }
-        return Promise.resolve(null);
-      });
-      Promise.all(preloadPromises).catch(() => {}); // Fire and forget
-    }
-
-    // Preload image and SVGs for next step if available
-    if (
-      currentStep.choices &&
-      currentStep.choices[0] &&
-      currentStep.choices[0].nextStep
-    ) {
-      const nextStepId = currentStep.choices[0].nextStep;
-      const nextStep = currentLessonSteps.find((s) => s && s.id === nextStepId);
-      if (nextStep) {
-        const nextImageUrl =
-          nextStep.activityConfig?.questionWithImage?.uploadedImagePublicUrl ||
-          nextStep.activityConfig?.questionWithImage?.uploadedImageUrl;
-        if (nextImageUrl && typeof nextImageUrl === "string") {
-          Image.prefetch(nextImageUrl).catch((err) => {
-            console.warn("Failed to preload next step image:", err);
-          });
-        }
-
-        // Preload SVGs/PNGs for next step if it's svgMultiSelect
-        if (nextStep.activity === "svgMultiSelect") {
-          const svgOptions =
-            nextStep.activityConfig?.svgOptions ||
-            nextStep.activityConfig?.svgMultiSelect?.options ||
-            [];
-          const preloadPromises = svgOptions.map((opt: any) => {
-            // Preload PNG images
-            if (opt.inputType === "png" || opt.pngPublicUrl || opt.pngUrl) {
-              const pngUrl = opt.pngPublicUrl || opt.pngUrl;
-              if (pngUrl && typeof pngUrl === "string") {
-                return Image.prefetch(pngUrl).catch((err) => {
-                  console.warn("Failed to preload next step PNG:", err);
-                  return null;
-                });
-              }
-            }
-            // Preload SVG images
-            const svgUrl = opt.svgPublicUrl || opt.svgUrl;
-            if (svgUrl && typeof svgUrl === "string") {
-              return fetch(svgUrl)
-                .then((res) => (res.ok ? res.text() : null))
-                .catch((err) => {
-                  console.warn("Failed to preload next step SVG:", err);
-                  return null;
-                });
-            }
-            return Promise.resolve(null);
-          });
-          Promise.all(preloadPromises).catch(() => {}); // Fire and forget
-        }
-      }
-    }
-  }, [stepId, currentLessonSteps]);
-
   // Reset drill state when step changes
   useEffect(() => {
     setSelectedChoiceIdx(null);
@@ -467,6 +541,9 @@ export default function LessonScreen({ navigation, route }: Props) {
     questionSvgSubmitRef.current = null;
     questionWithImageSubmitRef.current = null;
     graphQuestionSubmitRef.current = null;
+    carouselSubmitRef.current = null;
+    carouselRetryRef.current = null;
+    setCarouselFeedback({ showing: false, isCorrect: false });
   }, [stepId]);
 
   const step: LessonStep =
@@ -524,7 +601,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     step.activity === "textWithSVG" ||
     step.activity === "textWithImageExplain" ||
     step.activity === "dragMatch" ||
-    (step.activity === "pathSelect" && pathSelectViewingOption !== null) ||
+    isPathSelect ||
     (activityType === "graphQuestionPNG" && graphQuestionPNGViewingExplanation);
 
   const hasSpecificBubble =
@@ -565,12 +642,19 @@ export default function LessonScreen({ navigation, route }: Props) {
           : step.message ||
             (step.activityConfig as any)?.questionWithImage?.question
       )?.trim()) ||
-    (isSimpleQuestion && !!step.message?.trim());
+    (isSimpleQuestion && !!step.message?.trim()) ||
+    (isPathSelect &&
+      pathSelectViewingOption === null &&
+      !!step.message?.trim());
 
   const hasGenericBubble = !isGenericBubbleExcluded && !!step.message?.trim();
   const shouldShowBubbleContainer = hasSpecificBubble || hasGenericBubble;
 
   const [sessionCoins, setSessionCoins] = useState(0);
+  const sessionCoinsRef = useRef(0);
+  const sessionLightningsRef = useRef(0);
+  const sessionGradedRef = useRef({ correctCount: 0, totalGraded: 0 });
+  const lessonStartedAtRef = useRef(Date.now());
 
   const handleDrillComplete = (result: {
     isCorrect: boolean;
@@ -588,10 +672,16 @@ export default function LessonScreen({ navigation, route }: Props) {
       result.numCorrect ||
       0;
     const isCorrect = result.isCorrect || result.correct || false;
+    const graded = countGradedFromDrillResult(result);
+    sessionGradedRef.current = {
+      correctCount: sessionGradedRef.current.correctCount + graded.correct,
+      totalGraded: sessionGradedRef.current.totalGraded + graded.total,
+    };
 
-    // A correct answer earns coins
     if (rewards > 0) {
-      setSessionCoins((prev) => prev + rewards);
+      sessionCoinsRef.current += rewards;
+      sessionLightningsRef.current += rewards;
+      setSessionCoins(sessionCoinsRef.current);
     }
 
     // For simple_question, questionWithSVG, questionWithImage, graphQuestion, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
@@ -696,6 +786,8 @@ export default function LessonScreen({ navigation, route }: Props) {
   };
 
   const handleChoice = (nextStep: string) => {
+    if (stepTransitionLockRef.current) return;
+
     console.log(
       "handleChoice called with nextStep:",
       nextStep,
@@ -813,7 +905,12 @@ export default function LessonScreen({ navigation, route }: Props) {
         } else {
           navigation.navigate("LessonComplete", {
             lessonId,
-            coinsEarned: sessionCoins,
+            unitId: route.params?.unitId,
+            coinsEarned: sessionCoinsRef.current,
+            correctCount: sessionGradedRef.current.correctCount,
+            totalGraded: sessionGradedRef.current.totalGraded,
+            durationMs: Date.now() - lessonStartedAtRef.current,
+            lightningsEarned: sessionLightningsRef.current,
           });
         }
       });
@@ -844,14 +941,8 @@ export default function LessonScreen({ navigation, route }: Props) {
 
     // Navigate to next step in lesson
     console.log(`Navigating from "${stepId}" to "${nextStep}"`);
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      // Track visited steps to detect loops (will also be tracked in useEffect)
+    runStepTransition(() => {
       setStepId(nextStep);
-      fadeAnim.setValue(1);
     });
   };
 
@@ -896,7 +987,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     outputRange: [0.6, 1, 0.6],
   });
 
-  if (!step) {
+  if (!lessonContentReady || currentLessonSteps.length === 0) {
     return (
       <PageBackground source={backgroundImages.defaultBackground}>
         <TopBar />
@@ -914,7 +1005,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               <ActivityIndicator size="large" color="#3372D8" />
             </Animated.View>
           </View>
-          <Text style={styles.loadingText}>טוען שיעור...</Text>
+          <Text style={styles.loadingText}>{preloadStatusText}</Text>
         </View>
       </PageBackground>
     );
@@ -935,7 +1026,10 @@ export default function LessonScreen({ navigation, route }: Props) {
         style={[
           styles.content,
           !shouldShowBubbleContainer && { marginTop: 0 },
-          { opacity: fadeAnim },
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
         {step.showInventory && step.inventory && (
@@ -1029,6 +1123,30 @@ export default function LessonScreen({ navigation, route }: Props) {
                   />
                 );
               })()}
+
+            {/* Path select speech bubble */}
+            {isPathSelect &&
+              pathSelectViewingOption === null &&
+              !!step.message?.trim() && (
+                <SpeechBubble
+                  message={step.message}
+                  characterImg={
+                    step.showCharacter !== false
+                      ? getCharacterImg(step.characterImg)
+                      : undefined
+                  }
+                  position={step.bubblePosition || "bottomLeft"}
+                  align={
+                    step.bubblePosition?.includes("Right")
+                      ? "flex-end"
+                      : step.bubblePosition?.includes("Left")
+                        ? "flex-start"
+                        : "center"
+                  }
+                  disableTyping
+                  disableEnterAnim
+                />
+              )}
 
             {/* SVG MultiSelect speech bubble */}
             {step.activity === "svgMultiSelect" &&
@@ -1336,21 +1454,15 @@ export default function LessonScreen({ navigation, route }: Props) {
         {activityType === "graphQuestionPNG" &&
           (step.activityConfig as any)?.graphQuestionPNG &&
           !graphQuestionPNGViewingExplanation && (
-            <ScrollView
-              style={styles.drillContentArea}
-              contentContainerStyle={{
-                paddingBottom: 160,
-                alignItems: "center",
-                paddingTop: 0,
-              }}
-              showsVerticalScrollIndicator={false}
-            >
+            <DrillViewport style={styles.drillContentArea}>
+              <View style={styles.mediaDrillWrapSized}>
               <GraphQuestionDrill
                 mediaType="png"
                 pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
-                choices={
-                  (step.activityConfig as any).graphQuestionPNG.choices || []
-                }
+                choices={normalizeDrillChoices(
+                  (step.activityConfig as any).graphQuestionPNG.choices,
+                  step.choices,
+                )}
                 submitText={
                   (step.activityConfig as any).graphQuestionPNG.submitText ||
                   "בדוק"
@@ -1373,22 +1485,15 @@ export default function LessonScreen({ navigation, route }: Props) {
                   setGraphQuestionCanSubmit(state.canSubmit);
                 }}
               />
-            </ScrollView>
+              </View>
+            </DrillViewport>
           )}
 
         {/* Graph question PNG explanation screen */}
         {activityType === "graphQuestionPNG" &&
           (step.activityConfig as any)?.graphQuestionPNG &&
           graphQuestionPNGViewingExplanation && (
-            <ScrollView
-              style={styles.drillContentArea}
-              contentContainerStyle={{
-                paddingBottom: 160,
-                alignItems: "center",
-                paddingTop: 0,
-              }}
-              showsVerticalScrollIndicator={false}
-            >
+            <DrillViewport style={styles.drillContentArea}>
               {(() => {
                 const selectedChoice = (
                   (step.activityConfig as any).graphQuestionPNG.choices || []
@@ -1406,12 +1511,12 @@ export default function LessonScreen({ navigation, route }: Props) {
                   <View
                     style={{
                       width: "100%",
-                      justifyContent: "flex-start",
+                      flex: 1,
+                      justifyContent: "center",
                       alignItems: "center",
                       pointerEvents: "box-none",
                     }}
                   >
-                    {/* Image/SVG container with indicator inside */}
                     {(imageUrl ||
                       selectedChoice.explanationSvgCode ||
                       selectedChoice.explanationSvgUrl ||
@@ -1419,7 +1524,8 @@ export default function LessonScreen({ navigation, route }: Props) {
                       <View
                         style={{
                           width: "100%",
-                          height: 300,
+                          flex: 1,
+                          maxHeight: 200,
                           position: "relative",
                           borderRadius: 12,
                           overflow: "hidden",
@@ -1537,31 +1643,30 @@ export default function LessonScreen({ navigation, route }: Props) {
                   </View>
                 );
               })()}
-            </ScrollView>
+            </DrillViewport>
           )}
 
-        {/* Drill Content Area - fills space between speech bubble and button */}
-
-        {/* Drill Content Area - fills space between speech bubble and button */}
-
-        {/* Add ExplanationDrill here - outside of the default ScrollView */}
-        {isExplanation && <ExplanationDrill step={step} />}
+        {isExplanation && (
+          <DrillViewport style={styles.drillContentArea}>
+            <ExplanationDrill step={step} />
+          </DrillViewport>
+        )}
 
         {!(step.activity === "textWithImageExplain" && !step.message?.trim()) &&
           !isExplanation &&
           !(activityType === "graphQuestionPNG") && (
-            <ScrollView
-              style={styles.drillContentArea}
-              contentContainerStyle={[
-                styles.drillContentScrollContainer,
-                !shouldShowBubbleContainer && {
-                  justifyContent: isPathSelect ? "flex-start" : "center",
-                  paddingTop: 20,
-                  paddingBottom: isPathSelect ? 140 : 0,
-                },
-              ]}
-              showsVerticalScrollIndicator={false}
-            >
+            <DrillViewport style={styles.drillContentArea}>
+              <View
+                style={[
+                  styles.drillContentInner,
+                  (isSimpleQuestion ||
+                    (step.activity === "pathSelect" &&
+                      pathSelectViewingOption === null)) && {
+                    justifyContent: "flex-start",
+                    paddingTop: 6,
+                  },
+                ]}
+              >
               {/* Text with image explanation activity - content only */}
               {step.activity === "textWithImageExplain" &&
                 (() => {
@@ -1704,11 +1809,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 {step.activity === "questionWithImage" &&
                   step.activityConfig?.questionWithImage && (
                     <View
-                      style={{
-                        width: "100%",
-                        flex: 1,
-                        justifyContent: "center",
-                      }}
+                      style={[styles.mediaDrillWrap, styles.mediaDrillWrapSized]}
                     >
                       <QuestionWithImage
                         question={
@@ -1735,9 +1836,10 @@ export default function LessonScreen({ navigation, route }: Props) {
                                   }
                                 : require("../assets/DefaultBlankBackground.png")
                         }
-                        choices={
-                          step.activityConfig.questionWithImage.choices || []
-                        }
+                        choices={normalizeDrillChoices(
+                          step.activityConfig.questionWithImage.choices,
+                          step.choices,
+                        )}
                         submitText={
                           step.activityConfig.questionWithImage.submitText ||
                           "בדוק"
@@ -1781,9 +1883,12 @@ export default function LessonScreen({ navigation, route }: Props) {
                     );
 
                     // Filter out any invalid choices (null, undefined, or missing id)
-                    const validChoices = Array.isArray(rawChoices)
-                      ? rawChoices.filter((c) => c && c.id && c.text)
-                      : [];
+                    const validChoices = normalizeDrillChoices(
+                      Array.isArray(rawChoices)
+                        ? rawChoices.filter((c) => c && c.id)
+                        : [],
+                      step.choices,
+                    ).filter((c) => getDrillChoicePlainText(c).length > 0);
 
                     if (validChoices.length === 0) {
                       console.error(
@@ -1849,13 +1954,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 {activityType === "graphQuestion" &&
                   (step.activityConfig as any)?.graphQuestion &&
                   !graphQuestionViewingExplanation && (
-                    <View
-                      style={{
-                        width: "100%",
-                        alignItems: "center",
-                        paddingBottom: 120,
-                      }}
-                    >
+                    <View style={styles.mediaDrillWrapSized}>
                       <GraphQuestionDrill
                         mediaType="svg"
                         svgCode={
@@ -1868,10 +1967,10 @@ export default function LessonScreen({ navigation, route }: Props) {
                           (step.activityConfig as any).graphQuestion
                             .svgPublicUrl
                         }
-                        choices={
-                          (step.activityConfig as any).graphQuestion.choices ||
-                          []
-                        }
+                        choices={normalizeDrillChoices(
+                          (step.activityConfig as any).graphQuestion.choices,
+                          step.choices,
+                        )}
                         submitText={
                           (step.activityConfig as any).graphQuestion
                             .submitText || "בדוק"
@@ -2266,12 +2365,20 @@ export default function LessonScreen({ navigation, route }: Props) {
                   (step.activityConfig?.svgOptions ||
                     step.activityConfig?.svgMultiSelect?.options) && (
                     <View
-                      style={{
-                        width: "100%",
-                        paddingHorizontal: 16,
-                        marginTop: 10,
-                        flex: 1,
-                      }}
+                      style={[
+                        styles.mediaDrillWrap,
+                        (() => {
+                          const opts =
+                            step.activityConfig?.svgOptions ||
+                            step.activityConfig?.svgMultiSelect?.options ||
+                            [];
+                          const yesNo =
+                            opts.length === 2 &&
+                            opts.filter((o: { correct?: boolean }) => o.correct)
+                              .length === 1;
+                          return yesNo ? styles.mediaDrillWrapYesNo : null;
+                        })(),
+                      ]}
                     >
                       <SVGMultiSelectDrill
                         options={(
@@ -2372,6 +2479,13 @@ export default function LessonScreen({ navigation, route }: Props) {
                         onSubmit={handleDrillComplete}
                         showSubmitButton={false}
                         onSubmitTriggerRef={carouselSubmitRef}
+                        onRetryTriggerRef={carouselRetryRef}
+                        onStateChange={(state) => {
+                          setCarouselFeedback({
+                            showing: state.showingFeedback,
+                            isCorrect: state.isCorrect,
+                          });
+                        }}
                       />
                     </View>
                   )}
@@ -2587,13 +2701,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       ) : (
                         // Show main path selection drill
                         <>
-                          <View
-                            style={{
-                              width: "100%",
-                              paddingHorizontal: 16,
-                              marginTop: 0,
-                            }}
-                          >
+                          <View style={styles.pathSelectDrillWrap}>
                             <PathSelectDrill
                               options={
                                 step.activityConfig.pathSelect.choices || []
@@ -2614,7 +2722,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                                   choices.length > 0 &&
                                   choices[0].nextStep
                                 ) {
-                                  setStepId(choices[0].nextStep);
+                                  handleChoice(choices[0].nextStep);
                                 }
                               }}
                               completedOptions={pathSelectCompletedOptions}
@@ -2625,60 +2733,19 @@ export default function LessonScreen({ navigation, route }: Props) {
                     </>
                   )}
 
-                {/* Simple question choices - inside scrollable content area */}
                 {isSimpleQuestion && choices && choices.length > 0 && (
-                  <View style={[styles.choices, styles.choicesSimpleQuestion]}>
-                    {choices.map((choice, idx) => {
-                      const isSelected = selectedChoiceIdx === idx;
-                      const isCorrect = (choice as any).correct === true;
-                      const isSubmitted =
-                        showSimpleQuestionButtonSheet ||
-                        showingDrillExplanation;
-
-                      let cardStyle: any[] = [styles.choiceCard];
-                      let textStyle: any[] = [styles.choiceText];
-
-                      if (isSubmitted) {
-                        if (isSelected && isCorrect) {
-                          cardStyle.push(styles.choiceCardCorrect);
-                          textStyle.push(styles.choiceTextCorrect);
-                        } else if (isSelected && !isCorrect) {
-                          cardStyle.push(styles.choiceCardWrong);
-                          textStyle.push(styles.choiceTextWrong);
-                        } else if (!isSelected && isCorrect) {
-                          cardStyle.push(styles.choiceCardCorrect);
-                          textStyle.push(styles.choiceTextCorrect);
-                        } else {
-                          cardStyle.push(styles.choiceCardDisabled);
-                          textStyle.push(styles.choiceTextDisabled);
-                        }
-                      } else if (isSelected) {
-                        cardStyle.push(styles.choiceCardSelected);
-                        textStyle.push(styles.choiceTextSelected);
-                      }
-
-                      return (
-                        <Pressable
-                          key={choice.text}
-                          onPress={() => {
-                            if (!isSubmitted) {
-                              setSelectedChoiceIdx(idx);
-                            }
-                          }}
-                          style={({ pressed }) => [
-                            ...cardStyle,
-                            pressed &&
-                              !isSubmitted && { transform: [{ scale: 0.985 }] },
-                          ]}
-                        >
-                          <HtmlText value={choice.text} style={textStyle} />
-                        </Pressable>
-                      );
-                    })}
-                  </View>
+                  <SimpleQuestionChoiceList
+                    choices={choices as SimpleChoice[]}
+                    selectedChoiceIdx={selectedChoiceIdx}
+                    isSubmitted={
+                      showSimpleQuestionButtonSheet || showingDrillExplanation
+                    }
+                    onSelect={setSelectedChoiceIdx}
+                  />
                 )}
               </View>
-            </ScrollView>
+              </View>
+            </DrillViewport>
           )}
         {/* Choices: hidden during dialog/explain/textWithSVG/pathSelect/questionWithImage/graphQuestionPNG to reduce clutter */}
         {!(
@@ -2706,8 +2773,13 @@ export default function LessonScreen({ navigation, route }: Props) {
                           styles.choiceCardCorrect,
                       ]}
                     >
-                      <HtmlText
-                        value={choice.text}
+                      <DrillChoiceLabel
+                        choice={choice}
+                        color={
+                          selectedChoiceIdx === idx
+                            ? "#FFFFFF"
+                            : "#0D2033"
+                        }
                         style={[
                           styles.choiceText,
                           selectedChoiceIdx === idx
@@ -2778,7 +2850,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 if (pendingNextStep) {
                   const next = pendingNextStep;
                   setPendingNextStep(null);
-                  setStepId(next);
+                  handleChoice(next);
                 } else {
                   setPendingNextStep(null);
                 }
@@ -2971,24 +3043,48 @@ export default function LessonScreen({ navigation, route }: Props) {
         choices &&
         choices.length === 1 && (
           <View style={styles.absoluteContinueButton}>
-            <Pressable
-              style={styles.continueButton}
-              onPress={() => {
-                if (showingDrillExplanation) {
-                  // Continue to next step after explanation
-                  handleExplanationContinue();
-                } else if (carouselSubmitRef.current) {
-                  // Trigger submit from carousel drill component
-                  carouselSubmitRef.current();
-                }
-              }}
-            >
-              <Text style={styles.continueButtonText}>
-                {showingDrillExplanation
-                  ? "המשך"
-                  : step.activityConfig.carousel.submitText || "אישור"}
-              </Text>
-            </Pressable>
+            {carouselFeedback.showing &&
+            !carouselFeedback.isCorrect &&
+            !showingDrillExplanation ? (
+              <View style={styles.carouselActionRow}>
+                <Pressable
+                  style={styles.tryAgainButton}
+                  onPress={() => carouselRetryRef.current?.()}
+                >
+                  <Text style={styles.tryAgainButtonText}>נסה שוב</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.continueButton}
+                  onPress={() => carouselSubmitRef.current?.()}
+                >
+                  <Text style={styles.continueButtonText}>המשך</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable
+                style={[
+                  styles.continueButton,
+                  carouselFeedback.showing &&
+                    carouselFeedback.isCorrect &&
+                    styles.continueButtonCorrect,
+                ]}
+                onPress={() => {
+                  if (showingDrillExplanation) {
+                    handleExplanationContinue();
+                  } else if (carouselSubmitRef.current) {
+                    carouselSubmitRef.current();
+                  }
+                }}
+              >
+                <Text style={styles.continueButtonText}>
+                  {showingDrillExplanation
+                    ? "המשך"
+                    : carouselFeedback.showing && carouselFeedback.isCorrect
+                      ? "המשך"
+                      : step.activityConfig.carousel.submitText || "אישור"}
+                </Text>
+              </Pressable>
+            )}
           </View>
         )}
       {/* Static button for dragMatch drill using the shared absolute pattern */}
@@ -3189,25 +3285,18 @@ export default function LessonScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         )}
-      {/* Global button for pathSelect - when all options completed */}
+      {/* Global button for pathSelect - after at least one question was explored */}
       {step.activity === "pathSelect" &&
         step.activityConfig?.pathSelect &&
         pathSelectViewingOption === null &&
         !showCorrectOverlay &&
-        (() => {
-          const options = step.activityConfig.pathSelect.choices || [];
-          const allCompleted =
-            options.length > 0 &&
-            options.every((opt: any) => pathSelectCompletedOptions.has(opt.id));
-          return allCompleted;
-        })() && (
+        pathSelectCompletedOptions.size >= 1 && (
           <View style={styles.absoluteContinueButton}>
             <Pressable
               style={styles.continueButton}
               onPress={() => {
-                // Proceed to next step
                 if (choices && choices.length > 0 && choices[0].nextStep) {
-                  setStepId(choices[0].nextStep);
+                  handleChoice(choices[0].nextStep);
                 }
               }}
             >
@@ -3217,15 +3306,32 @@ export default function LessonScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         )}
-      {/* Global button for pathSelect explanation screens */}
+      {/* Global buttons for pathSelect explanation screens */}
       {step.activity === "pathSelect" &&
         pathSelectViewingOption !== null &&
         !showCorrectOverlay && (
-          <View style={styles.absoluteContinueButton}>
+          <View style={styles.pathSelectExplanationButtons}>
+            {pathSelectCompletedOptions.size >= 1 && (
+              <Pressable
+                style={styles.pathSelectSkipButton}
+                onPress={() => {
+                  if (choices && choices.length > 0 && choices[0].nextStep) {
+                    handleChoice(choices[0].nextStep);
+                  }
+                }}
+              >
+                <Text style={styles.pathSelectSkipButtonText}>
+                  {step.activityConfig.pathSelect.submitText || "המשך לשלב הבא"}
+                </Text>
+              </Pressable>
+            )}
             <Pressable
-              style={styles.continueButton}
+              style={[
+                styles.continueButton,
+                pathSelectCompletedOptions.size >= 1 &&
+                  styles.pathSelectExplanationPrimaryButton,
+              ]}
               onPress={() => {
-                // Get all screens for the current option
                 const selectedOption =
                   step.activityConfig?.pathSelect?.choices?.find(
                     (opt: any) => opt.id === pathSelectViewingOption,
@@ -3247,7 +3353,6 @@ export default function LessonScreen({ navigation, route }: Props) {
                   ...extraScreens,
                 ];
 
-                // If there are more screens, advance to the next one.
                 if (
                   allScreens.length > 0 &&
                   pathSelectViewingScreenIndex < allScreens.length - 1
@@ -3256,7 +3361,6 @@ export default function LessonScreen({ navigation, route }: Props) {
                   return;
                 }
 
-                // Otherwise, mark this option as completed and return to main drill
                 setPathSelectCompletedOptions((prev) => {
                   const newSet = new Set(prev);
                   newSet.add(pathSelectViewingOption);
@@ -3266,7 +3370,11 @@ export default function LessonScreen({ navigation, route }: Props) {
                 setPathSelectViewingOption(null);
               }}
             >
-              <Text style={styles.continueButtonText}>המשך</Text>
+              <Text style={styles.continueButtonText}>
+                {pathSelectCompletedOptions.size >= 1
+                  ? "חזרה לשאלות"
+                  : "המשך"}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -3315,20 +3423,20 @@ const styles = StyleSheet.create({
     width: "100%",
     flex: 1,
   },
-  drillContentScrollContainer: {
-    flexGrow: 1,
+  drillContentInner: {
+    flex: 1,
+    width: "100%",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   bubbleWrapper: {
     width: "100%",
-    flex: 1,
     alignItems: "center",
     alignSelf: "center",
     flexDirection: "column",
-    marginBottom: 0,
-    // backgroundColor: 'blue'
+    justifyContent: "center",
   },
   textWithImageWrapper: {
     width: "100%",
@@ -3345,13 +3453,13 @@ const styles = StyleSheet.create({
     maxWidth: 700,
     alignSelf: "center",
     flex: 1,
-    minHeight: 350,
-    maxHeight: "85%",
+    minHeight: 120,
+    maxHeight: "70%",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    padding: 24,
+    padding: 12,
   },
   textWithImageImage: {
     width: "100%",
@@ -3389,21 +3497,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     maxWidth: 500,
     alignSelf: "center",
-    marginTop: 8,
-    // backgroundColor: 'green'
+    justifyContent: "center",
   },
   choicesSimpleQuestion: {
-    marginTop: 4,
-    paddingTop: 4,
+    width: "100%",
+    paddingTop: 2,
+  },
+  pathSelectDrillWrap: {
+    width: "100%",
+    paddingHorizontal: 12,
+  },
+  mediaDrillWrap: {
+    width: "100%",
+    flex: 1,
+    minHeight: 0,
+  },
+  mediaDrillWrapSized: {
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    minHeight: undefined,
+  },
+  mediaDrillWrapYesNo: {
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    minHeight: undefined,
   },
   choiceCard: {
-    width: "90%",
+    width: "92%",
     maxWidth: 420,
     backgroundColor: "#FFFFFF",
-    paddingVertical: 16,
-    paddingHorizontal: 18,
-    borderRadius: 18,
-    marginVertical: 10,
+    borderRadius: 16,
+    alignSelf: "center",
     // shadowColor: '#000',
     // shadowOffset: { width: 0, height: 2 },
     // shadowOpacity: 0.06,
@@ -3531,6 +3657,57 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 10,
+  },
+  carouselActionRow: {
+    width: "100%",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 24,
+  },
+  tryAgainButton: {
+    backgroundColor: "#FFFFFF",
+    minWidth: 200,
+    borderRadius: 16.4,
+    paddingVertical: 14,
+    paddingHorizontal: 21,
+    borderWidth: 2,
+    borderColor: "#3372D8",
+    marginBottom: 0,
+  },
+  tryAgainButtonText: {
+    color: "#3372D8",
+    fontSize: 16,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  pathSelectExplanationButtons: {
+    position: "absolute",
+    bottom: 70,
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 10,
+    gap: 10,
+    paddingHorizontal: 24,
+  },
+  pathSelectSkipButton: {
+    backgroundColor: "#FFFFFF",
+    minWidth: 200,
+    borderRadius: 16.4,
+    paddingVertical: 14,
+    paddingHorizontal: 21,
+    borderWidth: 2,
+    borderColor: "#3372D8",
+  },
+  pathSelectSkipButtonText: {
+    color: "#3372D8",
+    fontSize: 18,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  pathSelectExplanationPrimaryButton: {
+    marginBottom: 0,
   },
   continueButton: {
     backgroundColor: "#3372D8",

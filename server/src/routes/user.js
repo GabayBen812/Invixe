@@ -2,9 +2,26 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 
+function getSupabaseClient(req) {
+  return req?.app?.get('supabase') || null;
+}
+
+async function resolveUser(req, email) {
+  const supabase = getSupabaseClient(req);
+  if (!supabase) throw new Error('Supabase not configured');
+  if (email) {
+    return getUserByEmail(email, supabase);
+  }
+  return getDefaultUser(supabase);
+}
+
 // Helper: get user by email
-async function getUserByEmail(email) {
-  const supabase = (globalThis.__supabase_for_router && globalThis.__supabase_only) ? globalThis.__supabase_for_router : null;
+async function getUserByEmail(email, supabaseIn) {
+  const supabase =
+    supabaseIn ||
+    (globalThis.__supabase_for_router && globalThis.__supabase_only
+      ? globalThis.__supabase_for_router
+      : null);
   if (supabase) {
     const { data: user, error } = await supabase
       .from('User')
@@ -27,8 +44,12 @@ async function getUserByEmail(email) {
 }
 
 // Helper: get default user (for backward compatibility)
-async function getDefaultUser() {
-  const supabase = (globalThis.__supabase_for_router && globalThis.__supabase_only) ? globalThis.__supabase_for_router : null;
+async function getDefaultUser(supabaseIn) {
+  const supabase =
+    supabaseIn ||
+    (globalThis.__supabase_for_router && globalThis.__supabase_only
+      ? globalThis.__supabase_for_router
+      : null);
   if (supabase) {
     const { data: user, error } = await supabase
       .from('User')
@@ -272,7 +293,6 @@ router.get('/portfolio', async (req, res) => {
 router.post('/portfolio/buy', async (req, res) => {
   try {
     const { email, symbol, shares, price } = req.body;
-    // Parse shares and price as floats
     const sharesNum = parseFloat(shares);
     const priceNum = parseFloat(price);
 
@@ -283,69 +303,64 @@ router.post('/portfolio/buy', async (req, res) => {
       return res.status(400).json({ error: 'Invalid shares or price' });
     }
 
-    let user;
-    if (email) {
-      user = await getUserByEmail(email);
-    } else {
-      user = await getDefaultUser();
-    }
-    
+    const user = await resolveUser(req, email);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    const userCoins = Number(user.coins) || 0;
     const totalCost = sharesNum * priceNum;
-    if (user.coins < totalCost) {
+    if (userCoins < totalCost) {
       return res.status(400).json({ error: 'Insufficient coins' });
     }
 
-    // Check if user already has this stock
-    const supabase = req.app.get('supabase');
-    let existingHolding;
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('Portfolio')
-        .select('*')
-        .eq('userid', user.id)
-        .eq('symbol', symbol)
-        .maybeSingle();
-      if (error && error.code !== 'PGRST116') throw error; // not found is ok
-      existingHolding = data || null;
-    }
+    const supabase = getSupabaseClient(req);
+    const symbolUpper = String(symbol).toUpperCase();
+
+    const { data: existingHolding, error: fetchError } = await supabase
+      .from('Portfolio')
+      .select('*')
+      .eq('userid', user.id)
+      .eq('symbol', symbolUpper)
+      .maybeSingle();
+    if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
 
     if (existingHolding) {
-      // Update existing holding
-      const newShares = existingHolding.shares + sharesNum;
-      const newAvgPrice = ((existingHolding.shares * existingHolding.avgPrice) + (sharesNum * priceNum)) / newShares;
+      const existingShares = Number(existingHolding.shares) || 0;
+      const existingAvg =
+        Number(existingHolding.avgprice ?? existingHolding.avgPrice) || 0;
+      const newShares = existingShares + sharesNum;
+      const newAvgPrice =
+        (existingShares * existingAvg + sharesNum * priceNum) / newShares;
 
-      if (supabase) {
-        const { error } = await supabase
-          .from('Portfolio')
-          .update({ shares: newShares, avgprice: newAvgPrice })
-          .eq('id', existingHolding.id);
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from('Portfolio')
+        .update({ shares: newShares, avgprice: newAvgPrice })
+        .eq('id', existingHolding.id);
+      if (error) throw error;
     } else {
-      if (supabase) {
-        const { error } = await supabase
-          .from('Portfolio')
-          .insert({ userid: user.id, symbol, shares: sharesNum, avgprice: priceNum });
-        if (error) throw error;
-      }
-    }
-
-    // Deduct coins
-    if (supabase) {
-      const { error } = await supabase.from('User').update({ coins: user.coins - totalCost }).eq('id', user.id);
+      const { error } = await supabase.from('Portfolio').insert({
+        userid: user.id,
+        symbol: symbolUpper,
+        shares: sharesNum,
+        avgprice: priceNum,
+      });
       if (error) throw error;
     }
 
-    res.json({ 
-      success: true, 
-      newCoins: user.coins - totalCost,
-      coinsSpent: totalCost
+    const newCoins = userCoins - totalCost;
+    const { error: coinsError } = await supabase
+      .from('User')
+      .update({ coins: newCoins })
+      .eq('id', user.id);
+    if (coinsError) throw coinsError;
+
+    res.json({
+      success: true,
+      newCoins,
+      coinsSpent: totalCost,
     });
   } catch (error) {
     console.error('Error buying stock:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: error.message || 'Server error' });
   }
 });
 
@@ -353,7 +368,6 @@ router.post('/portfolio/buy', async (req, res) => {
 router.post('/portfolio/sell', async (req, res) => {
   try {
     const { email, symbol, shares, price } = req.body;
-    // Parse shares and price as floats
     const sharesNum = parseFloat(shares);
     const priceNum = parseFloat(price);
 
@@ -364,62 +378,55 @@ router.post('/portfolio/sell', async (req, res) => {
       return res.status(400).json({ error: 'Invalid shares or price' });
     }
 
-    let user;
-    if (email) {
-      user = await getUserByEmail(email);
-    } else {
-      user = await getDefaultUser();
-    }
-    
+    const user = await resolveUser(req, email);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const supabase = req.app.get('supabase');
-    let holding;
-    if (supabase) {
-      const { data, error } = await supabase
-        .from('Portfolio')
-        .select('*')
-        .eq('userid', user.id)
-        .eq('symbol', symbol)
-        .maybeSingle();
-      if (error && error.code !== 'PGRST116') throw error;
-      holding = data || null;
-    }
+    const supabase = getSupabaseClient(req);
+    const symbolUpper = String(symbol).toUpperCase();
 
-    if (!holding || holding.shares < sharesNum) {
+    const { data: holding, error: fetchError } = await supabase
+      .from('Portfolio')
+      .select('*')
+      .eq('userid', user.id)
+      .eq('symbol', symbolUpper)
+      .maybeSingle();
+    if (fetchError && fetchError.code !== 'PGRST116') throw fetchError;
+
+    const heldShares = Number(holding?.shares) || 0;
+    if (!holding || heldShares < sharesNum) {
       return res.status(400).json({ error: 'Insufficient shares' });
     }
 
     const totalValue = sharesNum * priceNum;
-    const newShares = holding.shares - sharesNum;
+    const newShares = heldShares - sharesNum;
+    const userCoins = Number(user.coins) || 0;
 
     if (newShares === 0) {
-      // Delete holding if no shares left
-      if (supabase) {
-        const { error } = await supabase.from('Portfolio').delete().eq('id', holding.id);
-        if (error) throw error;
-      }
+      const { error } = await supabase.from('Portfolio').delete().eq('id', holding.id);
+      if (error) throw error;
     } else {
-      if (supabase) {
-        const { error } = await supabase.from('Portfolio').update({ shares: newShares }).eq('id', holding.id);
-        if (error) throw error;
-      }
-    }
-
-    // Add coins
-    if (supabase) {
-      const { error } = await supabase.from('User').update({ coins: user.coins + totalValue }).eq('id', user.id);
+      const { error } = await supabase
+        .from('Portfolio')
+        .update({ shares: newShares })
+        .eq('id', holding.id);
       if (error) throw error;
     }
 
-    res.json({ 
-      success: true, 
-      newCoins: user.coins + totalValue,
-      coinsEarned: totalValue
+    const newCoins = userCoins + totalValue;
+    const { error: coinsError } = await supabase
+      .from('User')
+      .update({ coins: newCoins })
+      .eq('id', user.id);
+    if (coinsError) throw coinsError;
+
+    res.json({
+      success: true,
+      newCoins,
+      coinsEarned: totalValue,
     });
   } catch (error) {
     console.error('Error selling stock:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: error.message || 'Server error' });
   }
 });
 

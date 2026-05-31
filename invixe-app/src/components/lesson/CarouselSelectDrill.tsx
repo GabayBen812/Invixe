@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
+import { fetchRemoteText } from '../../utils/remoteAssetCache';
 
 export interface CarouselItem {
   id: string;
@@ -30,6 +31,12 @@ interface Props {
    * so we can reuse a single global "continue" button for all drills.
    */
   onSubmitTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  onRetryTriggerRef?: React.MutableRefObject<(() => void) | null>;
+  onStateChange?: (state: {
+    submitted: boolean;
+    showingFeedback: boolean;
+    isCorrect: boolean;
+  }) => void;
   /**
    * Whether to render the local submit button inside the drill.
    * For in‑app usage we hide it and use the global button instead.
@@ -45,6 +52,8 @@ export default function CarouselSelectDrill({
   wrongExplanation, 
   onSubmit,
   onSubmitTriggerRef,
+  onRetryTriggerRef,
+  onStateChange,
   showSubmitButton = true,
 }: Props) {
   const [index, setIndex] = useState(0);
@@ -63,16 +72,14 @@ export default function CarouselSelectDrill({
       const promises = normalizedItems.map(async (item) => {
         if (item.svgPublicUrl && !svgCache[item.id]) {
           try {
-            const response = await fetch(item.svgPublicUrl);
-            const text = await response.text();
+            const text = await fetchRemoteText(item.svgPublicUrl);
             setSvgCache(prev => ({ ...prev, [item.id]: text }));
           } catch (e) {
             console.error(`Failed to fetch SVG for ${item.id}:`, e);
           }
         } else if (item.svgUrl && !svgCache[item.id]) {
           try {
-            const response = await fetch(item.svgUrl);
-            const text = await response.text();
+            const text = await fetchRemoteText(item.svgUrl);
             setSvgCache(prev => ({ ...prev, [item.id]: text }));
           } catch (e) {
             console.error(`Failed to fetch SVG for ${item.id}:`, e);
@@ -153,13 +160,35 @@ export default function CarouselSelectDrill({
     });
   };
 
+  const handleTryAgain = () => {
+    setSubmitted(false);
+    setShowingExplanation(false);
+    setIsCorrect(false);
+  };
+
   const submitOnce = showingExplanation ? handleContinue : handleSubmit;
+
+  useEffect(() => {
+    onStateChange?.({
+      submitted,
+      showingFeedback: submitted && showingExplanation,
+      isCorrect,
+    });
+  }, [submitted, showingExplanation, isCorrect, onStateChange]);
 
   // Expose programmatic submit trigger for the shared global button
   useEffect(() => {
     if (!onSubmitTriggerRef) return;
     onSubmitTriggerRef.current = submitOnce;
   }, [onSubmitTriggerRef, submitOnce, selected, correctId, correctExplanation, wrongExplanation, submitted, showingExplanation]);
+
+  useEffect(() => {
+    if (!onRetryTriggerRef) return;
+    onRetryTriggerRef.current = handleTryAgain;
+    return () => {
+      onRetryTriggerRef.current = null;
+    };
+  }, [onRetryTriggerRef, handleTryAgain]);
 
   if (normalizedItems.length === 0) return null;
 
@@ -211,11 +240,24 @@ export default function CarouselSelectDrill({
         </Pressable>
       </View>
       {showSubmitButton && (
-        <Pressable style={styles.submitButton} onPress={submitOnce}>
-          <Text style={styles.submitText}>
-            {showingExplanation ? 'המשך' : submitText}
-          </Text>
-        </Pressable>
+        <View style={styles.localActions}>
+          {showingExplanation && !isCorrect ? (
+            <>
+              <Pressable style={styles.tryAgainButton} onPress={handleTryAgain}>
+                <Text style={styles.tryAgainButtonText}>נסה שוב</Text>
+              </Pressable>
+              <Pressable style={styles.submitButton} onPress={handleContinue}>
+                <Text style={styles.submitText}>המשך</Text>
+              </Pressable>
+            </>
+          ) : (
+            <Pressable style={styles.submitButton} onPress={submitOnce}>
+              <Text style={styles.submitText}>
+                {showingExplanation ? 'המשך' : submitText}
+              </Text>
+            </Pressable>
+          )}
+        </View>
       )}
     </View>
   );
@@ -297,17 +339,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#0D2033',
   },
-  submitButton: {
+  localActions: {
     marginTop: 18,
+    width: '100%',
+    alignItems: 'center',
+    gap: 10,
+  },
+  submitButton: {
     backgroundColor: '#3F9FFF',
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 28,
+    minWidth: 200,
+  },
+  tryAgainButton: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 28,
+    minWidth: 200,
+    borderWidth: 2,
+    borderColor: '#3372D8',
+  },
+  tryAgainButtonText: {
+    color: '#3372D8',
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   submitText: {
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '800',
+    textAlign: 'center',
   },
 });
 

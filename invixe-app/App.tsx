@@ -37,7 +37,7 @@ export default function App() {
 
   // Safety: if fonts fail or take too long, continue app render so we don't stay blank
   useEffect(() => {
-    const timer = setTimeout(() => setFontFallbackReady(true), 2000);
+    const timer = setTimeout(() => setFontFallbackReady(true), 800);
     return () => clearTimeout(timer);
   }, []);
 

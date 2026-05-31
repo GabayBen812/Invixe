@@ -22,6 +22,7 @@ import {
   BearishEngulfing,
 } from "../../assets/Candels";
 import { parseSVGCode } from "../../utils/svgParser";
+import { fetchRemoteText } from "../../utils/remoteAssetCache";
 
 type CandleKey =
   | "bullish"
@@ -205,16 +206,14 @@ export default function SequenceBuildDrill({
       const promises = options.map(async (option) => {
         if (option.svgPublicUrl && !svgCache[option.id]) {
           try {
-            const response = await fetch(option.svgPublicUrl);
-            const text = await response.text();
+            const text = await fetchRemoteText(option.svgPublicUrl);
             setSvgCache((prev) => ({ ...prev, [option.id]: text }));
           } catch (e) {
             console.error(`Failed to fetch SVG for ${option.id}:`, e);
           }
         } else if (option.svgUrl && !svgCache[option.id]) {
           try {
-            const response = await fetch(option.svgUrl);
-            const text = await response.text();
+            const text = await fetchRemoteText(option.svgUrl);
             setSvgCache((prev) => ({ ...prev, [option.id]: text }));
           } catch (e) {
             console.error(`Failed to fetch SVG for ${option.id}:`, e);

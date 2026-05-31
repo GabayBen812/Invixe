@@ -10,6 +10,7 @@ import {
 } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
+import { fetchRemoteText } from "../../utils/remoteAssetCache";
 import HtmlText from "../ui/HtmlText";
 
 interface Props {
@@ -88,23 +89,11 @@ export default function PathSelectExplanation({
     const fetchSVG = async () => {
       console.log("PathSelectExplanation: Fetching SVG from URL:", urlToUse);
       try {
-        const response = await fetch(urlToUse);
-        if (!cancelled && response.ok) {
-          const svgText = await response.text();
-          console.log(
-            "PathSelectExplanation: SVG fetched successfully, length:",
-            svgText.length,
-          );
+        const svgText = await fetchRemoteText(urlToUse);
+        if (!cancelled) {
           setSvgCache(svgText);
-          cacheUrlRef.current = urlToUse; // Track which URL this cache is for
-          parsedCacheRef.current = null; // Clear parsed cache so it will be re-parsed
-        } else if (!cancelled) {
-          console.error(
-            "PathSelectExplanation: Failed to fetch SVG, status:",
-            response.status,
-          );
-          setSvgCache(null);
-          cacheUrlRef.current = null;
+          cacheUrlRef.current = urlToUse;
+          parsedCacheRef.current = null;
         }
       } catch (error) {
         if (!cancelled) {

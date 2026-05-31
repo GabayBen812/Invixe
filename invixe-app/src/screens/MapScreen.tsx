@@ -5,18 +5,19 @@ import {
   View,
   Dimensions,
   Text,
-  Pressable,
   Animated,
   TouchableWithoutFeedback,
   TouchableOpacity,
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
+import { isLessonUnlocked } from "../modules/lessons/registry";
 import {
-  isLessonUnlocked,
-  areAllSublessonsCompleted,
-} from "../modules/lessons/registry";
+  computeUnitProgress,
+  isLessonNodeCompleted,
+} from "../modules/lessons/lessonNavigation";
 import { useLessons } from "../context/LessonsContext";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
@@ -517,8 +518,13 @@ const FootprintSVG = ({
 type Props = NativeStackScreenProps<RootStackParamList, "Map">;
 
 export default function MapScreen({ navigation, route }: Props) {
-  const { completedLessons, lessonAttempts, coins, markLessonAttempted } =
-    useUser();
+  const {
+    completedLessons,
+    lessonAttempts,
+    coins,
+    markLessonAttempted,
+    refreshUserData,
+  } = useUser();
   const [modalVisible, setModalVisible] = React.useState(false);
   const [selectedMainLesson, setSelectedMainLesson] =
     React.useState<Lesson | null>(null);
@@ -541,8 +547,8 @@ export default function MapScreen({ navigation, route }: Props) {
   const [activeTooltipId, setActiveTooltipId] = React.useState<number | null>(
     null
   );
-  const handleBackgroundPress = () => {
-    if (activeTooltipId) setActiveTooltipId(null);
+  const dismissActiveTooltip = () => {
+    if (activeTooltipId !== null) setActiveTooltipId(null);
   };
 
   // Animation values
@@ -565,17 +571,22 @@ export default function MapScreen({ navigation, route }: Props) {
   const activeStep =
     selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
 
-  // Calculate user progress (overall and per unit)
-  const totalLessons = (
-    activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)
-  ).length;
-  const completedCount = (
-    activeStep ? activeStep.lessons : lessonsRegistry.flatMap((s) => s.lessons)
-  ).filter((l) => completedLessons.includes(l.id)).length;
-  const progressPercentage =
-    totalLessons > 0 ? completedCount / totalLessons : 0;
+  // Unit progress counts every playable step (sublessons when present)
+  const unitProgress = React.useMemo(() => {
+    const lessons = activeStep?.lessons ?? [];
+    return computeUnitProgress(lessons, completedLessons);
+  }, [activeStep, completedLessons]);
+
+  const progressPercentage = unitProgress.percentage;
+  const completedCount = unitProgress.completed;
   const currentStreak = 7; // TODO: Calculate actual streak from user data
   const totalXP = completedCount * 10; // 10 XP per lesson
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void refreshUserData();
+    }, [refreshUserData]),
+  );
 
   // Simplified scroll handler - no animations to prevent blocking
   const handleScroll = (event: any) => {
@@ -598,22 +609,9 @@ export default function MapScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleLessonStart = async (lessonId: number) => {
-    // Close modal immediately for snappy UX
+  const handleLessonStart = (lessonId: number) => {
     setModalVisible(false);
-
-    // Allow launching ANY lesson id (main or sublesson). Our LessonScreen
-    // supports sublesson IDs directly (e.g., 11, 101-110, 201-205, 401-404).
-    // No gating here – unlock logic already returns true.
-
-    try {
-      await markLessonAttempted(lessonId);
-    } catch (error) {
-      console.error("Error marking lesson as attempted:", error);
-    }
-
-    // Pass unitId through to LessonScreen so it can request
-    // the correct lesson variant when codes are duplicated.
+    markLessonAttempted(lessonId);
     navigation.navigate("Lesson", {
       lessonId,
       unitId: activeStep?.unitId,
@@ -681,10 +679,7 @@ export default function MapScreen({ navigation, route }: Props) {
     const lessonAttempt = lessonAttempts.find((a) => a.lessonId === lesson.id);
     // Check if lesson is completed: either directly completed OR all sublessons are completed
     // Check if lesson is completed: strict check for sublessons
-    const hasSublessons = lesson.sublessons && lesson.sublessons.length > 0;
-    const completed = hasSublessons
-      ? areAllSublessonsCompleted(lesson, completedLessons)
-      : completedLessons.includes(lesson.id);
+    const completed = isLessonNodeCompleted(lesson, completedLessons);
 
     // Lock all lesson nodes except the first one in the unit.
     // A node becomes unlocked only after all sublessons of the previous node
@@ -694,11 +689,7 @@ export default function MapScreen({ navigation, route }: Props) {
       unlocked = true;
     } else {
       const prevLesson = allLessons[idx - 1].lesson;
-      const prevHasSublessons =
-        prevLesson.sublessons && prevLesson.sublessons.length > 0;
-      const prevCompleted = prevHasSublessons
-        ? areAllSublessonsCompleted(prevLesson, completedLessons)
-        : completedLessons.includes(prevLesson.id);
+      const prevCompleted = isLessonNodeCompleted(prevLesson, completedLessons);
       unlocked = prevCompleted;
     }
 
@@ -708,7 +699,7 @@ export default function MapScreen({ navigation, route }: Props) {
       // Check if this is the first uncompleted lesson
       const prevLessonsCompleted = allLessons
         .slice(0, idx)
-        .every((l) => completedLessons.includes(l.lesson.id));
+        .every((l) => isLessonNodeCompleted(l.lesson, completedLessons));
       if (prevLessonsCompleted) {
         current = true;
       }
@@ -901,16 +892,18 @@ export default function MapScreen({ navigation, route }: Props) {
           onSelectUnit={setSelectedUnitIdx}
         />
       ) : (
-        <Pressable style={{ flex: 1 }} onPress={handleBackgroundPress}>
-          <ScrollView
+        <ScrollView
             ref={scrollViewRef}
+            style={styles.mapScrollView}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={true}
             onScroll={handleScroll}
             scrollEventThrottle={16}
+            onScrollBeginDrag={dismissActiveTooltip}
             removeClippedSubviews={false} // Changed to false to avoid clipping overflow tooltips
             decelerationRate="normal"
             bounces={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Unit Header Card matching Figma */}
             <View style={styles.headerCard}>
@@ -1172,7 +1165,6 @@ export default function MapScreen({ navigation, route }: Props) {
               <View style={{ height: 200 }} />
             </View>
           </ScrollView>
-        </Pressable>
       )}
       <BottomNavbar activeTab="map" onTabPress={handleTabPress} />
     </View>
@@ -1183,6 +1175,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#E3EEF9",
+  },
+  mapScrollView: {
+    flex: 1,
   },
   scrollContent: {
     paddingBottom: 200, // Increased padding for better scroll

@@ -1,33 +1,47 @@
-import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React, { useMemo } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  useWindowDimensions,
+} from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
+import PremiumPlusCard from "../components/shop/PremiumPlusCard";
+import ShopSectionHeader from "../components/shop/ShopSectionHeader";
+import CoinPackCard from "../components/shop/CoinPackCard";
+import LightningPackCard from "../components/shop/LightningPackCard";
+import AdRewardCard from "../components/shop/AdRewardCard";
+import {
+  COIN_PACKS,
+  LIGHTNING_PACKS,
+  AD_REWARDS,
+  type CoinPack,
+  type LightningPack,
+  type AdReward,
+} from "../data/shopCatalog";
+import { useUser } from "../context/UserContext";
 import theme from "../theme";
-import Svg, { Path, Circle } from "react-native-svg";
+import Svg, { Path, Circle, Rect } from "react-native-svg";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Shop">;
 
-// TBD / construction-style icon: open box with sparkle
-const TBDIcon = ({ size = 120 }: { size?: number }) => (
-  <Svg width={size} height={size} viewBox="0 0 120 120" fill="none">
-    <Circle cx="60" cy="60" r="54" stroke={theme.colors.primary[400]} strokeWidth="2" strokeDasharray="8 6" fill="transparent" />
-    <Circle cx="60" cy="60" r="42" stroke={theme.colors.primary[400]} strokeWidth="1.5" strokeDasharray="6 4" fill="transparent" opacity={0.6} />
-    <Path
-      d="M40 52 L60 38 L80 52 L80 72 L60 86 L40 72 Z"
-      stroke={theme.colors.primary[500]}
-      strokeWidth="2.5"
-      fill="none"
-      strokeLinejoin="round"
-    />
-    <Path d="M60 38 L60 86" stroke={theme.colors.primary[500]} strokeWidth="2" strokeDasharray="4 3" />
-    <Path d="M40 52 L80 52" stroke={theme.colors.primary[500]} strokeWidth="2" strokeDasharray="4 3" />
-    <Circle cx="60" cy="62" r="6" fill={theme.colors.primary[400]} opacity={0.9} />
-  </Svg>
-);
+const PACK_GAP = 10;
+const HORIZONTAL_PADDING = 16;
 
 export default function ShopScreen({ navigation }: Props) {
+  const { width: screenWidth } = useWindowDimensions();
+  const { coins, lightnings, setCoins, setLightnings } = useUser();
+
+  const packCardWidth = useMemo(() => {
+    const available = screenWidth - HORIZONTAL_PADDING * 2 - PACK_GAP * 2;
+    return Math.floor(available / 3);
+  }, [screenWidth]);
+
   const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
     switch (tab) {
       case "map":
@@ -44,25 +58,120 @@ export default function ShopScreen({ navigation }: Props) {
     }
   };
 
+  const handlePaidPurchase = (label: string) => {
+    Alert.alert(
+      "רכישה בקרוב",
+      `${label} יהיה זמין לאחר חיבור תשלומי App Store / Google Play.`,
+    );
+  };
+
+  const handleCoinPack = (pack: CoinPack) => {
+    handlePaidPurchase(pack.title);
+  };
+
+  const handleLightningPack = (pack: LightningPack) => {
+    handlePaidPurchase(`+${pack.amount} ברקים`);
+  };
+
+  const handleAdReward = (reward: AdReward) => {
+    if (reward.kind === "coins") {
+      setCoins(coins + reward.amount);
+      Alert.alert("כל הכבוד!", `קיבלת ${reward.amount} מטבעות`);
+    } else {
+      setLightnings(lightnings + reward.amount);
+      Alert.alert("כל הכבוד!", `קיבלת ${reward.amount} ברק`);
+    }
+  };
+
+  const handlePremium = () => {
+    Alert.alert(
+      "Invixe+",
+      "מנוי פרימיום יתווסף בגרסה הבאה — תוכן בלתי מוגבל, ללא פרסומות ועוד.",
+    );
+  };
+
   return (
     <View style={styles.container}>
       <TopBar />
 
-      <View style={styles.content}>
-        <View style={styles.iconWrap}>
-          <TBDIcon size={120} />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Text style={styles.pageTitle}>חנות</Text>
+
+        <PremiumPlusCard onUpgrade={handlePremium} />
+
+        <ShopSectionHeader title="קנה כסף" icon="cash" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.packRow}
+          style={styles.packScroller}
+        >
+          {COIN_PACKS.map((pack) => (
+            <CoinPackCard
+              key={pack.id}
+              pack={pack}
+              width={packCardWidth}
+              onPress={() => handleCoinPack(pack)}
+            />
+          ))}
+        </ScrollView>
+
+        <ShopSectionHeader title="קנה ברקים" icon="lightning" />
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.packRow}
+          style={styles.packScroller}
+        >
+          {LIGHTNING_PACKS.map((pack) => (
+            <LightningPackCard
+              key={pack.id}
+              pack={pack}
+              width={packCardWidth}
+              onPress={() => handleLightningPack(pack)}
+            />
+          ))}
+        </ScrollView>
+
+        <ShopSectionHeader title="צפה בפרסומות וקבל" icon="video" />
+        <View style={styles.adRow}>
+          {AD_REWARDS.map((reward) => (
+            <AdRewardCard
+              key={reward.id}
+              reward={reward}
+              onWatch={() => handleAdReward(reward)}
+            />
+          ))}
         </View>
-        <Text style={styles.badge}>TBD</Text>
-        <Text style={styles.title}>החנות בדרך</Text>
-        <Text style={styles.message}>
-          אין כאן עדיין כלום – אנחנו עובדים על משהו מגניב. הישאר מעודכן ונעדכן כשיהיה מוכן.
-        </Text>
-        <View style={styles.footerNote}>
-          <View style={styles.dot} />
-          <Text style={styles.footerText}>בקרוב כאן</Text>
-          <View style={styles.dot} />
+
+        <View style={styles.secureFooter}>
+          <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+            <Path
+              d="M7 11V8a5 5 0 0 1 10 0v3"
+              stroke="#94A3B8"
+              strokeWidth={2}
+              strokeLinecap="round"
+            />
+            <Rect
+              x={5}
+              y={11}
+              width={14}
+              height={10}
+              rx={2}
+              stroke="#94A3B8"
+              strokeWidth={2}
+            />
+            <Circle cx={12} cy={15} r={1.5} fill="#94A3B8" />
+          </Svg>
+          <Text style={styles.secureText}>
+            הרכישות שלך מאובטחות ומוצפנות
+          </Text>
         </View>
-      </View>
+      </ScrollView>
 
       <BottomNavbar activeTab="shop" onTabPress={handleTabPress} />
     </View>
@@ -72,61 +181,47 @@ export default function ShopScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#E3EEF9",
+    backgroundColor: "#FFFFFF",
   },
-  content: {
+  scroll: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 28,
   },
-  iconWrap: {
-    marginBottom: 24,
-    alignItems: "center",
-    justifyContent: "center",
+  scrollContent: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: 24,
   },
-  badge: {
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 3,
-    color: theme.colors.primary[500],
-    marginBottom: 12,
-    fontFamily: "NotoSansHebrew",
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: "800",
+  pageTitle: {
+    fontSize: 22,
+    fontFamily: theme.font.bold,
     color: theme.colors.text,
-    marginBottom: 14,
     textAlign: "center",
-    fontFamily: "NotoSansHebrew",
+    marginBottom: 16,
+    marginTop: 4,
   },
-  message: {
-    fontSize: 16,
-    color: theme.colors.text,
-    opacity: 0.8,
-    lineHeight: 24,
-    textAlign: "center",
-    maxWidth: 320,
-    fontFamily: "NotoSansHebrew",
+  packScroller: {
+    marginBottom: 8,
+    marginHorizontal: -HORIZONTAL_PADDING,
   },
-  footerNote: {
+  packRow: {
+    paddingHorizontal: HORIZONTAL_PADDING,
+    paddingBottom: 4,
+  },
+  adRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 20,
+  },
+  secureFooter: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 32,
-    gap: 10,
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 12,
   },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.primary[400],
-    opacity: 0.7,
+  secureText: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[400],
+    textAlign: "center",
   },
-  footerText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: theme.colors.primary[500],
-    fontFamily: "NotoSansHebrew",
-  },
-}); 
+});

@@ -9,16 +9,22 @@ import {
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
+import { useUser } from "../../context/UserContext";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Splash">;
 
 export default function SplashScreen({ navigation }: Props) {
+  const { isHydrating, currentUserEmail } = useUser();
+
   useEffect(() => {
+    if (isHydrating) return;
+
     const timer = setTimeout(() => {
-      navigation.replace("Welcome");
-    }, 2000);
+      navigation.replace(currentUserEmail ? "Map" : "Welcome");
+    }, 500);
+
     return () => clearTimeout(timer);
-  }, [navigation]);
+  }, [isHydrating, currentUserEmail, navigation]);
 
   return (
     <ImageBackground
