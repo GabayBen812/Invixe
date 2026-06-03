@@ -13,7 +13,8 @@ export type LightningPack = {
   amount: number;
   priceLabel: string;
   boltCount: 1 | 2 | 3;
-};
+}
+
 
 export type AdReward = {
   id: string;
