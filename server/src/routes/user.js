@@ -293,7 +293,7 @@ router.get('/portfolio', async (req, res) => {
 router.post('/portfolio/buy', async (req, res) => {
   try {
     const { email, symbol, shares, price } = req.body;
-    const sharesNum = parseFloat(shares);
+    const sharesNum = Math.floor(parseFloat(shares));
     const priceNum = parseFloat(price);
 
     if (!symbol || isNaN(sharesNum) || isNaN(priceNum)) {
@@ -306,8 +306,8 @@ router.post('/portfolio/buy', async (req, res) => {
     const user = await resolveUser(req, email);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const userCoins = Number(user.coins) || 0;
-    const totalCost = sharesNum * priceNum;
+    const userCoins = Math.floor(Number(user.coins) || 0);
+    const totalCost = Math.round(sharesNum * priceNum);
     if (userCoins < totalCost) {
       return res.status(400).json({ error: 'Insufficient coins' });
     }
@@ -368,7 +368,7 @@ router.post('/portfolio/buy', async (req, res) => {
 router.post('/portfolio/sell', async (req, res) => {
   try {
     const { email, symbol, shares, price } = req.body;
-    const sharesNum = parseFloat(shares);
+    const sharesNum = Math.floor(parseFloat(shares));
     const priceNum = parseFloat(price);
 
     if (!symbol || isNaN(sharesNum) || isNaN(priceNum)) {
@@ -397,9 +397,9 @@ router.post('/portfolio/sell', async (req, res) => {
       return res.status(400).json({ error: 'Insufficient shares' });
     }
 
-    const totalValue = sharesNum * priceNum;
+    const totalValue = Math.round(sharesNum * priceNum);
     const newShares = heldShares - sharesNum;
-    const userCoins = Number(user.coins) || 0;
+    const userCoins = Math.floor(Number(user.coins) || 0);
 
     if (newShares === 0) {
       const { error } = await supabase.from('Portfolio').delete().eq('id', holding.id);
