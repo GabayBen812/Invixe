@@ -8,6 +8,7 @@ import React, {
   useState,
 } from "react";
 import { LessonStep, StepRegistry } from "../modules/lessons/types";
+import { normalizeLessonType } from "../modules/lessons/lessonTheme";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { getCachedRegistry, setCachedRegistry } from "../utils/storage";
@@ -22,6 +23,15 @@ const LessonsContext = createContext<LessonsContextType | undefined>(undefined);
 
 const API_BASE = API_BASE_URL;
 
+function normalizeLessonEntry<T extends { lessonType?: string; title?: string }>(
+  entry: T,
+): T {
+  return {
+    ...entry,
+    lessonType: normalizeLessonType(entry.lessonType, entry.title) as T["lessonType"],
+  };
+}
+
 function normalizeRegistry(data: unknown): StepRegistry[] {
   return ((data as StepRegistry[]) || []).map((step) => {
     const raw = step as StepRegistry & {
@@ -31,6 +41,10 @@ function normalizeRegistry(data: unknown): StepRegistry[] {
     return {
       ...raw,
       unitId: raw.unitId ?? raw.unitid ?? raw.unit_id,
+      lessons: (raw.lessons || []).map((lesson) => ({
+        ...normalizeLessonEntry(lesson),
+        sublessons: (lesson.sublessons || []).map((sub) => normalizeLessonEntry(sub)),
+      })),
     };
   });
 }

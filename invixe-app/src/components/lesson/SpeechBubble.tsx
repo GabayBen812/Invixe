@@ -12,6 +12,7 @@ import {
 import Svg, { Path } from "react-native-svg";
 import CharacterPrimarySVG from "./CharacterPrimarySVG";
 import HtmlText from "../ui/HtmlText";
+import { useLessonTheme } from "../../context/LessonThemeContext";
 
 interface SpeechBubbleProps {
   message: string;
@@ -44,6 +45,8 @@ export default function SpeechBubble({
   disableEnterAnim = false,
   randomPosition = false,
 }: SpeechBubbleProps) {
+  const { theme, isPractice } = useLessonTheme();
+
   // Don't render speech bubble if message is empty or whitespace-only - NEVER render if no text
   // Check multiple conditions to be absolutely sure
   const trimmedMessage = typeof message === "string" ? message.trim() : "";
@@ -196,9 +199,16 @@ export default function SpeechBubble({
   const messageArea = (
     <View style={styles.messageArea}>
       {hasHtml ? (
-        <HtmlText value={typed} style={styles.text} />
+        <HtmlText
+          value={typed}
+          style={[styles.text, isPractice && { color: theme.speechBubbleText }]}
+        />
       ) : (
-        <Text style={styles.text}>{typed}</Text>
+        <Text
+          style={[styles.text, isPractice && { color: theme.speechBubbleText }]}
+        >
+          {typed}
+        </Text>
       )}
       {(typing || buttonText) && (
         <View style={styles.bottomRow}>
@@ -250,6 +260,9 @@ export default function SpeechBubble({
     <Animated.View
       style={[
         styles.bubbleContainer,
+        isPractice && {
+          backgroundColor: theme.speechBubbleBg,
+        },
         { alignSelf, transform: [{ translateY: slideIn }], opacity },
         // Only constrain width for right-side layout when avatar is visible
         isRight && isCharacterVisible && styles.bubbleContainerRight,
@@ -277,7 +290,10 @@ export default function SpeechBubble({
           return (
             <View style={[styles.tailContainer, tailConfig.style]}>
               <Svg width={tailConfig.width} height={tailConfig.height}>
-                <Path d={tailConfig.path} fill="#FFFFFF" />
+                <Path
+                  d={tailConfig.path}
+                  fill={isPractice ? theme.speechBubbleTail : "#FFFFFF"}
+                />
               </Svg>
             </View>
           );

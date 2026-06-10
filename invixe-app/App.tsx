@@ -8,6 +8,7 @@ import {
 import { Text, TextProps } from "react-native";
 import React, { useEffect, useState } from "react";
 import { UserProvider } from "./src/context/UserContext";
+import { PortfolioProvider } from "./src/context/PortfolioContext";
 import { LessonsProvider } from "./src/context/LessonsContext";
 import { DictionaryProvider } from "./src/context/DictionaryContext";
 import DictionaryDrawer from "./src/components/dictionary/DictionaryDrawer";
@@ -59,6 +60,7 @@ export default function App() {
   return (
     <RegistrationProvider>
       <UserProvider>
+        <PortfolioProvider>
         <LessonsProvider>
           <DictionaryProvider>
             <ErrorBoundary>
@@ -67,6 +69,7 @@ export default function App() {
             </ErrorBoundary>
           </DictionaryProvider>
         </LessonsProvider>
+        </PortfolioProvider>
       </UserProvider>
     </RegistrationProvider>
   );

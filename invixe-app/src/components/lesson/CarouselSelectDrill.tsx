@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 import { fetchRemoteText } from '../../utils/remoteAssetCache';
+import { useLessonTheme } from '../../context/LessonThemeContext';
 
 export interface CarouselItem {
   id: string;
@@ -56,6 +57,7 @@ export default function CarouselSelectDrill({
   onStateChange,
   showSubmitButton = true,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const [index, setIndex] = useState(0);
   const [svgCache, setSvgCache] = useState<Record<string, string>>({});
   const parsedCacheRef = useRef<Record<string, React.ReactElement>>({});
@@ -194,8 +196,12 @@ export default function CarouselSelectDrill({
 
   // Determine card background color based on state
   const cardBgColor = submitted
-    ? (isCorrect ? '#12B76A' : '#D92D20') // Green if correct, red if wrong
-    : '#EAF3FF'; // Default light blue
+    ? isCorrect
+      ? theme.choiceCorrectBg
+      : theme.choiceWrongBg
+    : isPractice
+      ? theme.mediaSurfaceBg
+      : '#EAF3FF';
 
   return (
     <View style={styles.container}>
@@ -203,16 +209,34 @@ export default function CarouselSelectDrill({
         <Pressable 
           onPress={goLeft} 
           style={[
-            styles.arrowButton, 
+            styles.arrowButton,
+            isPractice && styles.arrowButtonPractice,
             styles.arrowLeft,
             submitted && styles.arrowDisabled
           ]} 
           hitSlop={12}
           disabled={submitted}
         >
-          <Text style={[styles.arrowText, submitted && styles.arrowTextDisabled]}>‹</Text>
+          <Text
+            style={[
+              styles.arrowText,
+              isPractice && { color: '#FFFFFF' },
+              submitted && styles.arrowTextDisabled,
+            ]}
+          >
+            ‹
+          </Text>
         </Pressable>
-        <View style={[styles.centerCard, { backgroundColor: cardBgColor }]}>
+        <View
+          style={[
+            styles.centerCard,
+            { backgroundColor: cardBgColor },
+            isPractice && !submitted && {
+              borderWidth: 1,
+              borderColor: theme.mediaSurfaceBorder,
+            },
+          ]}
+        >
           {/* Correct/Wrong indicator badge */}
           {submitted && (
             <View style={styles.feedbackBadge}>
@@ -229,14 +253,23 @@ export default function CarouselSelectDrill({
         <Pressable 
           onPress={goRight} 
           style={[
-            styles.arrowButton, 
+            styles.arrowButton,
+            isPractice && styles.arrowButtonPractice,
             styles.arrowRight,
             submitted && styles.arrowDisabled
           ]} 
           hitSlop={12}
           disabled={submitted}
         >
-          <Text style={[styles.arrowText, submitted && styles.arrowTextDisabled]}>›</Text>
+          <Text
+            style={[
+              styles.arrowText,
+              isPractice && { color: '#FFFFFF' },
+              submitted && styles.arrowTextDisabled,
+            ]}
+          >
+            ›
+          </Text>
         </Pressable>
       </View>
       {showSubmitButton && (
@@ -251,7 +284,13 @@ export default function CarouselSelectDrill({
               </Pressable>
             </>
           ) : (
-            <Pressable style={styles.submitButton} onPress={submitOnce}>
+            <Pressable
+              style={[
+                styles.submitButton,
+                isPractice && { backgroundColor: theme.confirmButtonBg },
+              ]}
+              onPress={submitOnce}
+            >
               <Text style={styles.submitText}>
                 {showingExplanation ? 'המשך' : submitText}
               </Text>
@@ -283,6 +322,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginHorizontal: 10,
+  },
+  arrowButtonPractice: {
+    backgroundColor: '#333333',
   },
   arrowDisabled: {
     opacity: 0.4,

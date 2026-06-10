@@ -11,6 +11,7 @@ import Svg, { SvgProps, SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
 import { useDrillViewportHeight } from "./DrillViewport";
 import HtmlText from "../ui/HtmlText";
+import { useLessonTheme } from "../../context/LessonThemeContext";
 
 export interface SVGMultiSelectOption {
   id: string;
@@ -63,6 +64,7 @@ function SVGMultiSelectDrill({
   onSubmitTriggerRef,
   onSubmit,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -439,7 +441,12 @@ function SVGMultiSelectDrill({
         isYesNoQuestion && { minHeight: yesNoBlockMinHeight },
       ]}
     >
-      {title ? <HtmlText value={title} style={styles.title} /> : null}
+      {title ? (
+        <HtmlText
+          value={title}
+          style={[styles.title, isPractice && { color: theme.instructionText }]}
+        />
+      ) : null}
       {options && options.length > 0 ? (
         isYesNoQuestion ? (
           // Yes/No question design with timeline - horizontal layout (no panel)
@@ -457,25 +464,31 @@ function SVGMultiSelectDrill({
                   const picked = !!selected[opt.id];
                   const isCorrectAnswer = !!opt.correct;
 
-                  let backgroundColor = "#F5F5F5";
-                  let borderColor = "#FFFFFF";
+                  let backgroundColor = isPractice
+                    ? theme.assetCardBg
+                    : "#F5F5F5";
+                  let borderColor = isPractice
+                    ? theme.assetCardBorder
+                    : "#FFFFFF";
                   let borderWidth = 1;
 
                   if (!submitted) {
                     if (picked) {
-                      backgroundColor = "#F5F5F5";
-                      borderColor = "#FFFFFF";
-                      borderWidth = 1;
+                      backgroundColor = isPractice
+                        ? theme.assetCardBg
+                        : "#F5F5F5";
+                      borderColor = isPractice
+                        ? theme.choiceSelectedBg
+                        : "#FFFFFF";
+                      borderWidth = isPractice ? 2 : 1;
                     }
-                  } else {
-                    if (picked) {
-                      if (isCorrectAnswer) {
-                        backgroundColor = "#D1FADF";
-                        borderColor = "#12B76A";
-                      } else {
-                        backgroundColor = "#FEE4E2";
-                        borderColor = "#D92D20";
-                      }
+                  } else if (picked) {
+                    if (isCorrectAnswer) {
+                      backgroundColor = "#D1FADF";
+                      borderColor = "#12B76A";
+                    } else {
+                      backgroundColor = "#FEE4E2";
+                      borderColor = "#D92D20";
                     }
                   }
 
@@ -542,25 +555,31 @@ function SVGMultiSelectDrill({
                   const picked = !!selected[opt.id];
                   const isCorrectAnswer = !!opt.correct;
 
-                  let backgroundColor = "#F5F5F5";
-                  let borderColor = "#FFFFFF";
+                  let backgroundColor = isPractice
+                    ? theme.assetCardBg
+                    : "#F5F5F5";
+                  let borderColor = isPractice
+                    ? theme.assetCardBorder
+                    : "#FFFFFF";
                   let borderWidth = 1;
 
                   if (!submitted) {
                     if (picked) {
-                      backgroundColor = "#F5F5F5";
-                      borderColor = "#FFFFFF";
-                      borderWidth = 1;
+                      backgroundColor = isPractice
+                        ? theme.assetCardBg
+                        : "#F5F5F5";
+                      borderColor = isPractice
+                        ? theme.choiceSelectedBg
+                        : "#FFFFFF";
+                      borderWidth = isPractice ? 2 : 1;
                     }
-                  } else {
-                    if (picked) {
-                      if (isCorrectAnswer) {
-                        backgroundColor = "#D1FADF";
-                        borderColor = "#12B76A";
-                      } else {
-                        backgroundColor = "#FEE4E2";
-                        borderColor = "#D92D20";
-                      }
+                  } else if (picked) {
+                    if (isCorrectAnswer) {
+                      backgroundColor = "#D1FADF";
+                      borderColor = "#12B76A";
+                    } else {
+                      backgroundColor = "#FEE4E2";
+                      borderColor = "#D92D20";
                     }
                   }
 
@@ -612,7 +631,19 @@ function SVGMultiSelectDrill({
           </View>
         ) : (
           // Regular grid/list design
-          <View style={styles.panel}>
+          <View
+            style={[
+              styles.panel,
+              isPractice && {
+                backgroundColor: "transparent",
+                borderColor: "transparent",
+                shadowOpacity: 0,
+                elevation: 0,
+                paddingHorizontal: 0,
+                paddingVertical: 0,
+              },
+            ]}
+          >
             <View
               style={[
                 styles.optionsContainer,
@@ -628,11 +659,32 @@ function SVGMultiSelectDrill({
                 // Check if this option is marked as correct in the options array
                 const isCorrectAnswer = !!opt.correct; // Whether this option is a correct answer
 
-                // Base (neutral) state – white card like in Figma
-                let backgroundColor = opt.backgroundColor || "#FFFFFF";
-                let borderColor = "transparent";
-                let borderWidth = 0;
-                let textColor = "#0D2033";
+                const hasVisualAsset =
+                  !!opt.svgCode ||
+                  !!opt.svgUrl ||
+                  !!opt.svgPublicUrl ||
+                  !!opt.pngUrl ||
+                  !!opt.pngPublicUrl ||
+                  !!opt.svgComponent;
+
+                // Base (neutral) state – light card for artwork, navy for text-only
+                let backgroundColor =
+                  opt.backgroundColor ||
+                  (isPractice
+                    ? hasVisualAsset
+                      ? theme.assetCardBg
+                      : theme.choiceBg
+                    : "#FFFFFF");
+                let borderColor =
+                  isPractice && hasVisualAsset
+                    ? theme.assetCardBorder
+                    : "transparent";
+                let borderWidth = isPractice && hasVisualAsset ? 1 : 0;
+                let textColor = isPractice
+                  ? hasVisualAsset
+                    ? "#0D2033"
+                    : theme.choiceText
+                  : "#0D2033";
                 let shadowStyle: any = {
                   shadowColor: "transparent",
                   shadowOffset: { width: 0, height: 0 },
@@ -644,9 +696,12 @@ function SVGMultiSelectDrill({
                 if (!submitted) {
                   if (picked) {
                     // Selected before submit – blue highlight
-                    backgroundColor = "#E0EDFF";
-                    borderColor = "#3372D8";
-                    borderWidth = 1;
+                    backgroundColor = isPractice
+                      ? theme.choiceSelectedBg
+                      : "#E0EDFF";
+                    borderColor = isPractice ? "transparent" : "#3372D8";
+                    borderWidth = isPractice ? 0 : 1;
+                    textColor = isPractice ? "#FFFFFF" : textColor;
                     shadowStyle = {
                       shadowColor: "#101828",
                       shadowOffset: { width: 0, height: 1 },

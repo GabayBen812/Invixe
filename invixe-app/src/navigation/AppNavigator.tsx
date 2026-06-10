@@ -86,7 +86,7 @@ export type RootStackParamList = {
     durationMs?: number;
     lightningsEarned?: number;
   };
-  Sandbox: undefined;
+  Sandbox: { symbol?: string } | undefined;
   LessonFail: undefined;
   Profile: undefined;
   Shop: undefined;

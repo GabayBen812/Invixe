@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
+import { useMemo, useCallback } from "react";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
   Text,
@@ -15,12 +16,12 @@ import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
 import PortfolioSparkline from "../components/profile/PortfolioSparkline";
 import ProfileStatTile from "../components/profile/ProfileStatTile";
+import ProfileStreakCard from "../components/profile/ProfileStreakCard";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
+import { usePortfolio } from "../context/PortfolioContext";
 import { useLessons } from "../context/LessonsContext";
-import Svg, { Path, Rect, Defs, LinearGradient, Stop } from "react-native-svg";
-import { API_BASE_URL } from "../config/api";
-import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import Svg, { Path } from "react-native-svg";
 import {
   DICTIONARY_ENTRIES,
   isEntryUnlocked,
@@ -30,12 +31,9 @@ import {
   findFirstIncompleteLesson,
 } from "../modules/lessons/lessonNavigation";
 import {
-  formatIls,
   formatPercent,
-  normalizePortfolioHolding,
-  normalizeStockPrice,
+  formatUsd,
   type NormalizedHolding,
-  type NormalizedStockPrice,
 } from "../utils/portfolioNormalize";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
@@ -116,44 +114,10 @@ const StatXpIcon = () => (
   </Svg>
 );
 
-const StreakBackground = () => (
-  <Svg style={StyleSheet.absoluteFill} preserveAspectRatio="none">
-    <Defs>
-      <LinearGradient id="streakGrad" x1="0" y1="0" x2="1" y2="1">
-        <Stop offset="0%" stopColor="#8E2A2A" />
-        <Stop offset="50%" stopColor="#5C1616" />
-        <Stop offset="100%" stopColor="#2C0A0A" />
-      </LinearGradient>
-    </Defs>
-    <Rect x="0" y="0" width="100%" height="100%" fill="url(#streakGrad)" />
-  </Svg>
-);
-
-const Flame = ({ x, scale = 1, opacity = 1 }: { x: number; scale?: number; opacity?: number }) => (
-  <Svg
-    width={70 * scale}
-    height={70 * scale}
-    viewBox="0 0 120 80"
-    style={[styles.flameSvg, { left: x, opacity }]}
-  >
-    <Path
-      d="M60 8c-8 14-22 18-22 32 0 14 10 24 22 24s22-10 22-24c0-14-14-18-22-32z"
-      fill="#F79009"
-    />
-    <Path
-      d="M60 26c-4 8-12 10-12 17 0 7 6 13 12 13s12-6 12-13c0-7-8-9-12-17z"
-      fill="#FFCA28"
-    />
-  </Svg>
-);
-
-const StreakFlames = () => (
-  <>
-    <Flame x={4} scale={0.85} opacity={0.7} />
-    <Flame x={46} scale={1.1} opacity={0.95} />
-    <Flame x={104} scale={0.8} opacity={0.6} />
-  </>
-);
+function estimateLessonDuration(stepIndex: number): string {
+  const minutes = stepIndex % 3 === 0 ? 3 : stepIndex % 3 === 1 ? 4 : 5;
+  return `${minutes} דק׳`;
+}
 
 export default function ProfileScreen({ navigation }: Props) {
   const { width: screenWidth } = useWindowDimensions();
@@ -167,95 +131,28 @@ export default function ProfileScreen({ navigation }: Props) {
     lastName,
   } = useUser();
   const { lessonsRegistry } = useLessons();
-  const [portfolio, setPortfolio] = useState<NormalizedHolding[]>([]);
-  const [stockPrices, setStockPrices] = useState<NormalizedStockPrice[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    holdings: portfolio,
+    loading,
+    refreshPortfolio,
+    portfolioStats,
+    getHoldingChangePercent,
+  } = usePortfolio();
 
-  useEffect(() => {
-    if (currentUserEmail) {
-      loadProfileData();
-    }
-  }, [currentUserEmail]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPortfolio();
+    }, [refreshPortfolio]),
+  );
 
-  const loadProfileData = async () => {
-    try {
-      const portfolioUrl = currentUserEmail
-        ? `${API_BASE_URL}/user/portfolio?email=${encodeURIComponent(currentUserEmail)}`
-        : `${API_BASE_URL}/user/portfolio`;
-      const portfolioRes = await fetchWithTimeout(portfolioUrl);
-      if (!portfolioRes.ok) throw new Error("Failed to fetch portfolio");
-      const portfolioData = await portfolioRes.json();
-      const holdings = (portfolioData.portfolio || []).map(
-        (row: Record<string, unknown>) => normalizePortfolioHolding(row),
-      );
-      setPortfolio(holdings);
-
-      if (holdings.length === 0) {
-        setStockPrices([]);
-        return;
-      }
-
-      const symbols = holdings.map((h) => h.symbol).join(",");
-      const pricesRes = await fetchWithTimeout(
-        `${API_BASE_URL}/stocks/prices?symbols=${symbols}`,
-      );
-      if (!pricesRes.ok) throw new Error("Failed to fetch stock prices");
-      const pricesData = await pricesRes.json();
-      const prices = (pricesData.prices || [])
-        .map((row: Record<string, unknown>) => normalizeStockPrice(row))
-        .filter(Boolean) as NormalizedStockPrice[];
-      setStockPrices(prices);
-    } catch (error) {
-      console.error("Error loading profile:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const priceBySymbol = useMemo(() => {
-    const map = new Map<string, NormalizedStockPrice>();
-    stockPrices.forEach((p) => map.set(p.symbol.toUpperCase(), p));
-    return map;
-  }, [stockPrices]);
-
-  const getCurrentPrice = (holding: NormalizedHolding) => {
-    const quote = priceBySymbol.get(holding.symbol.toUpperCase());
-    const price = quote?.price ?? holding.avgPrice;
-    return Number.isFinite(price) ? price : 0;
-  };
-
-  const getHoldingChangePercent = (holding: NormalizedHolding) => {
-    const quote = priceBySymbol.get(holding.symbol.toUpperCase());
-    if (quote && Number.isFinite(quote.changePercent) && quote.changePercent !== 0) {
-      return quote.changePercent;
-    }
-    if (holding.avgPrice <= 0) return 0;
-    const current = getCurrentPrice(holding);
-    return ((current - holding.avgPrice) / holding.avgPrice) * 100;
-  };
-
-  const portfolioStats = useMemo(() => {
-    const totalValue = portfolio.reduce((sum, h) => {
-      return sum + h.shares * getCurrentPrice(h);
-    }, 0);
-    const totalCost = portfolio.reduce(
-      (sum, h) => sum + h.shares * h.avgPrice,
-      0,
-    );
-    const gainLoss = totalValue - totalCost;
-    const gainPercent = totalCost > 0 ? (gainLoss / totalCost) * 100 : 0;
-    return { totalValue, gainPercent, gainLoss };
-  }, [portfolio, priceBySymbol]);
-
-  const holdingsPreview = useMemo(() => {
+  const sortedHoldings = useMemo(() => {
     return [...portfolio]
       .map((h) => ({
         ...h,
         changePercent: getHoldingChangePercent(h),
       }))
-      .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent))
-      .slice(0, 4);
-  }, [portfolio, priceBySymbol]);
+      .sort((a, b) => Math.abs(b.changePercent) - Math.abs(a.changePercent));
+  }, [portfolio, getHoldingChangePercent]);
 
   const streakDays = useMemo(() => {
     if (!lessonAttempts?.length) return 0;
@@ -336,7 +233,8 @@ export default function ProfileScreen({ navigation }: Props) {
     navigation.reset({ index: 0, routes: [{ name: "Welcome" }] });
   };
 
-  const openTrading = () => navigation.navigate("Sandbox");
+  const openTrading = (symbol?: string) =>
+    navigation.navigate("Sandbox", symbol ? { symbol } : undefined);
 
   const continueLearning = () => {
     if (nextLesson) {
@@ -371,7 +269,7 @@ export default function ProfileScreen({ navigation }: Props) {
     <Pressable
       key={holding.id}
       style={styles.holdingRow}
-      onPress={openTrading}
+      onPress={() => openTrading(holding.symbol)}
     >
       <View style={styles.holdingAvatar}>
         <Text style={styles.holdingAvatarText}>
@@ -421,7 +319,7 @@ export default function ProfileScreen({ navigation }: Props) {
           ) : (
             <>
               <Text style={styles.portfolioValue}>
-                {formatIls(portfolioStats.totalValue)}
+                {formatUsd(portfolioStats.totalValue)}
               </Text>
               <View style={styles.gainRow}>
                 <Text style={styles.gainLabel}>סה״כ</Text>
@@ -446,7 +344,7 @@ export default function ProfileScreen({ navigation }: Props) {
               </View>
               <PortfolioSparkline width={sparklineWidth} trend={chartTrend} />
               <Pressable
-                onPress={openTrading}
+                onPress={() => openTrading()}
                 hitSlop={8}
                 style={styles.portfolioLinkWrap}
               >
@@ -493,39 +391,30 @@ export default function ProfileScreen({ navigation }: Props) {
         <View style={styles.holdingsSection}>
           <View style={styles.holdingsHeader}>
             <Text style={styles.sectionTitle}>אחזקות</Text>
-            <Pressable onPress={openTrading} hitSlop={8}>
-              <Text style={styles.linkTextInline}>הצג הכל ›</Text>
+            <Pressable onPress={() => openTrading()} hitSlop={8}>
+              <Text style={styles.linkTextInline}>למסחר ›</Text>
             </Pressable>
           </View>
           {loading ? null : portfolio.length === 0 ? (
             <View style={styles.emptyHoldings}>
               <Text style={styles.emptyHoldingsText}>אין לך מניות עדיין</Text>
-              <Pressable onPress={openTrading}>
+              <Pressable onPress={() => openTrading()}>
                 <Text style={styles.linkTextInline}>עבור למסחר ›</Text>
               </Pressable>
             </View>
           ) : (
-            holdingsPreview.map(renderHoldingRow)
+            sortedHoldings.map(renderHoldingRow)
           )}
         </View>
 
-        <View style={styles.streakCard}>
-          <StreakBackground />
-          <StreakFlames />
-          <View style={styles.streakContent}>
-            <Pressable style={styles.streakButton} onPress={continueLearning}>
-              <Text style={styles.streakButtonText}>המשך ›</Text>
-            </Pressable>
-            <View style={styles.streakTextCol}>
-              <Text style={styles.streakTitle}>רצף: {streakDays} ימים</Text>
-              <Text style={styles.streakSubtitle} numberOfLines={2}>
-                {nextLesson
-                  ? `השיעור הבא: ${nextLesson.title}`
-                  : "סיימת את כל השיעורים!"}
-              </Text>
-            </View>
-          </View>
-        </View>
+        <ProfileStreakCard
+          streakDays={streakDays}
+          nextLessonTitle={nextLesson?.title}
+          nextLessonDuration={
+            nextLesson ? estimateLessonDuration(nextLesson.stepIndex) : undefined
+          }
+          onContinue={continueLearning}
+        />
 
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <Text style={styles.logoutText}>התנתק</Text>
@@ -776,56 +665,6 @@ const styles = StyleSheet.create({
     fontFamily: theme.font.bold,
     color: theme.colors.neutral[500],
     marginBottom: 8,
-  },
-  streakCard: {
-    backgroundColor: "#5C1616",
-    borderRadius: 20,
-    padding: 18,
-    overflow: "hidden",
-    minHeight: 116,
-    marginBottom: 12,
-    justifyContent: "center",
-  },
-  flameSvg: {
-    position: "absolute",
-    bottom: -14,
-  },
-  streakContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    zIndex: 1,
-    gap: 12,
-  },
-  streakButton: {
-    backgroundColor: theme.colors.primary[500],
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 22,
-    flexShrink: 0,
-  },
-  streakButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontFamily: theme.font.bold,
-  },
-  streakTextCol: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  streakTitle: {
-    fontSize: 22,
-    fontFamily: theme.font.bold,
-    color: "#FFFFFF",
-    textAlign: "right",
-  },
-  streakSubtitle: {
-    fontSize: 14,
-    fontFamily: theme.font.family,
-    color: "rgba(255,255,255,0.78)",
-    marginTop: 4,
-    textAlign: "right",
-    lineHeight: 20,
   },
   logoutBtn: {
     alignSelf: "center",

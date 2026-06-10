@@ -9,6 +9,15 @@ function getSupabase(req) {
   return sb;
 }
 
+/** Normalize legacy DB type values to canonical lesson types. */
+function normalizeLessonType(type, title) {
+  const t = String(type || '').trim();
+  const isTirgul = /תרגול/.test(title || '');
+  if (t === 'lesson') return isTirgul ? 'practice' : 'info';
+  if (t === 'info' && isTirgul) return 'practice';
+  return t || 'info';
+}
+
 // GET /api/v2/lessons/registry
 router.get('/registry', async (req, res) => {
   try {
@@ -41,7 +50,13 @@ router.get('/registry', async (req, res) => {
       ]),
     );
     const lessonById = new Map();
-    (lessons || []).forEach(l => lessonById.set(l.id, { id: l.code, title: l.title, description: l.description, lessonType: l.type, sublessons: [] }));
+    (lessons || []).forEach(l => lessonById.set(l.id, {
+      id: l.code,
+      title: l.title,
+      description: l.description,
+      lessonType: normalizeLessonType(l.type, l.title),
+      sublessons: [],
+    }));
     (lessons || []).forEach(l => {
       const entry = lessonById.get(l.id);
       if (l.parentlessonid) {

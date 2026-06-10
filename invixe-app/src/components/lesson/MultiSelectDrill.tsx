@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import HtmlText from "../ui/HtmlText";
+import { useLessonTheme } from "../../context/LessonThemeContext";
 
 export interface MultiSelectOption {
   id: string;
@@ -35,6 +36,7 @@ export default function MultiSelectDrill({
   wrongExplanation,
   onSubmit,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -98,7 +100,12 @@ export default function MultiSelectDrill({
 
   return (
     <View style={styles.container}>
-      {title ? <HtmlText value={title} style={styles.title} /> : null}
+      {title ? (
+        <HtmlText
+          value={title}
+          style={[styles.title, isPractice && { color: theme.instructionText }]}
+        />
+      ) : null}
       <View
         style={[
           styles.optionsContainer,
@@ -112,12 +119,17 @@ export default function MultiSelectDrill({
             : undefined;
           const bg = submitted
             ? (picked && opt.correct) || (!picked && !opt.correct)
-              ? "#62D24C"
-              : "#FF6B6B"
+              ? theme.choiceCorrectBg
+              : theme.choiceWrongBg
             : picked
-              ? "#3F9FFF"
-              : "#FFFFFF";
-          const textColor = submitted || picked ? "#FFFFFF" : "#0D2033";
+              ? isPractice
+                ? theme.choiceSelectedBg
+                : "#3F9FFF"
+              : isPractice
+                ? theme.choiceBg
+                : "#FFFFFF";
+          const textColor =
+            submitted || picked ? "#FFFFFF" : isPractice ? theme.choiceText : "#0D2033";
           return (
             <Pressable
               key={`${opt.id}-${index}`}
@@ -137,7 +149,10 @@ export default function MultiSelectDrill({
         })}
       </View>
       <Pressable
-        style={styles.submitButton}
+        style={[
+          styles.submitButton,
+          isPractice && { backgroundColor: theme.confirmButtonBg },
+        ]}
         onPress={showingExplanation ? handleContinue : handleSubmit}
       >
         <Text style={styles.submitText}>

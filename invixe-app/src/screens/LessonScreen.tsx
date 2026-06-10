@@ -21,7 +21,14 @@ import { countGradedFromDrillResult } from "../utils/lessonResults";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep } from "../modules/lessons/types";
+import { findLessonInRegistry } from "../modules/lessons/lessonNavigation";
+import {
+  getThemeForLesson,
+  isPracticeLesson,
+  type LessonVisualTheme,
+} from "../modules/lessons/lessonTheme";
 import { useLessons } from "../context/LessonsContext";
+import { LessonThemeProvider } from "../context/LessonThemeContext";
 import Button from "../components/ui/Button";
 import Inventory from "../components/lesson/Inventory";
 import SpeechBubble from "../components/lesson/SpeechBubble";
@@ -216,18 +223,42 @@ function getCharacterImg(characterImgKey?: string) {
 
 type SimpleChoice = { text: string; correct?: boolean };
 
+function LessonScreenBackground({
+  isPractice,
+  screenBg,
+  backgroundSource,
+  children,
+}: {
+  isPractice: boolean;
+  screenBg: string;
+  backgroundSource: number;
+  children: React.ReactNode;
+}) {
+  if (isPractice) {
+    return (
+      <View style={[styles.practiceScreenBg, { backgroundColor: screenBg }]}>
+        {children}
+      </View>
+    );
+  }
+  return <PageBackground source={backgroundSource}>{children}</PageBackground>;
+}
+
 function SimpleQuestionChoiceList({
   choices,
   selectedChoiceIdx,
   isSubmitted,
   onSelect,
+  theme,
 }: {
   choices: SimpleChoice[];
   selectedChoiceIdx: number | null;
   isSubmitted: boolean;
   onSelect: (idx: number) => void;
+  theme: LessonVisualTheme;
 }) {
   const layout = useChoiceDrillLayout(choices.length, { hasMedia: false });
+  const isPractice = theme.variant === "practice";
 
   return (
     <View
@@ -235,14 +266,22 @@ function SimpleQuestionChoiceList({
         styles.choices,
         styles.choicesSimpleQuestion,
         { gap: layout.choiceGap, paddingHorizontal: 8 },
+        isPractice && styles.choicesSimpleQuestionPractice,
       ]}
     >
       {choices.map((choice, idx) => {
         const isSelected = selectedChoiceIdx === idx;
         const isCorrect = choice.correct === true;
-        let cardStyle: object[] = [styles.choiceCard];
+        let cardStyle: object[] = [
+          styles.choiceCard,
+          isPractice && {
+            backgroundColor: theme.choiceBg,
+            borderWidth: 0,
+          },
+        ];
         let textStyle: object[] = [
           styles.choiceText,
+          isPractice && { color: theme.choiceText },
           {
             fontSize: layout.choiceFontSize,
             lineHeight: layout.choiceLineHeight,
@@ -251,21 +290,24 @@ function SimpleQuestionChoiceList({
 
         if (isSubmitted) {
           if (isSelected && isCorrect) {
-            cardStyle.push(styles.choiceCardCorrect);
+            cardStyle.push({ backgroundColor: theme.choiceCorrectBg });
             textStyle.push(styles.choiceTextCorrect);
           } else if (isSelected && !isCorrect) {
-            cardStyle.push(styles.choiceCardWrong);
-            textStyle.push(styles.choiceTextWrong);
+            cardStyle.push({ backgroundColor: theme.choiceWrongBg });
+            textStyle.push(styles.choiceTextCorrect);
           } else if (!isSelected && isCorrect) {
-            cardStyle.push(styles.choiceCardCorrect);
+            cardStyle.push({ backgroundColor: theme.choiceCorrectBg });
             textStyle.push(styles.choiceTextCorrect);
           } else {
-            cardStyle.push(styles.choiceCardDisabled);
-            textStyle.push(styles.choiceTextDisabled);
+            cardStyle.push({
+              backgroundColor: theme.choiceDisabledBg,
+              opacity: 0.6,
+            });
+            textStyle.push({ color: theme.choiceDisabledText });
           }
         } else if (isSelected) {
-          cardStyle.push(styles.choiceCardSelected);
-          textStyle.push(styles.choiceTextSelected);
+          cardStyle.push({ backgroundColor: theme.choiceSelectedBg });
+          textStyle.push({ color: theme.choiceSelectedText });
         }
 
         return (
@@ -280,6 +322,9 @@ function SimpleQuestionChoiceList({
                 paddingVertical: layout.choicePaddingVertical,
                 paddingHorizontal: layout.choicePaddingHorizontal,
                 marginVertical: 0,
+                ...(isPractice && choices.length > 2
+                  ? { width: "46%" as const }
+                  : {}),
               },
               pressed && !isSubmitted && { transform: [{ scale: 0.985 }] },
             ]}
@@ -290,10 +335,10 @@ function SimpleQuestionChoiceList({
                 isSubmitted && isSelected && isCorrect
                   ? "#FFFFFF"
                   : isSubmitted && isSelected && !isCorrect
-                    ? "#0D2033"
+                    ? "#FFFFFF"
                     : isSelected
-                      ? "#FFFFFF"
-                      : "#0D2033"
+                      ? theme.choiceSelectedText
+                      : theme.choiceText
               }
               style={textStyle}
             />
@@ -318,7 +363,10 @@ export default function LessonScreen({ navigation, route }: Props) {
     lightnings,
     setLightnings,
   } = useUser();
-  const { getLessonSteps } = useLessons();
+  const { getLessonSteps, lessonsRegistry } = useLessons();
+  const lessonMeta = findLessonInRegistry(lessonsRegistry, lessonId)?.lesson;
+  const visualTheme = getThemeForLesson(lessonMeta);
+  const isPractice = isPracticeLesson(lessonMeta?.lessonType, lessonMeta?.title);
   const [showCorrectOverlay, setShowCorrectOverlay] = useState(false);
   const [pendingNextStep, setPendingNextStep] = useState<string | null>(null);
   const [selectedChoiceIdx, setSelectedChoiceIdx] = useState<number | null>(
@@ -989,38 +1037,58 @@ export default function LessonScreen({ navigation, route }: Props) {
 
   if (!lessonContentReady || currentLessonSteps.length === 0) {
     return (
-      <PageBackground source={backgroundImages.defaultBackground}>
-        <TopBar />
-        <View style={styles.loadingContainer}>
-          <Animated.View
-            style={[styles.loadingCharacterContainer, { opacity }]}
-          >
-            <Image
-              source={getCharacterImg("character_orange_noback.png")}
-              style={styles.loadingCharacter}
-            />
-          </Animated.View>
-          <View style={styles.loadingSpinnerContainer}>
-            <Animated.View style={{ transform: [{ rotate: spin }] }}>
-              <ActivityIndicator size="large" color="#3372D8" />
+      <LessonThemeProvider lesson={lessonMeta}>
+        <LessonScreenBackground
+          isPractice={isPractice}
+          screenBg={visualTheme.screenBg}
+          backgroundSource={backgroundImages.defaultBackground}
+        >
+          <TopBar />
+          <View style={styles.loadingContainer}>
+            <Animated.View
+              style={[styles.loadingCharacterContainer, { opacity }]}
+            >
+              <Image
+                source={getCharacterImg("character_orange_noback.png")}
+                style={styles.loadingCharacter}
+              />
             </Animated.View>
+            <View style={styles.loadingSpinnerContainer}>
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <ActivityIndicator
+                  size="large"
+                  color={isPractice ? "#76D761" : "#3372D8"}
+                />
+              </Animated.View>
+            </View>
+            <Text
+              style={[
+                styles.loadingText,
+                isPractice && { color: "#FFFFFF" },
+              ]}
+            >
+              {preloadStatusText}
+            </Text>
           </View>
-          <Text style={styles.loadingText}>{preloadStatusText}</Text>
-        </View>
-      </PageBackground>
+        </LessonScreenBackground>
+      </LessonThemeProvider>
     );
   }
 
   const choices = step.choices;
 
+  const bgSource =
+    backgroundImages[
+      step.backgroundImage as keyof typeof backgroundImages
+    ] || backgroundImages.defaultBackground;
+
   return (
-    <PageBackground
-      source={
-        backgroundImages[
-          step.backgroundImage as keyof typeof backgroundImages
-        ] || backgroundImages.defaultBackground
-      }
-    >
+    <LessonThemeProvider lesson={lessonMeta}>
+      <LessonScreenBackground
+        isPractice={isPractice}
+        screenBg={visualTheme.screenBg}
+        backgroundSource={bgSource}
+      >
       <TopBar />
       <Animated.View
         style={[
@@ -2741,6 +2809,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       showSimpleQuestionButtonSheet || showingDrillExplanation
                     }
                     onSelect={setSelectedChoiceIdx}
+                    theme={visualTheme}
                   />
                 )}
               </View>
@@ -2844,7 +2913,12 @@ export default function LessonScreen({ navigation, route }: Props) {
               >{`⚡ X ${drillRewards} - זכית ב־`}</Text>
             </View>
             <Pressable
-              style={styles.nextButton}
+              style={[
+                styles.nextButton,
+                isPractice && {
+                  backgroundColor: visualTheme.continueButtonCorrectBg,
+                },
+              ]}
               onPress={() => {
                 setShowCorrectOverlay(false);
                 if (pendingNextStep) {
@@ -2868,7 +2942,10 @@ export default function LessonScreen({ navigation, route }: Props) {
         !showCorrectOverlay && (
           <View style={styles.absoluteContinueButton}>
             <Pressable
-              style={styles.continueButton}
+              style={[
+                styles.continueButton,
+                isPractice && { backgroundColor: visualTheme.confirmButtonBg },
+              ]}
               onPress={() => {
                 // Submit logic
                 if (
@@ -2924,7 +3001,9 @@ export default function LessonScreen({ navigation, route }: Props) {
               {simpleQuestionIsCorrect && drillRewards > 0 && (
                 <View style={styles.buttonSheetRewardRow}>
                   <Text style={styles.buttonSheetRewardText}>
-                    הרווחת {drillRewards}$
+                    {isPractice
+                      ? `זכית ב- ${drillRewards} ⚡`
+                      : `הרווחת ${drillRewards}$`}
                   </Text>
                 </View>
               )}
@@ -2933,8 +3012,12 @@ export default function LessonScreen({ navigation, route }: Props) {
                   style={[
                     styles.continueButton,
                     simpleQuestionIsCorrect
-                      ? styles.continueButtonCorrect
-                      : styles.continueButtonWrong,
+                      ? isPractice
+                        ? { backgroundColor: visualTheme.continueButtonCorrectBg }
+                        : styles.continueButtonCorrect
+                      : isPractice
+                        ? { backgroundColor: visualTheme.continueButtonWrongBg }
+                        : styles.continueButtonWrong,
                   ]}
                   onPress={() => {
                     console.log("Bottom sheet continue button pressed");
@@ -2956,7 +3039,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                     }
                   }}
                 >
-                  <Text style={styles.continueButtonText}>המשך</Text>
+                  <Text style={styles.continueButtonText}>
+                    {isPractice ? "שאלה הבאה" : "המשך"}
+                  </Text>
                 </Pressable>
               </View>
             </View>
@@ -3064,9 +3149,15 @@ export default function LessonScreen({ navigation, route }: Props) {
               <Pressable
                 style={[
                   styles.continueButton,
+                  isPractice &&
+                    !carouselFeedback.showing && {
+                      backgroundColor: visualTheme.confirmButtonBg,
+                    },
                   carouselFeedback.showing &&
                     carouselFeedback.isCorrect &&
-                    styles.continueButtonCorrect,
+                    (isPractice
+                      ? { backgroundColor: visualTheme.continueButtonCorrectBg }
+                      : styles.continueButtonCorrect),
                 ]}
                 onPress={() => {
                   if (showingDrillExplanation) {
@@ -3221,7 +3312,10 @@ export default function LessonScreen({ navigation, route }: Props) {
           graphQuestionPNGViewingExplanation) && (
           <View style={styles.absoluteContinueButton}>
             <Pressable
-              style={styles.continueButton}
+              style={[
+                styles.continueButton,
+                isPractice && { backgroundColor: visualTheme.confirmButtonBg },
+              ]}
               onPress={() => {
                 if (showingDrillExplanation) {
                   handleExplanationContinue();
@@ -3382,7 +3476,12 @@ export default function LessonScreen({ navigation, route }: Props) {
         {/* <Text style={styles.progressText}>
           {`${currentLessonSteps.findIndex(s => s.id === stepId) + 1}/${currentLessonSteps.length}`}
         </Text> */}
-        <View style={styles.progressBarBg}>
+        <View
+          style={[
+            styles.progressBarBg,
+            { backgroundColor: visualTheme.progressTrack },
+          ]}
+        >
           <Animated.View
             style={{
               width: progressAnim.interpolate({
@@ -3390,17 +3489,28 @@ export default function LessonScreen({ navigation, route }: Props) {
                 outputRange: ["0%", "100%"],
               }),
               height: "100%",
-              backgroundColor: "#3372D8",
+              backgroundColor: visualTheme.progressFill,
               borderRadius: 8,
             }}
           />
         </View>
       </View>
-    </PageBackground>
+      </LessonScreenBackground>
+    </LessonThemeProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  practiceScreenBg: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+  },
+  choicesSimpleQuestionPractice: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+  },
   content: {
     flex: 1,
     justifyContent: "flex-start",

@@ -1,27 +1,29 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
-  Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  PanResponder,
   Modal,
   Alert,
   TextInput,
+  Text,
+  TouchableOpacity,
 } from 'react-native';
-import type { GestureResponderEvent, PanResponderGestureState } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
 import TopBar from '../components/ui/TopBar';
 import BottomNavbar from '../components/ui/BottomNavbar';
-import PageBackground from '../components/ui/PageBackground';
 import theme from '../theme';
 import { useUser } from '../context/UserContext';
+import { usePortfolio } from '../context/PortfolioContext';
 import { API_BASE_URL } from '../config/api';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
+import { formatUsd } from '../utils/portfolioNormalize';
+import { fetchLiveStockQuote } from '../utils/stockQuote';
+import TradingHeader from '../components/trading/TradingHeader';
+import TradingControlsBar from '../components/trading/TradingControlsBar';
+import TradingActionDock from '../components/trading/TradingActionDock';
 import { WebView } from 'react-native-webview';
-
 
 const STOCKS = [
   { symbol: 'AAPL', name: 'Apple Inc.' },
@@ -34,19 +36,17 @@ const STOCKS = [
   { symbol: 'NFLX', name: 'Netflix Inc.' },
 ];
 
-const TIME_RANGES = ['1m', '5m', '1h', '1d', '1w', '1mo'];
+function resolveStock(symbol: string) {
+  const upper = symbol.toUpperCase();
+  return (
+    STOCKS.find((s) => s.symbol === upper) ?? {
+      symbol: upper,
+      name: upper,
+    }
+  );
+}
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Sandbox'>;
-
-interface StockData {
-  timestamp: number;
-  price: number;
-}
-
-interface DrawingPoint {
-  x: number;
-  y: number;
-}
 
 async function readApiError(
   response: Response,
@@ -65,181 +65,131 @@ async function readApiError(
   return fallback;
 }
 
-export default function SandboxScreen({ navigation }: Props) {
+function mapRangeToTv(range: string) {
+  switch (range) {
+    case '1h': return '60';
+    case '1d': return 'D';
+    case '1w': return 'W';
+    case '1mo': return 'M';
+    default: return 'D';
+  }
+}
+
+export default function SandboxScreen({ navigation, route }: Props) {
   const { coins, setCoins, currentUserEmail } = useUser();
-  const [selectedStock, setSelectedStock] = useState(STOCKS[0]);
-  const [stockData, setStockData] = useState<StockData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [drawingMode, setDrawingMode] = useState(false);
-  const [scale, setScale] = useState(1);
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const [drawingPath, setDrawingPath] = useState<DrawingPoint[]>([]);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const lastOffset = useRef({ x: 0, y: 0 });
+  const { getHolding, getQuote, getCurrentPrice, refreshPortfolio } = usePortfolio();
+  const initialSymbol = route.params?.symbol;
+  const [selectedStock, setSelectedStock] = useState(() =>
+    initialSymbol ? resolveStock(initialSymbol) : STOCKS[0],
+  );
   const [selectedRange, setSelectedRange] = useState('1d');
-  const [displayMode, setDisplayMode] = useState<'line' | 'candles'>('candles');
-  const webViewRef = useRef<any>(null);
-  const [ohlcData, setOhlcData] = useState<any[]>([]);
+  const webViewRef = useRef<WebView>(null);
   const [livePrice, setLivePrice] = useState<number | null>(null);
-  const [liveChange, setLiveChange] = useState<number | null>(null);
   const [liveChangePercent, setLiveChangePercent] = useState<number | null>(null);
-  
-  // Trading state
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [tradeShares, setTradeShares] = useState('');
-  const [userHoldings, setUserHoldings] = useState<any[]>([]);
 
-  // Fetch stock data
-  useEffect(() => {
-    fetchStockData(selectedStock.symbol, selectedRange);
-  }, [selectedStock, selectedRange]);
+  useFocusEffect(
+    useCallback(() => {
+      void refreshPortfolio();
+    }, [refreshPortfolio]),
+  );
 
-  // Send updates to TradingView WebView when symbol/range changes
   useEffect(() => {
-    const interval = mapRangeToTv(selectedRange);
+    if (route.params?.symbol) {
+      setSelectedStock(resolveStock(route.params.symbol));
+    }
+  }, [route.params?.symbol]);
+
+  const loadQuote = useCallback(
+    async (symbol: string) => {
+      const quote = await fetchLiveStockQuote(symbol);
+      if (quote) {
+        setLivePrice(quote.price);
+        setLiveChangePercent(quote.changePercent);
+        return;
+      }
+
+      const cachedPrice = getCurrentPrice(symbol);
+      if (cachedPrice > 0) {
+        setLivePrice(cachedPrice);
+        const cachedQuote = getQuote(symbol);
+        if (cachedQuote?.changePercent != null) {
+          setLiveChangePercent(cachedQuote.changePercent);
+        }
+      }
+    },
+    [getCurrentPrice, getQuote],
+  );
+
+  useEffect(() => {
+    setLivePrice(null);
+    setLiveChangePercent(null);
+    void loadQuote(selectedStock.symbol);
+    const interval = setInterval(() => {
+      void loadQuote(selectedStock.symbol);
+    }, 20_000);
+    return () => clearInterval(interval);
+  }, [selectedStock.symbol, loadQuote]);
+
+  useEffect(() => {
     try {
-      webViewRef.current?.postMessage(JSON.stringify({ type: 'setSymbol', symbol: selectedStock.symbol, interval }));
-    } catch {}
-  }, [selectedStock]);
+      webViewRef.current?.postMessage(
+        JSON.stringify({
+          type: 'setSymbol',
+          symbol: selectedStock.symbol,
+          interval: mapRangeToTv(selectedRange),
+        }),
+      );
+    } catch {
+      // webview not ready
+    }
+  }, [selectedStock.symbol]);
 
   useEffect(() => {
-    const interval = mapRangeToTv(selectedRange);
     try {
-      webViewRef.current?.postMessage(JSON.stringify({ type: 'setInterval', interval }));
-    } catch {}
+      webViewRef.current?.postMessage(
+        JSON.stringify({
+          type: 'setInterval',
+          interval: mapRangeToTv(selectedRange),
+        }),
+      );
+    } catch {
+      // webview not ready
+    }
   }, [selectedRange]);
 
-  const fetchStockData = async (symbol: string, interval: string) => {
-    setIsLoading(true);
-    try {
-      const response = await fetchWithTimeout(`${API_BASE_URL}/stocks/${symbol}?count=50&interval=${interval}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch stock data');
-      }
-      const result = await response.json();
-      const validData = result.data.filter((item: any) => 
-        typeof item.price === 'number' && 
-        !isNaN(item.price) && 
-        isFinite(item.price) &&
-        typeof item.timestamp === 'number' && 
-        !isNaN(item.timestamp) && 
-        isFinite(item.timestamp)
-      );
-      setStockData(validData);
-      // Parse OHLC if available
-      if (result.ohlc) {
-        setOhlcData(result.ohlc);
-      } else {
-        setOhlcData([]);
-      }
-      // Reset view to default position
-      setOffset({ x: 0, y: 0 });
-      setScale(1);
-      lastOffset.current = { x: 0, y: 0 };
-    } catch (error) {
-      console.error('Error fetching stock data:', error);
-      // Fallback to mock data if API fails
-      const mockData: StockData[] = [];
-      const basePrice = 100 + Math.random() * 200;
-      const now = Date.now();
-      
-      for (let i = 0; i < 50; i++) {
-        const timestamp = now - (50 - i) * 60000; // 1 minute intervals
-        const price = basePrice + Math.sin(i * 0.1) * 10 + (Math.random() - 0.5) * 5;
-        mockData.push({ timestamp, price });
-      }
-      
-      setStockData(mockData);
-      setOhlcData([]);
-      // Reset view to default position for mock data too
-      setOffset({ x: 0, y: 0 });
-      setScale(1);
-      lastOffset.current = { x: 0, y: 0 };
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  const currentHolding = useMemo(
+    () => getHolding(selectedStock.symbol),
+    [getHolding, selectedStock.symbol],
+  );
 
-  // Fetch live price
-  const fetchLivePrice = async (symbol: string) => {
-    try {
-      const response = await fetchWithTimeout(`${API_BASE_URL}/stocks/${symbol}/price`);
-      if (!response.ok) return;
-      const result = await response.json();
-      setLivePrice(result.price);
-      setLiveChange(result.change);
-      setLiveChangePercent(result.changePercent);
-    } catch (e) {
-      // Optionally handle error
-    }
-  };
+  const maxBuyShares = useMemo(() => {
+    if (!livePrice || livePrice <= 0) return 0;
+    return Math.floor(coins / livePrice);
+  }, [coins, livePrice]);
 
-  useEffect(() => {
-    fetchLivePrice(selectedStock.symbol);
-    const interval = setInterval(() => {
-      fetchLivePrice(selectedStock.symbol);
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [selectedStock]);
+  const maxSellShares = currentHolding?.shares ?? 0;
 
-  // Fetch user holdings when signed-in user is known
-  useEffect(() => {
-    if (currentUserEmail) {
-      fetchUserHoldings();
-    }
-  }, [currentUserEmail]);
+  const tradeTotal = useMemo(() => {
+    const shares = parseFloat(tradeShares);
+    if (!livePrice || isNaN(shares) || shares <= 0) return 0;
+    return shares * livePrice;
+  }, [tradeShares, livePrice]);
 
-  const fetchUserHoldings = async () => {
-    try {
-      const portfolioUrl = currentUserEmail
-        ? `${API_BASE_URL}/user/portfolio?email=${encodeURIComponent(currentUserEmail)}`
-        : `${API_BASE_URL}/user/portfolio`;
-      const response = await fetchWithTimeout(portfolioUrl);
-      if (!response.ok) {
-        throw new Error('Failed to fetch portfolio');
-      }
-      const data = await response.json();
-      setUserHoldings(data.portfolio || []);
-    } catch (error) {
-      console.error('Error fetching portfolio:', error);
-    }
-  };
-
-  const handleStockSelect = (stock: typeof STOCKS[0]) => {
-    setSelectedStock(stock);
-  };
-
-  const mapRangeToTv = (range: string) => {
-    switch (range) {
-      case '1m': return '1';
-      case '5m': return '5';
-      case '1h': return '60';
-      case '1d': return 'D';
-      case '1w': return 'W';
-      case '1mo': return 'M';
-      default: return '60';
-    }
-  };
-
-  const mapTvToRange = (resolution: string) => {
-    const r = String(resolution).toUpperCase();
-    if (r === '1') return '1m';
-    if (r === '5') return '5m';
-    if (r === '60' || r === '1H') return '1h';
-    if (r === 'D' || r === '1D') return '1d';
-    if (r === 'W' || r === '1W') return '1w';
-    if (r === 'M' || r === '1M') return '1mo';
-    return '1h';
-  };
+  const selectStockSymbol = useCallback(
+    (symbol: string) => {
+      const stock = resolveStock(symbol);
+      setSelectedStock(stock);
+    },
+    [],
+  );
 
   const handleTabPress = (tab: 'map' | 'profile' | 'shop' | 'graph') => {
     switch (tab) {
       case 'map':
         navigation.navigate('Map');
-        break;
-      case 'graph':
-        // Already on graph screen, do nothing
         break;
       case 'profile':
         navigation.navigate('Profile');
@@ -247,24 +197,45 @@ export default function SandboxScreen({ navigation }: Props) {
       case 'shop':
         navigation.navigate('Shop');
         break;
+      case 'graph':
+        break;
     }
   };
 
-  const clearDrawing = () => {
-    setDrawingPath([]);
+  const openTradeModal = (type: 'buy' | 'sell') => {
+    if (!livePrice) {
+      void loadQuote(selectedStock.symbol);
+    }
+    setTradeType(type);
+    setTradeShares('');
+    setShowTradeModal(true);
   };
 
-  const getUserHolding = (symbol: string) => {
-    return userHoldings.find(h => h.symbol === symbol);
+  const setQuickShares = (shares: number) => {
+    if (shares > 0) setTradeShares(String(shares));
   };
 
   const handleTrade = async () => {
-    const shares = parseFloat(tradeShares);
-    if (!livePrice || !tradeShares || isNaN(shares) || shares <= 0) {
+    let price = livePrice;
+    if (!price || price <= 0) {
+      const quote = await fetchLiveStockQuote(selectedStock.symbol);
+      if (quote?.price) {
+        price = quote.price;
+        setLivePrice(quote.price);
+        setLiveChangePercent(quote.changePercent);
+      }
+    }
+
+    const shares = Math.floor(parseFloat(tradeShares.replace(/,/g, '.')));
+    if (!price || price <= 0) {
+      Alert.alert('שגיאה', 'לא הצלחנו לטעון את מחיר המניה. נסה שוב בעוד רגע.');
+      return;
+    }
+    if (!tradeShares.trim() || isNaN(shares) || shares <= 0) {
       Alert.alert('שגיאה', 'אנא הכנס מספר מניות תקין');
       return;
     }
-    const totalCost = shares * livePrice;
+    const totalCost = Math.round(shares * price);
 
     if (tradeType === 'buy') {
       if (coins < totalCost) {
@@ -280,7 +251,7 @@ export default function SandboxScreen({ navigation }: Props) {
             email: currentUserEmail ?? undefined,
             symbol: selectedStock.symbol,
             shares,
-            price: livePrice,
+            price,
           }),
         });
 
@@ -293,7 +264,7 @@ export default function SandboxScreen({ navigation }: Props) {
         if (typeof data.newCoins === 'number') {
           setCoins(data.newCoins);
         }
-        fetchUserHoldings();
+        await refreshPortfolio();
         setShowTradeModal(false);
         setTradeShares('');
         Alert.alert('הצלחה', `קנית ${shares} מניות של ${selectedStock.symbol}`);
@@ -303,7 +274,7 @@ export default function SandboxScreen({ navigation }: Props) {
         Alert.alert('שגיאה', message);
       }
     } else {
-      const holding = getUserHolding(selectedStock.symbol);
+      const holding = getHolding(selectedStock.symbol);
       if (!holding || holding.shares < shares) {
         Alert.alert('שגיאה', 'אין לך מספיק מניות למכירה');
         return;
@@ -317,7 +288,7 @@ export default function SandboxScreen({ navigation }: Props) {
             email: currentUserEmail ?? undefined,
             symbol: selectedStock.symbol,
             shares,
-            price: livePrice,
+            price,
           }),
         });
 
@@ -330,7 +301,7 @@ export default function SandboxScreen({ navigation }: Props) {
         if (typeof data.newCoins === 'number') {
           setCoins(data.newCoins);
         }
-        fetchUserHoldings();
+        await refreshPortfolio();
         setShowTradeModal(false);
         setTradeShares('');
         Alert.alert('הצלחה', `מכרת ${shares} מניות של ${selectedStock.symbol}`);
@@ -342,285 +313,272 @@ export default function SandboxScreen({ navigation }: Props) {
     }
   };
 
-  const renderStockBubbles = () => (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      style={styles.stockBubblesContainer}
-      contentContainerStyle={styles.stockBubblesContent}
-    >
-      {STOCKS.map((stock) => {
-        const selected = selectedStock.symbol === stock.symbol;
-        return (
-          <TouchableOpacity
-            key={stock.symbol}
-            onPress={() => setSelectedStock(stock)}
-            activeOpacity={0.8}
-            style={[
-              styles.stockBubble,
-              selected && styles.selectedStockBubble
-            ]}
-          >
-            <Text style={[
-              styles.stockSymbol,
-              selected && styles.selectedStockText
-            ]}>
-              {stock.symbol}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
-  );
+  const chartBgColor = theme.colors.surface.darkBg;
+  const candleUpColor = theme.colors.growthGreen;
+  const candleDownColor = theme.colors.optimismOrange;
+  const gridColor = 'rgba(63, 159, 255, 0.12)';
+  const tvInterval = mapRangeToTv(selectedRange);
 
-  const renderTimeRangeSelector = () => (
-    <View style={styles.timeRangeContainer}>
-      {TIME_RANGES.map((range) => (
-        <TouchableOpacity
-          key={range}
-          onPress={() => setSelectedRange(range)}
-          style={[
-            styles.timeRangeBubble,
-            selectedRange === range && styles.selectedTimeRangeBubble
-          ]}
-        >
-          <Text style={[
-            styles.timeRangeText,
-            selectedRange === range && styles.selectedTimeRangeText
-          ]}>
-            {range}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+  const tvHtml = `
+    <!DOCTYPE html>
+    <html lang="he">
+    <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+      <style>html,body,#container{margin:0;padding:0;height:100%;width:100%;background:${chartBgColor};overflow:hidden;}</style>
+      <script src="https://s3.tradingview.com/tv.js"></script>
+    </head>
+    <body>
+      <div id="container"></div>
+      <script>
+        let chartApi;
+        const widget = new TradingView.widget({
+          autosize: true,
+          symbol: '${selectedStock.symbol}',
+          interval: '${tvInterval}',
+          container_id: 'container',
+          locale: 'he',
+          theme: 'dark',
+          timezone: 'Etc/UTC',
+          hide_top_toolbar: true,
+          hide_side_toolbar: true,
+          hide_legend: true,
+          allow_symbol_change: false,
+          enable_publishing: false,
+          studies: [],
+          disabled_features: [
+            'header_widget',
+            'left_toolbar',
+            'control_bar',
+            'timeframes_toolbar',
+            'symbol_search_hot_key',
+            'header_symbol_search',
+            'header_compare',
+            'header_undo_redo',
+            'header_screenshot',
+            'header_chart_type',
+            'header_settings',
+            'header_indicators',
+            'header_saveload',
+            'display_market_status',
+            'create_volume_indicator_by_default'
+          ],
+          overrides: {
+            'paneProperties.background': '${chartBgColor}',
+            'paneProperties.backgroundType': 'solid',
+            'paneProperties.vertGridProperties.color': '${gridColor}',
+            'paneProperties.horzGridProperties.color': '${gridColor}',
+            'scalesProperties.textColor': '#8CA0AE',
+            'mainSeriesProperties.candleStyle.upColor': '${candleUpColor}',
+            'mainSeriesProperties.candleStyle.downColor': '${candleDownColor}',
+            'mainSeriesProperties.candleStyle.borderUpColor': '${candleUpColor}',
+            'mainSeriesProperties.candleStyle.borderDownColor': '${candleDownColor}',
+            'mainSeriesProperties.candleStyle.wickUpColor': '${candleUpColor}',
+            'mainSeriesProperties.candleStyle.wickDownColor': '${candleDownColor}'
+          },
+        });
+        async function publishQuote(sym) {
+          try {
+            const res = await fetch(
+              'https://query1.finance.yahoo.com/v8/finance/chart/' +
+                encodeURIComponent(sym) +
+                '?interval=1d&range=1d'
+            );
+            const json = await res.json();
+            const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
+            if (!meta || !meta.regularMarketPrice) return;
+            const price = meta.regularMarketPrice;
+            const prev = meta.chartPreviousClose || meta.previousClose || price;
+            const changePercent = prev ? ((price - prev) / prev) * 100 : 0;
+            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'quote',
+              symbol: sym,
+              price: price,
+              changePercent: changePercent,
+            }));
+          } catch (e) {}
+        }
 
-  const formatTime = (timestamp: number, selectedRange?: string) => {
-    const d = new Date(timestamp);
-    if (!selectedRange) return d.toLocaleDateString();
-    if (selectedRange === '1m' || selectedRange === '5m' || selectedRange === '1h') {
-      return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
-    } else {
-      return d.toLocaleDateString();
-    }
-  };
-
-  const renderGraph = () => {
-    const chartBgColor = theme.colors.surface.darkBg;
-    const candleUpColor = theme.colors.growthGreen;
-    const candleDownColor = theme.colors.optimismOrange;
-    const gridColor = 'rgba(63, 159, 255, 0.14)';
-    const tvHtml = `
-      <!DOCTYPE html>
-      <html lang="he">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-        <style> html,body,#container{margin:0;padding:0;height:100%;width:100%;background:${chartBgColor};} </style>
-        <script src="https://s3.tradingview.com/tv.js"></script>
-      </head>
-      <body>
-        <div id="container"></div>
-        <script>
-          let chartApi;
-          const widget = new TradingView.widget({
-            autosize: true,
-            symbol: '${selectedStock.symbol}',
-            interval: '${mapRangeToTv(selectedRange)}',
-            container_id: 'container',
-            datafeed: undefined,
-            locale: 'he',
-            theme: 'dark',
-            timezone: 'Etc/UTC',
-            hide_side_toolbar: false,
-            allow_symbol_change: true,
-            enable_publishing: false,
-            studies: [],
-            studies_overrides: { 'volume.visible': false },
-            disabled_features: ['create_volume_indicator_by_default'],
-            overrides: {
-              'paneProperties.background': '${chartBgColor}',
-              'paneProperties.backgroundType': 'solid',
-              'paneProperties.vertGridProperties.color': '${gridColor}',
-              'paneProperties.horzGridProperties.color': '${gridColor}',
-              'mainSeriesProperties.candleStyle.upColor': '${candleUpColor}',
-              'mainSeriesProperties.candleStyle.downColor': '${candleDownColor}',
-              'mainSeriesProperties.candleStyle.borderUpColor': '${candleUpColor}',
-              'mainSeriesProperties.candleStyle.borderDownColor': '${candleDownColor}'
-            },
-          });
-          widget.onChartReady(() => {
-            chartApi = widget.chart();
-            try {
-              if (chartApi.applyOverrides) {
-                chartApi.applyOverrides({
-                  'paneProperties.background': '${chartBgColor}',
-                  'paneProperties.backgroundType': 'solid',
-                  'paneProperties.vertGridProperties.color': '${gridColor}',
-                  'paneProperties.horzGridProperties.color': '${gridColor}',
-                  'mainSeriesProperties.candleStyle.upColor': '${candleUpColor}',
-                  'mainSeriesProperties.candleStyle.downColor': '${candleDownColor}',
-                  'mainSeriesProperties.candleStyle.borderUpColor': '${candleUpColor}',
-                  'mainSeriesProperties.candleStyle.borderDownColor': '${candleDownColor}'
-                });
-              }
-            } catch (e) {}
-            if (chartApi.getAllStudies && chartApi.removeEntity) {
-              try {
-                var studies = chartApi.getAllStudies();
-                for (var i = 0; i < studies.length; i++) {
-                  var name = (studies[i] && studies[i].name) ? String(studies[i].name) : '';
-                  if (name.indexOf('Volume') !== -1 || name.indexOf('Vol') === 0) {
-                    chartApi.removeEntity(studies[i].id);
-                    break;
-                  }
-                }
-              } catch (e) {}
+        widget.onChartReady(() => {
+          chartApi = widget.chart();
+          const sym = '${selectedStock.symbol}';
+          publishQuote(sym);
+          setInterval(function () { publishQuote(sym); }, 15000);
+          try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' })); } catch(e){}
+        });
+        document.addEventListener('message', (event) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (!chartApi) return;
+            if (data.type === 'setSymbol' && data.symbol) {
+              chartApi.setSymbol(data.symbol, data.interval || '${tvInterval}');
+              publishQuote(data.symbol);
+            } else if (data.type === 'setInterval' && data.interval) {
+              chartApi.setResolution(String(data.interval));
             }
-            // Notify RN about initial state
-            try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' })); } catch(e){}
-            // Symbol change listener
-            chartApi.onSymbolChanged((symbolInfo) => {
-              try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'symbolChanged', symbol: (symbolInfo && (symbolInfo.ticker || symbolInfo.name)) || '' })); } catch(e){}
-            });
-            // Interval / resolution change listener
-            if (chartApi.onIntervalChanged) {
-              chartApi.onIntervalChanged((interval, timeframeObj) => {
-                try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'intervalChanged', interval: interval })); } catch(e){}
-              });
-            } else if (chartApi.onResolutionChanged) {
-              chartApi.onResolutionChanged((resolution) => {
-                try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'intervalChanged', interval: resolution })); } catch(e){}
-              });
+          } catch (e) {}
+        });
+        window.addEventListener('message', (event) => {
+          try {
+            const data = JSON.parse(event.data || '{}');
+            if (!chartApi) return;
+            if (data.type === 'setSymbol' && data.symbol) {
+              chartApi.setSymbol(data.symbol, data.interval || '${tvInterval}');
+              publishQuote(data.symbol);
+            } else if (data.type === 'setInterval' && data.interval) {
+              chartApi.setResolution(String(data.interval));
             }
-          });
-          // Receive messages from React Native
-          window.addEventListener('message', (event) => {
-            try {
-              const data = JSON.parse(event.data || '{}');
-              if (!chartApi) return;
-              if (data.type === 'setSymbol' && data.symbol) {
-                chartApi.setSymbol(data.symbol, data.interval || '${mapRangeToTv(selectedRange)}');
-              } else if (data.type === 'setInterval' && data.interval) {
-                chartApi.setResolution(String(data.interval));
-              }
-            } catch (e) {}
-          });
-        </script>
-      </body>
-      </html>`;
-
-    return (
-      <View style={styles.graphContainer}>
-        <View style={styles.graphWrapper}>
-          <WebView
-            ref={webViewRef}
-            originWhitelist={["*"]}
-            source={{ html: tvHtml }}
-            javaScriptEnabled
-            domStorageEnabled
-            style={{ flex: 1, backgroundColor: theme.colors.surface.darkBg }}
-            allowsInlineMediaPlayback
-            onMessage={(e) => {
-              try {
-                const data = JSON.parse(e.nativeEvent.data || '{}');
-                if (data.type === 'symbolChanged' && data.symbol) {
-                  setSelectedStock({ symbol: data.symbol, name: data.symbol });
-                } else if (data.type === 'intervalChanged' && data.interval) {
-                  setSelectedRange(mapTvToRange(String(data.interval)));
-                }
-              } catch {}
-            }}
-          />
-        </View>
-        {/* Buy/Sell row below chart, above bottom navbar */}
-        <View style={styles.tradingButtons}>
-          <TouchableOpacity
-            style={[styles.tradeButton, styles.buyButton]}
-            onPress={() => {
-              setTradeType('buy');
-              setShowTradeModal(true);
-            }}
-          >
-            <Text style={styles.tradeButtonText}>קנה</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tradeButton, styles.sellButton]}
-            onPress={() => {
-              setTradeType('sell');
-              setShowTradeModal(true);
-            }}
-          >
-            <Text style={styles.tradeButtonText}>מכור</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  };
+          } catch (e) {}
+        });
+      </script>
+    </body>
+    </html>`;
 
   return (
     <View style={styles.container}>
-      <PageBackground source={require("../assets/bg.png")}>
-        <TopBar />
-        <View style={styles.content}>
-          {/* <Text style={styles.title}>Sandbox - {selectedStock.symbol}</Text> */}
-          {/* Remove app-level stock/time selectors to avoid duplication with TradingView */}
-          {/* {renderStockBubbles()} */}
-          {/* {renderTimeRangeSelector()} */}
-          {/* <View style={styles.hr} /> */}
-          {renderGraph()}
-        </View>
-      </PageBackground>
+      <TopBar />
+      <TradingHeader
+        symbol={selectedStock.symbol}
+        stockName={selectedStock.name}
+        livePrice={livePrice}
+        liveChangePercent={liveChangePercent}
+      />
+      <TradingControlsBar
+        selectedSymbol={selectedStock.symbol}
+        selectedRange={selectedRange}
+        onSelectSymbol={selectStockSymbol}
+        onSelectRange={setSelectedRange}
+      />
+
+      <View style={styles.chartArea}>
+        <WebView
+          key={`${selectedStock.symbol}-${selectedRange}`}
+          ref={webViewRef}
+          originWhitelist={['*']}
+          source={{ html: tvHtml }}
+          javaScriptEnabled
+          domStorageEnabled
+          scrollEnabled={false}
+          bounces={false}
+          style={styles.chart}
+          allowsInlineMediaPlayback
+          onMessage={(event) => {
+            try {
+              const data = JSON.parse(event.nativeEvent.data || '{}');
+              if (
+                data.type === 'quote' &&
+                data.symbol &&
+                data.price &&
+                String(data.symbol).toUpperCase() === selectedStock.symbol.toUpperCase()
+              ) {
+                setLivePrice(Number(data.price));
+                if (data.changePercent != null) {
+                  setLiveChangePercent(Number(data.changePercent));
+                }
+              }
+            } catch {
+              // ignore malformed messages
+            }
+          }}
+        />
+      </View>
+
+      <TradingActionDock
+        sellShares={maxSellShares}
+        onBuy={() => openTradeModal('buy')}
+        onSell={() => openTradeModal('sell')}
+      />
+
       <BottomNavbar activeTab="graph" onTabPress={handleTabPress} />
 
-      {/* Trading Modal */}
       <Modal
         visible={showTradeModal}
-        transparent={true}
+        transparent
         animationType="slide"
         onRequestClose={() => setShowTradeModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>
-              {tradeType === 'buy' ? 'קנה מניות' : 'מכור מניות'}
+              {tradeType === 'buy' ? 'קניית מניות' : 'מכירת מניות'}
             </Text>
             <Text style={styles.modalSubtitle}>
-              {selectedStock.symbol} - ${livePrice?.toFixed(2) || '0.00'}
+              {selectedStock.symbol} · {selectedStock.name}
             </Text>
-            
+            <Text style={styles.modalPrice}>
+              מחיר: {livePrice ? formatUsd(livePrice) : '—'}
+            </Text>
+
+            <View style={styles.modalBalanceRow}>
+              <Text style={styles.modalBalanceLabel}>מזומן זמין</Text>
+              <Text style={styles.modalBalanceValue}>{formatUsd(coins)}</Text>
+            </View>
+            {tradeType === 'sell' && currentHolding && (
+              <View style={styles.modalBalanceRow}>
+                <Text style={styles.modalBalanceLabel}>מניות בתיק</Text>
+                <Text style={styles.modalBalanceValue}>{currentHolding.shares}</Text>
+              </View>
+            )}
+
             <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>מספר מניות:</Text>
+              <Text style={styles.inputLabel}>כמות מניות</Text>
               <TextInput
                 style={styles.textInput}
                 value={tradeShares}
                 onChangeText={setTradeShares}
                 keyboardType="numeric"
-                placeholder="הכנס מספר מניות"
-                placeholderTextColor="#999"
+                placeholder="0"
+                placeholderTextColor="#94A3B8"
               />
             </View>
 
-            {/* Defensive: Only render cost info if value is a valid number, else render nothing */}
-            {tradeType === 'buy' && livePrice && tradeShares && !isNaN(parseFloat(tradeShares)) && (
-              <View style={styles.costInfo}>
-                <Text style={styles.costLabel}>עלות כוללת:</Text>
-                <Text style={styles.costValue}>
-                  {isNaN(parseFloat(tradeShares) * (livePrice || 0))
-                    ? ''
-                    : `$${(parseFloat(tradeShares) * (livePrice || 0)).toFixed(2)}`}
-                </Text>
-              </View>
-            )}
+            <View style={styles.quickRow}>
+              {tradeType === 'buy' ? (
+                <>
+                  <TouchableOpacity style={styles.quickChip} onPress={() => setQuickShares(1)}>
+                    <Text style={styles.quickChipText}>1</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.quickChip} onPress={() => setQuickShares(5)}>
+                    <Text style={styles.quickChipText}>5</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.quickChip}
+                    onPress={() => setQuickShares(maxBuyShares)}
+                    disabled={maxBuyShares <= 0}
+                  >
+                    <Text style={styles.quickChipText}>מקס׳</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.quickChip} onPress={() => setQuickShares(1)}>
+                    <Text style={styles.quickChipText}>1</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.quickChip}
+                    onPress={() => setQuickShares(Math.floor(maxSellShares / 2))}
+                    disabled={maxSellShares <= 0}
+                  >
+                    <Text style={styles.quickChipText}>חצי</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.quickChip}
+                    onPress={() => setQuickShares(maxSellShares)}
+                    disabled={maxSellShares <= 0}
+                  >
+                    <Text style={styles.quickChipText}>הכל</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
 
-            {tradeType === 'sell' && livePrice && tradeShares && !isNaN(parseFloat(tradeShares)) && (
+            {tradeTotal > 0 && (
               <View style={styles.costInfo}>
-                <Text style={styles.costLabel}>ערך כולל:</Text>
-                <Text style={styles.costValue}>
-                  {isNaN(parseFloat(tradeShares) * (livePrice || 0))
-                    ? ''
-                    : `$${(parseFloat(tradeShares) * (livePrice || 0)).toFixed(2)}`}
+                <Text style={styles.costLabel}>
+                  {tradeType === 'buy' ? 'עלות משוערת' : 'תקבל בערך'}
                 </Text>
+                <Text style={styles.costValue}>{formatUsd(tradeTotal)}</Text>
               </View>
             )}
 
@@ -635,11 +593,14 @@ export default function SandboxScreen({ navigation }: Props) {
                 <Text style={styles.cancelButtonText}>ביטול</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.confirmButton]}
+                style={[
+                  styles.modalButton,
+                  tradeType === 'buy' ? styles.confirmBuy : styles.confirmSell,
+                ]}
                 onPress={handleTrade}
               >
                 <Text style={styles.confirmButtonText}>
-                  {tradeType === 'buy' ? 'קנה' : 'מכור'}
+                  {tradeType === 'buy' ? 'אשר קנייה' : 'אשר מכירה'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -653,366 +614,155 @@ export default function SandboxScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#E3EEF9', // palette background
+    backgroundColor: '#FFFFFF',
   },
-  content: {
+  chartArea: {
     flex: 1,
-    backgroundColor: '#E3EEF9', // palette background
+    marginHorizontal: 0,
+    backgroundColor: theme.colors.surface.darkBg,
   },
-  title: {
-    fontSize: 24,
-    fontFamily: theme.font.bold,
-    color: '#125BA5', // palette
-    textAlign: 'center',
-    marginVertical: theme.spacing.md,
-    textShadowColor: '#0D2033',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
-  },
-  stockBubblesContainer: {
-    backgroundColor: 'transparent',
-    minHeight: 44,
-    maxHeight: 48,
-    height: 44,
-    paddingHorizontal: 0,
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  stockBubblesContent: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    minHeight: 44,
-    maxHeight: 48,
-    height: 44,
-    paddingHorizontal: 0,
-    marginBottom: 0,
-    marginTop: 0,
-    backgroundColor: 'transparent',
-  },
-  stockBubble: {
-    backgroundColor: '#A0CFFF',
-    borderRadius: 22,
-    paddingHorizontal: 18,
-    paddingVertical: 8,
-    marginHorizontal: 4,
-    minWidth: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    shadowColor: '#0D2033',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  selectedStockBubble: {
-    backgroundColor: '#3F9FFF',
-    borderColor: '#125BA5',
-    borderWidth: 2,
-    shadowColor: '#0D2033',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  stockSymbol: {
-    fontSize: 16,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-  },
-  selectedStockText: {
-    color: '#fff',
-  },
-  graphContainer: {
+  chart: {
     flex: 1,
-    flexDirection: 'column',
-    backgroundColor: '#fff',
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 5,
-    overflow: 'hidden',
-  },
-  graphWrapper: {
-    flex: 1,
-    minHeight: 0,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  loadingText: {
-    fontSize: 16,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-  },
-  graphControls: {
-    position: 'absolute',
-    top: theme.spacing.md,
-    right: theme.spacing.md,
-    flexDirection: 'row',
-  },
-  controlButton: {
-    backgroundColor: '#E3EEF9',
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-    marginLeft: theme.spacing.xs,
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  activeControlButton: {
-    backgroundColor: '#3F9FFF',
-  },
-  controlButtonText: {
-    fontSize: 16,
-    color: '#0D2033',
-  },
-  priceInfo: {
-    backgroundColor: '#A0CFFF',
-    padding: theme.spacing.sm,
-    borderRadius: theme.radius.sm,
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-
-  },
-  modeIndicator: {
-    position: 'absolute',
-    top: theme.spacing.md,
-    left: theme.spacing.md,
-    backgroundColor: '#125BA5',
-    padding: theme.spacing.sm,
-    borderRadius: theme.radius.sm,
-  },
-  modeText: {
-    fontSize: 12,
-    fontFamily: theme.font.bold,
-    color: '#fff',
-  },
-  hr: {
-    height: 1,
-    backgroundColor: '#A0CFFF',
-    width: '100%',
-    marginVertical: 6,
-  },
-  timeRangeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 0,
-    marginBottom: 0,
-    minHeight: 32,
-    height: 32,
-  },
-  timeRangeBubble: {
-    backgroundColor: '#E3EEF9',
-    borderRadius: 16,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    marginHorizontal: 2,
-    minWidth: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'transparent',
-  },
-  selectedTimeRangeBubble: {
-    backgroundColor: '#125BA5',
-    borderColor: '#3F9FFF',
-  },
-  timeRangeText: {
-    fontSize: 13,
-    fontFamily: theme.font.bold,
-    color: '#125BA5',
-  },
-  selectedTimeRangeText: {
-    color: '#fff',
-  },
-  tradingButtons: {
-    flexDirection: 'row',
-    width: '100%',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    paddingBottom: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  tradeButton: {
-    flex: 1,
-    borderRadius: theme.radius.sm,
-    paddingVertical: theme.spacing.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  buyButton: {
-    backgroundColor: theme.colors.growthGreen,
-  },
-  sellButton: {
-    backgroundColor: theme.colors.optimismOrange,
-  },
-  tradeButtonText: {
-    fontSize: 14,
-    fontFamily: theme.font.bold,
-    color: '#fff',
-  },
-  holdingInfo: {
-    backgroundColor: '#A0CFFF',
-    padding: theme.spacing.sm,
-    borderRadius: theme.radius.sm,
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  holdingText: {
-    fontSize: 12,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    textAlign: 'right',
+    backgroundColor: theme.colors.surface.darkBg,
   },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
   },
-  modalContent: {
+  modalSheet: {
     backgroundColor: '#fff',
-    borderRadius: theme.radius.lg,
-    padding: theme.spacing.lg,
-    margin: theme.spacing.lg,
-    width: '80%',
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 8,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 32,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#CBD5E1',
+    alignSelf: 'center',
+    marginBottom: 16,
   },
   modalTitle: {
     fontSize: 20,
     fontFamily: theme.font.bold,
-    color: '#0D2033',
+    color: '#0F2233',
     textAlign: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 4,
   },
   modalSubtitle: {
-    fontSize: 16,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
+    fontSize: 14,
+    color: '#64748B',
     textAlign: 'center',
-    marginBottom: theme.spacing.lg,
+    marginBottom: 8,
+  },
+  modalPrice: {
+    fontSize: 16,
+    fontFamily: theme.font.bold,
+    color: '#0F2233',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  modalBalanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  modalBalanceLabel: {
+    fontSize: 14,
+    color: '#64748B',
+  },
+  modalBalanceValue: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#0F2233',
   },
   inputContainer: {
-    marginBottom: theme.spacing.md,
+    marginTop: 12,
+    marginBottom: 12,
   },
   inputLabel: {
     fontSize: 14,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-    marginBottom: theme.spacing.xs,
+    color: '#475569',
     textAlign: 'right',
+    marginBottom: 8,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#A0CFFF',
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-    fontSize: 16,
-    fontFamily: theme.font.family,
-    color: '#0D2033',
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 18,
+    fontFamily: theme.font.bold,
     textAlign: 'center',
+    color: '#0F2233',
+    backgroundColor: '#F8FAFC',
+  },
+  quickRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 12,
+  },
+  quickChip: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+  },
+  quickChipText: {
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#475569',
   },
   costInfo: {
-    backgroundColor: '#A0CFFF',
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
   },
   costLabel: {
-    fontSize: 12,
-    fontFamily: theme.font.family,
-    color: '#125BA5',
-    marginBottom: theme.spacing.xs,
+    fontSize: 14,
+    color: '#64748B',
   },
   costValue: {
     fontSize: 18,
     fontFamily: theme.font.bold,
-    color: '#0D2033',
+    color: '#0F2233',
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: 12,
   },
   modalButton: {
     flex: 1,
-    borderRadius: theme.radius.sm,
-    padding: theme.spacing.sm,
-    marginHorizontal: theme.spacing.xs,
+    paddingVertical: 14,
+    borderRadius: 14,
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#E3EEF9',
-  },
-  confirmButton: {
-    backgroundColor: theme.colors.primaryBlue,
+    backgroundColor: '#F1F5F9',
   },
   cancelButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: theme.font.bold,
-    color: '#125BA5',
+    color: '#475569',
+  },
+  confirmBuy: {
+    backgroundColor: theme.colors.growthGreen,
+  },
+  confirmSell: {
+    backgroundColor: theme.colors.error[600],
   },
   confirmButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontFamily: theme.font.bold,
-    color: '#fff',
+    color: '#FFFFFF',
   },
-  priceInfoContainer: {
-    position: 'absolute',
-    bottom: 18,
-    left: 18,
-    alignItems: 'flex-start',
-    zIndex: 10,
-  },
-  priceInfoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    shadowColor: '#0D2033',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-    elevation: 4,
-    minWidth: 120,
-  },
-  priceSymbol: {
-    fontSize: 14,
-    fontFamily: theme.font.bold,
-    color: '#125BA5',
-    marginBottom: 2,
-  },
-  priceText: {
-    fontSize: 22,
-    fontFamily: theme.font.bold,
-    color: '#0D2033',
-  },
-  priceChange: {
-    fontSize: 13,
-    fontFamily: theme.font.bold,
-    marginTop: 2,
-  },
-}); 
+});

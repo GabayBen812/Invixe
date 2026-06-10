@@ -9,6 +9,8 @@ import {
   DRILL_MEDIA_STACK_GAP,
   getDrillChoicePlainText,
 } from "../../utils/drillFitLayout";
+import { useLessonTheme } from "../../context/LessonThemeContext";
+import PracticeMediaSurface from "./PracticeMediaSurface";
 
 interface Choice {
   id: string;
@@ -51,6 +53,7 @@ export default function QuestionWithSVG({
   onStateChange,
   onSubmit,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -197,14 +200,11 @@ export default function QuestionWithSVG({
       ]}
     >
       {renderSVG() && (
-        <View
-          style={[
-            styles.svgContainer,
-            { height: layout.mediaHeight },
-          ]}
-        >
-          <View style={styles.svgWrapper}>{renderSVG()}</View>
-        </View>
+        <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
+          <View style={[styles.svgContainer, { height: "100%" }]}>
+            <View style={styles.svgWrapper}>{renderSVG()}</View>
+          </View>
+        </PracticeMediaSurface>
       )}
 
       <View
@@ -222,19 +222,49 @@ export default function QuestionWithSVG({
             const isSelected = selectedChoice === choice.id;
             const isCorrectChoice = choice.correct;
             const labelColor =
-              submitted || isSelected ? "#FFFFFF" : "#374151";
-            let buttonStyle: any[] = [styles.choiceButton];
+              submitted || isSelected
+                ? "#FFFFFF"
+                : isPractice
+                  ? theme.choiceText
+                  : "#374151";
+            let buttonStyle: any[] = [
+              styles.choiceButton,
+              isPractice && {
+                backgroundColor: theme.choiceBg,
+                borderColor: "rgba(255,255,255,0.1)",
+              },
+            ];
 
             if (submitted) {
               if (isSelected && isCorrectChoice) {
-                buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+                buttonStyle = isPractice
+                  ? [
+                      styles.choiceButton,
+                      { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
+                    ]
+                  : [styles.choiceButton, styles.choiceButtonCorrect];
               } else if (isSelected && !isCorrectChoice) {
-                buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
+                buttonStyle = isPractice
+                  ? [
+                      styles.choiceButton,
+                      { backgroundColor: theme.choiceWrongBg, borderColor: "transparent" },
+                    ]
+                  : [styles.choiceButton, styles.choiceButtonWrong];
               } else if (!isSelected && isCorrectChoice) {
-                buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+                buttonStyle = isPractice
+                  ? [
+                      styles.choiceButton,
+                      { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
+                    ]
+                  : [styles.choiceButton, styles.choiceButtonCorrect];
               }
             } else if (isSelected) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
+              buttonStyle = [
+                styles.choiceButton,
+                isPractice
+                  ? { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" }
+                  : styles.choiceButtonSelected,
+              ];
             }
 
             return (

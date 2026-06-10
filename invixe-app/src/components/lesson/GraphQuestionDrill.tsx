@@ -22,6 +22,8 @@ import {
   getAlternateSupabaseUrl,
   normalizeSupabaseUrl,
 } from "../../utils/supabaseUrl";
+import { useLessonTheme } from "../../context/LessonThemeContext";
+import PracticeMediaSurface from "./PracticeMediaSurface";
 
 export interface GraphQuestionChoice {
   id: string;
@@ -72,6 +74,7 @@ export default function GraphQuestionDrill({
   onSubmitTriggerRef,
   onSubmit,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -85,6 +88,14 @@ export default function GraphQuestionDrill({
       !!(c as GraphQuestionChoice).svgPublicUrl ||
       !!(c as GraphQuestionChoice).svgUrl,
   );
+  const isYesNoPractice =
+    isPractice &&
+    visibleChoices.length === 2 &&
+    visibleChoices.every((c) => {
+      const t = getDrillChoicePlainText(c).trim();
+      return t === "כן" || t === "לא";
+    });
+
   const layout = useChoiceDrillLayout(
     visibleChoices.length || choices.length,
     { hasMedia: true },
@@ -214,38 +225,40 @@ export default function GraphQuestionDrill({
       ]}
     >
       <View style={[styles.mediaWrapper, { flexShrink: 0 }]}>
-        <View
-          style={[styles.mediaContainer, { height: layout.mediaHeight }]}
-          pointerEvents="none"
-        >
-          {mediaType === "svg" ? (
-            parsedSVG ? (
-              <View style={styles.svgContainer}>{parsedSVG}</View>
+        <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
+          <View
+            style={[styles.mediaContainer, { height: "100%" }]}
+            pointerEvents="none"
+          >
+            {mediaType === "svg" ? (
+              parsedSVG ? (
+                <View style={styles.svgContainer}>{parsedSVG}</View>
+              ) : (
+                <View style={styles.mediaPlaceholder}>
+                  <Text style={styles.mediaPlaceholderText}>SVG</Text>
+                </View>
+              )
+            ) : pngUri ? (
+              <Image
+                source={{ uri: pngUri } as any}
+                style={styles.pngImage}
+                resizeMode="contain"
+                onError={() => {
+                  if (!activePngUrl || triedAlternatePngRef.current) return;
+                  const alternate = getAlternateSupabaseUrl(activePngUrl);
+                  if (alternate) {
+                    triedAlternatePngRef.current = true;
+                    setPngUri(alternate);
+                  }
+                }}
+              />
             ) : (
               <View style={styles.mediaPlaceholder}>
-                <Text style={styles.mediaPlaceholderText}>SVG</Text>
+                <Text style={styles.mediaPlaceholderText}>No Image</Text>
               </View>
-            )
-          ) : pngUri ? (
-            <Image
-              source={{ uri: pngUri } as any}
-              style={styles.pngImage}
-              resizeMode="contain"
-              onError={() => {
-                if (!activePngUrl || triedAlternatePngRef.current) return;
-                const alternate = getAlternateSupabaseUrl(activePngUrl);
-                if (alternate) {
-                  triedAlternatePngRef.current = true;
-                  setPngUri(alternate);
-                }
-              }}
-            />
-          ) : (
-            <View style={styles.mediaPlaceholder}>
-              <Text style={styles.mediaPlaceholderText}>No Image</Text>
-            </View>
-          )}
-        </View>
+            )}
+          </View>
+        </PracticeMediaSurface>
 
         {/* Clickable overlay for fullscreen */}
         <Pressable
@@ -267,27 +280,75 @@ export default function GraphQuestionDrill({
         style={[
           styles.choicesContainer,
           { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
+          isYesNoPractice && styles.choicesContainerYesNo,
         ]}
       >
         {visibleChoices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
+          const choiceText = getDrillChoicePlainText(choice).trim();
+          const yesNoBaseColor =
+            isYesNoPractice && !submitted
+              ? choiceText === "כן"
+                ? theme.choiceYesBg
+                : choiceText === "לא"
+                  ? theme.choiceNoBg
+                  : theme.choiceBg
+              : null;
           const labelColor =
-            submitted || isSelected ? "#FFFFFF" : "#374151";
+            submitted || isSelected || yesNoBaseColor
+              ? "#FFFFFF"
+              : isPractice
+                ? theme.choiceText
+                : "#374151";
           const isCorrectChoice = choice.correct;
-          let buttonStyle: any = styles.choiceButton;
+          let buttonStyle: any = [
+            styles.choiceButton,
+            isPractice &&
+              !isYesNoPractice && {
+                backgroundColor: theme.choiceBg,
+                borderColor: "transparent",
+              },
+          ];
 
           if (submitted) {
             if (isSelected && isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              buttonStyle = [
+                styles.choiceButton,
+                { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
+              ];
             } else if (isSelected && !isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
+              buttonStyle = [
+                styles.choiceButton,
+                { backgroundColor: theme.choiceWrongBg, borderColor: "transparent" },
+              ];
             } else if (!isSelected && isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              buttonStyle = [
+                styles.choiceButton,
+                { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
+              ];
             } else {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonDisabled];
+              buttonStyle = [
+                styles.choiceButton,
+                styles.choiceButtonDisabled,
+                isPractice && { backgroundColor: theme.choiceDisabledBg },
+              ];
             }
+          } else if (yesNoBaseColor) {
+            buttonStyle = [
+              styles.choiceButton,
+              {
+                backgroundColor: yesNoBaseColor,
+                borderColor: "transparent",
+                flex: 1,
+              },
+            ];
           } else if (isSelected) {
-            buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
+            buttonStyle = [
+              styles.choiceButton,
+              isPractice
+                ? { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" }
+                : styles.choiceButtonSelected,
+            ];
           }
 
           return (
@@ -300,6 +361,7 @@ export default function GraphQuestionDrill({
                   paddingHorizontal: layout.choicePaddingHorizontal,
                   marginBottom: 0,
                 },
+                isYesNoPractice && { flex: 1 },
               ]}
               onPress={() => {
                 if (!submitted) {
@@ -456,6 +518,11 @@ const styles = StyleSheet.create({
     maxWidth: 480,
     flexShrink: 0,
     alignSelf: "center",
+  },
+  choicesContainerYesNo: {
+    flexDirection: "row",
+    maxWidth: "100%",
+    paddingHorizontal: 12,
   },
   choiceTextWrap: {
     width: "100%",

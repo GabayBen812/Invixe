@@ -7,6 +7,8 @@ import {
   getDrillChoicePlainText,
 } from '../../utils/drillFitLayout';
 import { normalizeSupabaseUrl } from '../../utils/supabaseUrl';
+import { useLessonTheme } from '../../context/LessonThemeContext';
+import PracticeMediaSurface from './PracticeMediaSurface';
 
 interface Choice {
   id: string;
@@ -42,6 +44,7 @@ export default function QuestionWithImage({
   onSubmitTriggerRef,
   onStateChange
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -129,21 +132,23 @@ export default function QuestionWithImage({
         },
       ]}
     >
-      <View style={[styles.imageContainer, { height: layout.mediaHeight }]}>
-        {imageLoading && (
-          <View style={styles.imageLoadingContainer}>
-            <ActivityIndicator size="large" color="#3F9FFF" />
-          </View>
-        )}
-        <Image 
-          source={resolvedSource} 
-          style={[styles.image, imageLoading && styles.imageHidden]} 
-          resizeMode="contain"
-          onLoadStart={() => setImageLoading(true)}
-          onLoadEnd={() => setImageLoading(false)}
-          onError={() => setImageLoading(false)}
-        />
-      </View>
+      <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
+        <View style={[styles.imageContainer, { height: "100%" }]}>
+          {imageLoading && (
+            <View style={styles.imageLoadingContainer}>
+              <ActivityIndicator size="large" color="#3F9FFF" />
+            </View>
+          )}
+          <Image
+            source={resolvedSource}
+            style={[styles.image, imageLoading && styles.imageHidden]}
+            resizeMode="contain"
+            onLoadStart={() => setImageLoading(true)}
+            onLoadEnd={() => setImageLoading(false)}
+            onError={() => setImageLoading(false)}
+          />
+        </View>
+      </PracticeMediaSurface>
 
       <View
         style={[
@@ -162,32 +167,72 @@ export default function QuestionWithImage({
                 : isSelected
                   ? '#FFFFFF'
                   : '#374151';
-          let buttonStyle: object[] = [styles.choiceButton];
+          let buttonStyle: object[] = [
+            styles.choiceButton,
+            isPractice && {
+              backgroundColor: theme.choiceBg,
+              borderColor: "rgba(255,255,255,0.1)",
+            },
+          ];
           let textStyle: object[] = [
             styles.choiceText,
+            isPractice && { color: theme.choiceText },
             {
               fontSize: layout.choiceFontSize,
               lineHeight: layout.choiceLineHeight,
             },
           ];
-          
+
           if (submitted) {
             if (isSelected && isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              buttonStyle = isPractice
+                ? [
+                    styles.choiceButton,
+                    { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
+                  ]
+                : [styles.choiceButton, styles.choiceButtonCorrect];
               textStyle = [styles.choiceText, styles.choiceTextCorrect, { fontSize: layout.choiceFontSize }];
             } else if (isSelected && !isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonWrong];
+              buttonStyle = isPractice
+                ? [
+                    styles.choiceButton,
+                    { backgroundColor: theme.choiceWrongBg, borderColor: "transparent" },
+                  ]
+                : [styles.choiceButton, styles.choiceButtonWrong];
               textStyle = [styles.choiceText, styles.choiceTextWrong, { fontSize: layout.choiceFontSize }];
             } else if (!isSelected && isCorrectChoice) {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonCorrect];
+              buttonStyle = isPractice
+                ? [
+                    styles.choiceButton,
+                    { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
+                  ]
+                : [styles.choiceButton, styles.choiceButtonCorrect];
               textStyle = [styles.choiceText, styles.choiceTextCorrect, { fontSize: layout.choiceFontSize }];
             } else {
-              buttonStyle = [styles.choiceButton, styles.choiceButtonDisabled];
-              textStyle = [styles.choiceText, styles.choiceTextDisabled, { fontSize: layout.choiceFontSize }];
+              buttonStyle = isPractice
+                ? [
+                    styles.choiceButton,
+                    { backgroundColor: theme.choiceDisabledBg, borderColor: "transparent" },
+                  ]
+                : [styles.choiceButton, styles.choiceButtonDisabled];
+              textStyle = [
+                styles.choiceText,
+                isPractice ? { color: theme.choiceDisabledText } : styles.choiceTextDisabled,
+                { fontSize: layout.choiceFontSize },
+              ];
             }
           } else if (isSelected) {
-            buttonStyle = [styles.choiceButton, styles.choiceButtonSelected];
-            textStyle = [styles.choiceText, styles.choiceTextSelected, { fontSize: layout.choiceFontSize }];
+            buttonStyle = isPractice
+              ? [
+                  styles.choiceButton,
+                  { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" },
+                ]
+              : [styles.choiceButton, styles.choiceButtonSelected];
+            textStyle = [
+              styles.choiceText,
+              isPractice ? { color: theme.choiceSelectedText } : styles.choiceTextSelected,
+              { fontSize: layout.choiceFontSize },
+            ];
           }
 
           return (
