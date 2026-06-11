@@ -1,3 +1,5 @@
+import { sanitizeDisplayText } from "./decodeHtmlEntities";
+
 export type ChoiceLike = Record<string, unknown>;
 
 function coerceChoiceString(raw: unknown): string {
@@ -34,7 +36,7 @@ export function getDrillChoiceText(choice: ChoiceLike): string {
   ];
   for (const key of fields) {
     const value = coerceChoiceString(choice[key]);
-    if (value) return value;
+    if (value) return sanitizeDisplayText(value);
   }
   return "";
 }

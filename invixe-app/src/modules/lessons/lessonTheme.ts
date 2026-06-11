@@ -12,6 +12,7 @@ export interface LessonVisualTheme {
   screenBg: string;
   instructionText: string;
   choiceBg: string;
+  choiceBorder: string;
   choiceText: string;
   choiceSelectedBg: string;
   choiceSelectedText: string;
@@ -43,6 +44,7 @@ export const lightTheme: LessonVisualTheme = {
   screenBg: "#E3EEF9",
   instructionText: "#0D2033",
   choiceBg: "#FFFFFF",
+  choiceBorder: "#E5E7EB",
   choiceText: "#0D2033",
   choiceSelectedBg: "#3372D8",
   choiceSelectedText: "#FFFFFF",
@@ -71,7 +73,8 @@ export const practiceTheme: LessonVisualTheme = {
   variant: "practice",
   screenBg: "#0D1424",
   instructionText: "#F4F7FC",
-  choiceBg: "#1A2744",
+  choiceBg: "#2B3F5E",
+  choiceBorder: "rgba(255, 255, 255, 0.2)",
   choiceText: "#F4F7FC",
   choiceSelectedBg: "#2B4A7A",
   choiceSelectedText: "#FFFFFF",
@@ -89,10 +92,10 @@ export const practiceTheme: LessonVisualTheme = {
   speechBubbleBg: "#1A2338",
   speechBubbleText: "#F4F7FC",
   speechBubbleTail: "#1A2338",
-  mediaSurfaceBg: "#E8EEF7",
-  mediaSurfaceBorder: "rgba(63, 159, 255, 0.18)",
-  assetCardBg: "#EDF2F9",
-  assetCardBorder: "rgba(255, 255, 255, 0.5)",
+  mediaSurfaceBg: "#1A2744",
+  mediaSurfaceBorder: "rgba(255, 255, 255, 0.12)",
+  assetCardBg: "#1A2744",
+  assetCardBorder: "rgba(255, 255, 255, 0.12)",
   contentPanelBg: "#141C2E",
 };
 

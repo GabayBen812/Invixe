@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import HtmlText from "../ui/HtmlText";
 import { useLessonTheme } from "../../context/LessonThemeContext";
+import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
 
 export interface MultiSelectOption {
   id: string;
@@ -134,14 +135,23 @@ export default function MultiSelectDrill({
             <Pressable
               key={`${opt.id}-${index}`}
               onPress={() => toggle(opt.id)}
-              style={[styles.optionCard, { backgroundColor: bg }]}
+              style={[
+                styles.optionCard,
+                { backgroundColor: bg },
+                isPractice &&
+                  !submitted &&
+                  !picked && {
+                    borderWidth: 1,
+                    borderColor: theme.choiceBorder,
+                  },
+              ]}
             >
               {opt.imageSource ? (
                 <Image source={opt.imageSource} style={styles.image} />
               ) : null}
               {opt.label ? (
                 <Text style={[styles.optionLabel, { color: textColor }]}>
-                  {opt.label}
+                  {sanitizeDisplayText(opt.label)}
                 </Text>
               ) : null}
             </Pressable>

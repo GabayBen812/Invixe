@@ -13,6 +13,7 @@ import Svg, { Path } from "react-native-svg";
 import CharacterPrimarySVG from "./CharacterPrimarySVG";
 import HtmlText from "../ui/HtmlText";
 import { useLessonTheme } from "../../context/LessonThemeContext";
+import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
 
 interface SpeechBubbleProps {
   message: string;
@@ -49,7 +50,9 @@ export default function SpeechBubble({
 
   // Don't render speech bubble if message is empty or whitespace-only - NEVER render if no text
   // Check multiple conditions to be absolutely sure
-  const trimmedMessage = typeof message === "string" ? message.trim() : "";
+  const displayMessage =
+    typeof message === "string" ? sanitizeDisplayText(message) : "";
+  const trimmedMessage = displayMessage.trim();
   if (
     !message ||
     typeof message !== "string" ||
@@ -61,7 +64,7 @@ export default function SpeechBubble({
   }
 
   // Detect very long messages to save vertical space by hiding the avatar
-  const isVeryLongMessage = message.trim().length > LONG_MESSAGE_THRESHOLD;
+  const isVeryLongMessage = trimmedMessage.length > LONG_MESSAGE_THRESHOLD;
 
   // Random position for drills - randomly choose left or right
   const [randomSide, setRandomSide] = React.useState<"left" | "right" | null>(
@@ -104,17 +107,19 @@ export default function SpeechBubble({
   if (isCenter) alignSelf = "center";
 
   // When message contains HTML, show full text at once (no typing) and render as HTML
-  const hasHtml = /<[^>]+>/.test(message);
+  const hasHtml = /<[^>]+>/.test(displayMessage);
   const effectiveDisableTyping = disableTyping || hasHtml;
 
   // Typing animation state
-  const [typed, setTyped] = React.useState(effectiveDisableTyping ? message : "");
+  const [typed, setTyped] = React.useState(
+    effectiveDisableTyping ? displayMessage : "",
+  );
   const [typing, setTyping] = React.useState(!effectiveDisableTyping);
   const slideIn = React.useRef(new Animated.Value(20)).current;
   const opacity = React.useRef(new Animated.Value(0)).current;
 
   React.useEffect(() => {
-    setTyped(effectiveDisableTyping ? message : "");
+    setTyped(effectiveDisableTyping ? displayMessage : "");
     setTyping(!effectiveDisableTyping);
     if (disableEnterAnim) {
       slideIn.setValue(0);
@@ -136,9 +141,9 @@ export default function SpeechBubble({
     const interval = setInterval(() => {
       i += 1;
       setTyped((prev) => {
-        const nextLen = Math.min(message.length, (prev?.length || 0) + 1);
-        const next = message.slice(0, nextLen);
-        if (nextLen === message.length) {
+        const nextLen = Math.min(displayMessage.length, (prev?.length || 0) + 1);
+        const next = displayMessage.slice(0, nextLen);
+        if (nextLen === displayMessage.length) {
           clearInterval(interval);
           setTyping(false);
         }
@@ -146,7 +151,7 @@ export default function SpeechBubble({
       });
     }, typingSpeedMs);
     return () => clearInterval(interval);
-  }, [message, effectiveDisableTyping, typingSpeedMs, disableEnterAnim]);
+  }, [displayMessage, effectiveDisableTyping, typingSpeedMs, disableEnterAnim]);
 
   // Typing dots animation
   const dot1 = React.useRef(new Animated.Value(0)).current;
@@ -198,21 +203,13 @@ export default function SpeechBubble({
 
   const messageArea = (
     <View style={styles.messageArea}>
-      {hasHtml ? (
-        <HtmlText
-          value={typed}
-          style={[styles.text, isPractice && { color: theme.speechBubbleText }]}
-        />
-      ) : (
-        <Text
-          style={[styles.text, isPractice && { color: theme.speechBubbleText }]}
-        >
-          {typed}
-        </Text>
-      )}
+      <HtmlText
+        value={typed}
+        style={[styles.text, isPractice && { color: theme.speechBubbleText }]}
+      />
       {(typing || buttonText) && (
         <View style={styles.bottomRow}>
-          {typing && typed.length < message.length ? (
+          {typing && typed.length < displayMessage.length ? (
             <View style={styles.typingRow}>
               <Animated.View style={[styles.dot, { opacity: dot1 }]} />
               <Animated.View style={[styles.dot, { opacity: dot2 }]} />
@@ -278,7 +275,14 @@ export default function SpeechBubble({
         ]}
       >
         {!isRight && isCharacterVisible && (
-          <View style={styles.avatarWrap}>{renderAvatar(false)}</View>
+          <View
+            style={[
+              styles.avatarWrap,
+              isPractice && styles.avatarWrapPractice,
+            ]}
+          >
+            {renderAvatar(false)}
+          </View>
         )}
         {messageArea}
       </View>
@@ -311,7 +315,14 @@ export default function SpeechBubble({
     return (
       <View style={[styles.rightWrapper, { alignSelf }]}>
         {bubbleNode}
-        <View style={styles.avatarOutsideWrap}>{renderAvatar(true)}</View>
+        <View
+          style={[
+            styles.avatarOutsideWrap,
+            isPractice && styles.avatarWrapPractice,
+          ]}
+        >
+          {renderAvatar(true)}
+        </View>
       </View>
     );
   }
@@ -384,6 +395,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexShrink: 0,
     marginTop: 8,
+  },
+  avatarWrapPractice: {
+    backgroundColor: "transparent",
   },
   avatar: {
     width: 80,

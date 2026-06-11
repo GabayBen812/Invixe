@@ -12,6 +12,7 @@ import { parseSVGCode } from "../../utils/svgParser";
 import { useDrillViewportHeight } from "./DrillViewport";
 import HtmlText from "../ui/HtmlText";
 import { useLessonTheme } from "../../context/LessonThemeContext";
+import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
 
 export interface SVGMultiSelectOption {
   id: string;
@@ -509,7 +510,7 @@ function SVGMultiSelectDrill({
                     >
                       {opt.label ? (
                         <Text style={styles.yesNoLabel} numberOfLines={1}>
-                          {opt.label}
+                          {sanitizeDisplayText(opt.label)}
                         </Text>
                       ) : null}
                       <View style={styles.yesNoContent}>
@@ -600,7 +601,7 @@ function SVGMultiSelectDrill({
                     >
                       {opt.label ? (
                         <Text style={styles.yesNoLabel} numberOfLines={1}>
-                          {opt.label}
+                          {sanitizeDisplayText(opt.label)}
                         </Text>
                       ) : null}
                       <View style={styles.yesNoContent}>
@@ -764,7 +765,7 @@ function SVGMultiSelectDrill({
                     {renderSVG(opt)}
                     {opt.label ? (
                       <Text style={[styles.optionLabel, { color: textColor }]}>
-                        {opt.label}
+                        {sanitizeDisplayText(opt.label)}
                       </Text>
                     ) : null}
                   </Pressable>

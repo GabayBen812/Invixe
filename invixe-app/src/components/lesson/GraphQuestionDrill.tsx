@@ -306,7 +306,7 @@ export default function GraphQuestionDrill({
             isPractice &&
               !isYesNoPractice && {
                 backgroundColor: theme.choiceBg,
-                borderColor: "transparent",
+                borderColor: theme.choiceBorder,
               },
           ];
 

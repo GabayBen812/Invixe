@@ -231,7 +231,7 @@ export default function QuestionWithSVG({
               styles.choiceButton,
               isPractice && {
                 backgroundColor: theme.choiceBg,
-                borderColor: "rgba(255,255,255,0.1)",
+                borderColor: theme.choiceBorder,
               },
             ];
 

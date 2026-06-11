@@ -75,6 +75,7 @@ import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
 import HtmlText from "../components/ui/HtmlText";
+import { sanitizeDisplayText } from "../utils/decodeHtmlEntities";
 
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
@@ -278,7 +279,8 @@ function SimpleQuestionChoiceList({
           styles.choiceCard,
           isPractice && {
             backgroundColor: theme.choiceBg,
-            borderWidth: 0,
+            borderWidth: 1,
+            borderColor: theme.choiceBorder,
           },
         ];
         let textStyle: object[] = [
@@ -1371,24 +1373,8 @@ export default function LessonScreen({ navigation, route }: Props) {
                 );
               })()}
 
-            {/* Generic speech bubble for other drills */}
-            {!(
-              isDialog ||
-              isExplain ||
-              isTextWithSVG ||
-              isSimpleQuestion ||
-              isSVGMultiSelect ||
-              activityType === "questionWithSVG" ||
-              activityType === "questionWithImage" ||
-              isGraphQuestionActivity ||
-              step.activity === "textWithSVG" ||
-              step.activity === "textWithImageExplain" ||
-              step.activity === "dragMatch" ||
-              (step.activity === "pathSelect" &&
-                pathSelectViewingOption !== null) ||
-              (activityType === "graphQuestionPNG" &&
-                graphQuestionPNGViewingExplanation)
-            ) &&
+            {/* Generic speech bubble for drills without a dedicated bubble above */}
+            {!isGenericBubbleExcluded &&
               (() => {
                 const bubbleMessage = showingDrillExplanation
                   ? drillExplanation || step.message
@@ -1436,7 +1422,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                               choices.length === 1 &&
                               choices[0] &&
                               step.id !== "simple_text_step"
-                            ? choices[0].text
+                            ? sanitizeDisplayText(choices[0].text)
                             : undefined
                     }
                     onButtonPress={
@@ -2908,7 +2894,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     onPress={() => handleChoicePress(choices[0])}
                   >
                     <Text style={styles.primaryButtonText}>
-                      {choices[0].text || "המשך"}
+                      {sanitizeDisplayText(choices[0].text || "המשך")}
                     </Text>
                   </Pressable>
                 )}

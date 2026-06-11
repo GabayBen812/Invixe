@@ -160,18 +160,16 @@ export default function QuestionWithImage({
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
           const labelColor =
-            submitted && (isSelected || isCorrectChoice)
+            submitted || isSelected
               ? '#FFFFFF'
-              : submitted
-                ? '#374151'
-                : isSelected
-                  ? '#FFFFFF'
-                  : '#374151';
+              : isPractice
+                ? theme.choiceText
+                : '#374151';
           let buttonStyle: object[] = [
             styles.choiceButton,
             isPractice && {
               backgroundColor: theme.choiceBg,
-              borderColor: "rgba(255,255,255,0.1)",
+              borderColor: theme.choiceBorder,
             },
           ];
           let textStyle: object[] = [

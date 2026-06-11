@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, useWindowDimensions, StyleSheet, TextStyle, StyleProp } from "react-native";
 import RenderHtml from "react-native-render-html";
+import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
 
 const defaultTextStyle: TextStyle = {
   fontSize: 18,
@@ -104,21 +105,22 @@ export default function HtmlText({
     return null;
   }
 
-  const isHtml = looksLikeHtml(value);
+  const decoded = sanitizeDisplayText(value);
+  const isHtml = looksLikeHtml(decoded);
   const flatStyle = StyleSheet.flatten([defaultTextStyle, style]) as TextStyle | undefined;
   const resolvedColor = contentColor ?? flatStyle?.color;
 
   if (!isHtml) {
     return (
       <Text style={[defaultTextStyle, style, resolvedColor ? { color: resolvedColor } : null]}>
-        {value}
+        {decoded}
       </Text>
     );
   }
 
   // Malformed HTML (e.g. </p< or >/p<) would show as raw tags; strip and show plain text.
-  if (looksLikeMalformedHtml(value)) {
-    const plain = stripTagLikeContent(value);
+  if (looksLikeMalformedHtml(decoded)) {
+    const plain = stripTagLikeContent(decoded);
     return (
       <Text style={[defaultTextStyle, style, resolvedColor ? { color: resolvedColor } : null]}>
         {plain}
@@ -126,7 +128,7 @@ export default function HtmlText({
     );
   }
 
-  const html = stripInlineColorsFromHtml(value);
+  const html = stripInlineColorsFromHtml(decoded);
 
   let mergedTagsStyles = { ...defaultTagsStyles, ...customTagsStyles };
   if (resolvedColor) {
