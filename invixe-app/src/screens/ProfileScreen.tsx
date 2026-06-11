@@ -19,6 +19,7 @@ import ProfileStatTile from "../components/profile/ProfileStatTile";
 import ProfileStreakCard from "../components/profile/ProfileStreakCard";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
+import { useDictionary } from "../context/DictionaryContext";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useLessons } from "../context/LessonsContext";
 import Svg, { Path } from "react-native-svg";
@@ -130,6 +131,7 @@ export default function ProfileScreen({ navigation }: Props) {
     firstName,
     lastName,
   } = useUser();
+  const { openDictionary, unlockMap } = useDictionary();
   const { lessonsRegistry } = useLessons();
   const {
     holdings: portfolio,
@@ -178,7 +180,7 @@ export default function ProfileScreen({ navigation }: Props) {
   }, [lessonAttempts]);
 
   const unlockedTermsCount = DICTIONARY_ENTRIES.filter((entry) =>
-    isEntryUnlocked(entry, completedLessons),
+    isEntryUnlocked(entry, completedLessons, unlockMap),
   ).length;
 
   const coursesInProgress = countUnitsInProgress(
@@ -367,6 +369,7 @@ export default function ProfileScreen({ navigation }: Props) {
             label="מונחים נלמדו"
             value={String(unlockedTermsCount)}
             style={styles.statCellDividerStart}
+            onPress={() => openDictionary()}
           />
           <ProfileStatTile
             icon={<StatXpIcon />}

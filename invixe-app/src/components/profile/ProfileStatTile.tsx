@@ -2,6 +2,7 @@ import React from "react";
 import {
   View,
   Text,
+  Pressable,
   StyleSheet,
   type StyleProp,
   type ViewStyle,
@@ -14,6 +15,7 @@ type Props = {
   label: string;
   value: string;
   style?: StyleProp<ViewStyle>;
+  onPress?: () => void;
 };
 
 export default function ProfileStatTile({
@@ -22,16 +24,34 @@ export default function ProfileStatTile({
   label,
   value,
   style,
+  onPress,
 }: Props) {
-  return (
-    <View style={[styles.cell, style]}>
+  const content = (
+    <>
       <View style={[styles.iconBox, { backgroundColor: iconBackground }]}>
         {icon}
       </View>
       <Text style={styles.label}>{label}</Text>
       <Text style={styles.value}>{value}</Text>
-    </View>
+    </>
   );
+
+  if (onPress) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.cell,
+          style,
+          pressed && styles.cellPressed,
+        ]}
+      >
+        {content}
+      </Pressable>
+    );
+  }
+
+  return <View style={[styles.cell, style]}>{content}</View>;
 }
 
 const styles = StyleSheet.create({
@@ -42,6 +62,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  cellPressed: {
+    opacity: 0.85,
   },
   iconBox: {
     width: 40,

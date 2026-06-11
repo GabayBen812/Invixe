@@ -80,6 +80,38 @@ router.get('/registry', async (req, res) => {
   }
 });
 
+// GET /api/v2/lessons/dictionary-unlocks
+// Returns a map of dictionary entry id -> array of lesson codes that unlock it.
+// Driven by the Lesson.unlocksdictionary column (see migrations/add_dictionary_unlocks.sql).
+router.get('/dictionary-unlocks', async (req, res) => {
+  try {
+    const supabase = getSupabase(req);
+    const { data: lessons, error } = await supabase
+      .from('Lesson')
+      .select('code, unlocksdictionary');
+    if (error) {
+      // Column may not exist yet (pre-migration) - degrade gracefully.
+      console.warn('dictionary-unlocks: query failed, returning empty map', error.message);
+      return res.json({});
+    }
+
+    const map = {};
+    (lessons || []).forEach((l) => {
+      const entryIds = Array.isArray(l.unlocksdictionary) ? l.unlocksdictionary : [];
+      entryIds.forEach((entryId) => {
+        if (!entryId) return;
+        if (!map[entryId]) map[entryId] = [];
+        if (!map[entryId].includes(l.code)) map[entryId].push(l.code);
+      });
+    });
+
+    return res.json(map);
+  } catch (err) {
+    console.error('GET /api/v2/lessons/dictionary-unlocks error', err);
+    return res.json({});
+  }
+});
+
 // GET /api/v2/lessons/:code/steps
 // Optional query: ?unitId=<uuid>
 // When unitId is provided, we return the lesson that matches BOTH code and unit.

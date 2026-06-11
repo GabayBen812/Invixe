@@ -11,8 +11,9 @@ import { UserProvider } from "./src/context/UserContext";
 import { PortfolioProvider } from "./src/context/PortfolioContext";
 import { LessonsProvider } from "./src/context/LessonsContext";
 import { DictionaryProvider } from "./src/context/DictionaryContext";
-import DictionaryDrawer from "./src/components/dictionary/DictionaryDrawer";
+import DictionaryModal from "./src/components/dictionary/DictionaryModal";
 import * as SplashScreen from "expo-splash-screen";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import ErrorBoundary from "./src/components/ErrorBoundary";
 
 // Keep the splash screen visible while we fetch resources
@@ -58,19 +59,21 @@ export default function App() {
   if (!fontsLoaded && !fontFallbackReady) return null;
 
   return (
-    <RegistrationProvider>
-      <UserProvider>
-        <PortfolioProvider>
-        <LessonsProvider>
-          <DictionaryProvider>
-            <ErrorBoundary>
-              <AppNavigator />
-              <DictionaryDrawer />
-            </ErrorBoundary>
-          </DictionaryProvider>
-        </LessonsProvider>
-        </PortfolioProvider>
-      </UserProvider>
-    </RegistrationProvider>
+    <SafeAreaProvider>
+      <RegistrationProvider>
+        <UserProvider>
+          <PortfolioProvider>
+            <LessonsProvider>
+              <DictionaryProvider>
+                <ErrorBoundary>
+                  <AppNavigator />
+                  <DictionaryModal />
+                </ErrorBoundary>
+              </DictionaryProvider>
+            </LessonsProvider>
+          </PortfolioProvider>
+        </UserProvider>
+      </RegistrationProvider>
+    </SafeAreaProvider>
   );
 }

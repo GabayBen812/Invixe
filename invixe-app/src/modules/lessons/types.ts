@@ -267,6 +267,8 @@ export interface LessonStep {
 export interface Choice {
   text: string;
   nextStep: string;
+  dictionaryTopicId?: string;
+  dictionaryTermId?: string;
   style?: "primary" | "secondary" | "danger";
   consequences?: {
     addInventory?: Partial<Inventory>;

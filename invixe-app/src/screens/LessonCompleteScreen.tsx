@@ -489,7 +489,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
               adjustsFontSizeToFit
               minimumFontScale={0.8}
             >
-              פתחו את מילון המושגים לראות מה למדתם
+              חזרה מהירה למושגים שלמדתם
             </Text>
           </Pressable>
         </View>

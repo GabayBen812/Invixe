@@ -73,7 +73,12 @@ export const lessonSteps: LessonStep[] = [
     backgroundImage: "bg1",
     visual: "dragonflyCandle",
     choices: [
-      { text: "שמור במילון", nextStep: "map" },
+      {
+        text: "שמור במילון",
+        nextStep: "map",
+        dictionaryTopicId: "candles",
+        dictionaryTermId: "dragonfly-doji",
+      },
     ],
     characterImg: "character_blue_yellow.png",
     bubblePosition: "bottomLeft",

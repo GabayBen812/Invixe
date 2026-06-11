@@ -12,6 +12,7 @@ import Svg, {
 } from "react-native-svg";
 import { useUser } from "../../context/UserContext";
 import { useDictionary } from "../../context/DictionaryContext";
+import theme from "../../theme";
 import MoneyIconSource from "../../assets/money.svg";
 
 // Invixe logo SVG (converted)
@@ -94,18 +95,24 @@ export default function TopBar() {
       <View style={styles.rightSection}>
         <View style={styles.iconWithText}>
           <MoneyIcon />
-          <Text style={styles.count}>{coins}</Text>
+          <Text style={styles.count} numberOfLines={1}>
+            {coins}
+          </Text>
         </View>
         <View style={styles.iconWithText}>
           <LightningIcon />
-          <Text style={styles.count}>{lightnings}</Text>
+          <Text style={styles.count} numberOfLines={1}>
+            {lightnings}
+          </Text>
         </View>
-        {/* <Pressable
+        <Pressable
           onPress={() => openDictionary()}
           style={styles.dictionaryButton}
+          accessibilityRole="button"
+          accessibilityLabel="מילון מושגים"
         >
           <DictionaryIcon />
-        </Pressable> */}
+        </Pressable>
       </View>
     </View>
   );
@@ -126,15 +133,23 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     marginTop: 15,
+    flexShrink: 1,
+    justifyContent: "flex-end",
   },
   dictionaryButton: {
-    marginLeft: 16,
-    padding: 4,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: theme.colors.info[100],
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
   },
   iconWithText: {
     flexDirection: "row",
     alignItems: "center",
-    marginLeft: 16,
+    marginLeft: 10,
+    flexShrink: 1,
   },
   count: {
     fontSize: 18,

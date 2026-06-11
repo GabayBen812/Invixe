@@ -20,7 +20,9 @@ import {
 import { countGradedFromDrillResult } from "../utils/lessonResults";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
-import { LessonStep } from "../modules/lessons/types";
+import { LessonStep, Choice } from "../modules/lessons/types";
+import { useDictionary } from "../context/DictionaryContext";
+import { getDictionaryLinkForChoice } from "../data/dictionary";
 import { findLessonInRegistry } from "../modules/lessons/lessonNavigation";
 import {
   getThemeForLesson,
@@ -363,6 +365,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     lightnings,
     setLightnings,
   } = useUser();
+  const { openDictionary } = useDictionary();
   const { getLessonSteps, lessonsRegistry } = useLessons();
   const lessonMeta = findLessonInRegistry(lessonsRegistry, lessonId)?.lesson;
   const visualTheme = getThemeForLesson(lessonMeta);
@@ -831,6 +834,18 @@ export default function LessonScreen({ navigation, route }: Props) {
       // Fallback for activities that don't set selectedChoiceIdx (like graphQuestionPNG)
       handleChoice(step.choices[0].nextStep);
     }
+  };
+
+  const handleChoicePress = (choice: Choice) => {
+    const dictionaryLink = getDictionaryLinkForChoice(
+      choice,
+      lessonId,
+      step?.visual,
+    );
+    if (dictionaryLink) {
+      openDictionary(dictionaryLink.topicId, dictionaryLink.termId);
+    }
+    handleChoice(choice.nextStep);
   };
 
   const handleChoice = (nextStep: string) => {
@@ -2866,9 +2881,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                     <Pressable
                       style={styles.primaryButton}
                       onPress={() => {
-                        const next = choices[selectedChoiceIdx!].nextStep;
+                        const choice = choices[selectedChoiceIdx!];
                         setSelectedChoiceIdx(null);
-                        handleChoice(next);
+                        handleChoicePress(choice);
                       }}
                     >
                       <Text style={styles.primaryButtonText}>אישור</Text>
@@ -2890,7 +2905,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 step.id !== "simple_text_step" && (
                   <Pressable
                     style={styles.primaryButton}
-                    onPress={() => handleChoice(choices[0].nextStep)}
+                    onPress={() => handleChoicePress(choices[0])}
                   >
                     <Text style={styles.primaryButtonText}>
                       {choices[0].text || "המשך"}
