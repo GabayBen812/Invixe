@@ -1,7 +1,12 @@
-import React, { useState } from "react";
+import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import DrillChoiceLabel from "./DrillChoiceLabel";
 import { getDrillChoicePlainText } from "../../utils/drillFitLayout";
+import {
+  useChoiceDrillLayout,
+  useUniformChoiceRowHeight,
+} from "../../hooks/useChoiceDrillLayout";
+import { useLessonTheme } from "../../context/LessonThemeContext";
 
 export interface PathOption {
   id: string;
@@ -16,10 +21,6 @@ export interface PathOption {
   explanationSvgPublicUrl?: string;
   explanationSvgPath?: string;
   isComplexMedia?: boolean;
-  // Optional additional explanation screens for this option.
-  // The drill UI itself doesn't use these directly, but they are
-  // available so the lesson screen can render multiple explanation
-  // screens per option if needed.
   extraExplanations?: Array<{
     id: string;
     explanation?: string;
@@ -38,43 +39,73 @@ interface Props {
   submitText?: string;
   onOptionSelect: (optionId: string) => void;
   onContinue: () => void;
-  completedOptions: Set<string>; // Set of completed option IDs
+  completedOptions: Set<string>;
 }
 
 export default function PathSelectDrill({
   options,
-  submitText = "המשך",
   onOptionSelect,
-  onContinue,
   completedOptions,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const hasExploredAtLeastOne = completedOptions.size >= 1;
   const visibleOptions = options.filter(
     (o) => getDrillChoicePlainText(o as Record<string, unknown>).length > 0,
   );
-  const choiceGap = 12;
+  const layout = useChoiceDrillLayout(visibleOptions.length, { hasMedia: false });
+  const uniformRowHeight = useUniformChoiceRowHeight(
+    visibleOptions as Record<string, unknown>[],
+    layout,
+  );
 
   return (
     <View style={styles.container}>
       {hasExploredAtLeastOne && (
-        <Text style={styles.hintText}>
+        <Text
+          style={[
+            styles.hintText,
+            isPractice && { color: theme.choiceDisabledText },
+          ]}
+        >
           אפשר להמשיך לשלב הבא או לבחור שאלה נוספת
         </Text>
       )}
-      <View style={[styles.optionsContainer, { gap: choiceGap }]}>
+      <View style={[styles.optionsContainer, { gap: layout.choiceGap }]}>
         {visibleOptions.map((option) => {
           const isCompleted = completedOptions.has(option.id);
+
           return (
             <Pressable
               key={option.id}
-              style={[
+              style={({ pressed }) => [
                 styles.optionCard,
                 {
-                  paddingVertical: 14,
-                  paddingHorizontal: 16,
+                  paddingVertical: layout.choicePaddingVertical,
+                  paddingHorizontal: layout.choicePaddingHorizontal,
+                  minHeight: uniformRowHeight,
+                  height: uniformRowHeight,
                 },
+                isPractice
+                  ? {
+                      backgroundColor: theme.choiceBg,
+                      borderColor: theme.choiceBorder,
+                      borderWidth: 1,
+                    }
+                  : styles.optionCardLight,
+                pressed && !isCompleted && styles.optionCardPressed,
+                pressed &&
+                  !isCompleted &&
+                  isPractice && {
+                    backgroundColor: theme.choiceSelectedBg,
+                    borderColor: "transparent",
+                  },
                 isCompleted && styles.optionCardCompleted,
-                isCompleted && styles.optionCardDisabled,
+                isCompleted &&
+                  isPractice && {
+                    backgroundColor: theme.choiceDisabledBg,
+                    borderColor: "transparent",
+                    opacity: 0.75,
+                  },
               ]}
               onPress={() => {
                 if (!isCompleted) {
@@ -83,15 +114,34 @@ export default function PathSelectDrill({
               }}
               disabled={isCompleted}
             >
-              <DrillChoiceLabel
-                choice={option}
-                color={isCompleted ? "#666666" : "#0D2033"}
-                style={[
-                  styles.optionText,
-                  isCompleted && styles.optionTextCompleted,
-                ]}
-              />
-              {isCompleted && <Text style={styles.completedIndicator}>✓</Text>}
+              {({ pressed }) => {
+                const labelColor = isCompleted
+                  ? isPractice
+                    ? theme.choiceDisabledText
+                    : "#9CA3AF"
+                  : pressed
+                    ? "#FFFFFF"
+                    : isPractice
+                      ? theme.choiceText
+                      : "#0D2033";
+
+                return (
+                  <View style={styles.labelWrap}>
+                    <DrillChoiceLabel
+                      choice={option}
+                      color={labelColor}
+                      style={{
+                        fontSize: layout.choiceFontSize,
+                        lineHeight: layout.choiceLineHeight,
+                        fontWeight: "700",
+                      }}
+                    />
+                    {isCompleted && (
+                      <Text style={styles.completedIndicator}>✓</Text>
+                    )}
+                  </View>
+                );
+              }}
             </Pressable>
           );
         })}
@@ -105,7 +155,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignItems: "center",
     justifyContent: "flex-start",
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
     paddingTop: 4,
   },
   hintText: {
@@ -118,37 +168,49 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     width: "100%",
-    maxWidth: 480,
+    maxWidth: 420,
+    alignSelf: "center",
   },
   optionCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: "#3F9FFF",
+    width: "100%",
+    borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
   },
+  labelWrap: {
+    width: "100%",
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  optionCardLight: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 0,
+    shadowColor: "#101828",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  optionCardPressed: {
+    backgroundColor: "#3372D8",
+    shadowColor: "#3F9FFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   optionCardCompleted: {
-    backgroundColor: "#F0F0F0",
-    borderColor: "#CCCCCC",
-    opacity: 0.6,
-  },
-  optionCardDisabled: {
-    // Additional disabled styling if needed
-  },
-  optionText: {
-    fontWeight: "700",
-    color: "#0D2033",
-    textAlign: "center",
-  },
-  optionTextCompleted: {
-    color: "#666666",
+    backgroundColor: "#F3F4F6",
+    shadowOpacity: 0,
+    elevation: 0,
+    opacity: 0.85,
   },
   completedIndicator: {
     position: "absolute",
     right: 16,
     fontSize: 20,
-    color: "#62D24C",
+    color: "#12B76A",
     fontWeight: "800",
   },
 });

@@ -234,20 +234,28 @@ export default function SpeechBubble({
   // Character is visible when: showCharacter is true and not a very long message
   const isCharacterVisible = hasCharacter && !isVeryLongMessage;
 
-  // Character INSIDE the bubble = left or center (avatar in same row as message).
-  // Character BESIDE the bubble = right only (avatar in avatarOutsideWrap next to bubble).
-  // Only show tail when character is BESIDE the bubble (right side). Hide tail when character is inside.
-  const shouldShowTail = isCharacterVisible && isRight;
+  // Character BESIDE the bubble = left or right (avatar next to the bubble, with a tail).
+  // Character INSIDE the bubble = center only (avatar in same row as message, no tail).
+  const characterBeside = isCharacterVisible && (isLeft || isRight);
+  const avatarInside = isCharacterVisible && !characterBeside;
+  const shouldShowTail = characterBeside;
 
-  // Tail points toward the character. When character is on the right, tail is on right edge of bubble pointing right.
+  // Tail points toward the character at mouth height, on the bubble edge nearest the avatar.
   const getTailStyle = () => {
     if (isRight) {
-      // Character beside on right: tail on right edge of bubble, triangle pointing right toward character
       return {
         style: styles.tailRightTowardCharacter,
-        path: "M 0 0 L 14 6 L 0 12 Z",
-        width: 14,
-        height: 12,
+        path: "M 0 0 L 12 7 L 0 14 Z",
+        width: 12,
+        height: 14,
+      };
+    }
+    if (isLeft) {
+      return {
+        style: styles.tailLeftTowardCharacter,
+        path: "M 12 0 L 0 7 L 12 14 Z",
+        width: 12,
+        height: 14,
       };
     }
     return null;
@@ -261,8 +269,8 @@ export default function SpeechBubble({
           backgroundColor: theme.speechBubbleBg,
         },
         { alignSelf, transform: [{ translateY: slideIn }], opacity },
-        // Only constrain width for right-side layout when avatar is visible
-        isRight && isCharacterVisible && styles.bubbleContainerRight,
+        // Constrain width when the avatar sits beside the bubble (left or right)
+        characterBeside && styles.bubbleContainerBeside,
         // When no character, make it full-width and centered
         !isCharacterVisible && styles.bubbleContainerNoCharacter,
       ]}
@@ -274,7 +282,7 @@ export default function SpeechBubble({
           !isCharacterVisible && styles.rowNoCharacter,
         ]}
       >
-        {!isRight && isCharacterVisible && (
+        {avatarInside && (
           <View
             style={[
               styles.avatarWrap,
@@ -305,24 +313,24 @@ export default function SpeechBubble({
     </Animated.View>
   );
 
-  if (isRight) {
-    // For very long messages or when no character, don't show the avatar at all – just use the full-width bubble
-    // This overrides any character display settings to prevent the bubble from becoming too tall
-    if (!isCharacterVisible) {
-      return bubbleNode;
-    }
+  if (characterBeside) {
+    const avatarNode = (
+      <View
+        style={[
+          styles.avatarOutsideWrap,
+          isPractice && styles.avatarWrapPractice,
+        ]}
+      >
+        {/* Flip so the character faces the bubble: face left when on the right, face right when on the left */}
+        {renderAvatar(isRight)}
+      </View>
+    );
 
     return (
-      <View style={[styles.rightWrapper, { alignSelf }]}>
+      <View style={[styles.besideWrapper, { alignSelf }]}>
+        {isLeft && avatarNode}
         {bubbleNode}
-        <View
-          style={[
-            styles.avatarOutsideWrap,
-            isPractice && styles.avatarWrapPractice,
-          ]}
-        >
-          {renderAvatar(true)}
-        </View>
+        {isRight && avatarNode}
       </View>
     );
   }
@@ -347,11 +355,11 @@ const styles = StyleSheet.create({
     // elevation: 6,
     position: "relative",
   },
-  bubbleContainerRight: {
+  bubbleContainerBeside: {
     marginLeft: 0,
     flex: 1,
     minWidth: 0,
-    maxWidth: "70%",
+    maxWidth: "74%",
   },
   bubbleContainerNoCharacter: {
     width: "100%",
@@ -368,7 +376,7 @@ const styles = StyleSheet.create({
   rowNoCharacter: {
     justifyContent: "center",
   },
-  rightWrapper: {
+  besideWrapper: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 12,
@@ -475,9 +483,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  // Tail sits near the avatar's mouth (avatar is top-aligned with ~8px offset, ~80px tall).
   tailRightTowardCharacter: {
-    right: -14,
-    top: "50%",
-    marginTop: -6,
+    right: -10,
+    top: 46,
+  },
+  tailLeftTowardCharacter: {
+    left: -10,
+    top: 46,
   },
 });

@@ -92,6 +92,47 @@ export type ChoiceDrillLayout = {
   containerPadding: number;
 };
 
+/** Estimate wrapped line count for a choice label at a given width. */
+export function estimateChoiceLineCount(
+  text: string,
+  fontSize: number,
+  contentWidth: number,
+): number {
+  const trimmed = text.trim();
+  if (!trimmed) return 1;
+
+  const approxCharWidth = fontSize * 0.54;
+  const charsPerLine = Math.max(8, Math.floor(contentWidth / approxCharWidth));
+  const words = trimmed.split(/\s+/);
+  let lines = 1;
+  let currentLen = 0;
+
+  for (const word of words) {
+    const wordLen = word.length;
+    if (currentLen === 0) {
+      currentLen = wordLen;
+      continue;
+    }
+    if (currentLen + 1 + wordLen <= charsPerLine) {
+      currentLen += 1 + wordLen;
+    } else {
+      lines += 1;
+      currentLen = wordLen;
+    }
+  }
+
+  return Math.min(lines, 6);
+}
+
+/** Fixed row height so every choice button matches the tallest label. */
+export function computeUniformChoiceRowHeight(
+  layout: ChoiceDrillLayout,
+  lineCount: number,
+): number {
+  const lines = Math.max(1, lineCount);
+  return layout.choicePaddingVertical * 2 + layout.choiceLineHeight * lines;
+}
+
 /** Fit choices (+ optional media) in the viewport with even, readable spacing. */
 export function computeChoiceDrillLayout(
   viewportHeight: number,
@@ -133,8 +174,9 @@ export function computeChoiceDrillLayout(
 
     const choicesMinHeight = Math.ceil(totalChoices);
     const mediaBudget = Math.max(80, usable - choicesMinHeight - stackGap - 8);
+    const mediaCapFraction = count <= 2 ? 0.34 : 0.42;
     const mediaHeight = Math.min(
-      Math.max(100, Math.floor(usable * 0.42)),
+      Math.max(100, Math.floor(usable * mediaCapFraction)),
       mediaBudget,
     );
 

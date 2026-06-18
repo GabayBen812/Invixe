@@ -1,8 +1,10 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { View, Text, Pressable, Image, StyleSheet } from 'react-native';
+import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, Pressable, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import { SvgUri } from 'react-native-svg';
 import { parseSVGCode } from '../../utils/svgParser';
 import { fetchRemoteText } from '../../utils/remoteAssetCache';
 import { useLessonTheme } from '../../context/LessonThemeContext';
+import { normalizeSupabaseUrl } from '../../utils/supabaseUrl';
 
 export interface CarouselItem {
   id: string;
@@ -67,6 +69,21 @@ export default function CarouselSelectDrill({
 
   const normalizedItems = useMemo(() => items.length > 0 ? items : [], [items]);
   const selected = normalizedItems[index] || normalizedItems[0];
+  const itemAssetKey = useMemo(
+    () =>
+      normalizedItems
+        .map((i) => `${i.id}:${i.svgPublicUrl || i.svgUrl || i.svgCode || i.imageKey || ''}`)
+        .join('|'),
+    [normalizedItems],
+  );
+
+  const onStateChangeRef = useRef(onStateChange);
+  onStateChangeRef.current = onStateChange;
+  const lastNotifiedStateRef = useRef({
+    submitted: false,
+    showingFeedback: false,
+    isCorrect: false,
+  });
 
   // Fetch SVGs from URLs
   useEffect(() => {
@@ -91,12 +108,16 @@ export default function CarouselSelectDrill({
       await Promise.all(promises);
     };
     fetchSVGs();
-  }, [normalizedItems.map(i => i.svgPublicUrl || i.svgUrl || i.id).join(',')]);
+  }, [itemAssetKey]);
 
   const renderItemContent = (item: CarouselItem) => {
-    // Priority: 1) svgPublicUrl (from cache), 2) svgCode, 3) svgUrl (from cache), 4) imageSource/imageKey
+    const remoteUrl = normalizeSupabaseUrl(item.svgPublicUrl || item.svgUrl || '') ||
+      item.svgPublicUrl ||
+      item.svgUrl;
+
+    // Priority: cached SVG text, inline svgCode, then live URL via SvgUri
     let svgCodeToParse: string | undefined;
-    
+
     if (item.svgPublicUrl && svgCache[item.id]) {
       svgCodeToParse = svgCache[item.id];
     } else if (item.svgCode) {
@@ -104,34 +125,46 @@ export default function CarouselSelectDrill({
     } else if (item.svgUrl && svgCache[item.id]) {
       svgCodeToParse = svgCache[item.id];
     }
-    
+
     if (svgCodeToParse) {
       const cacheKey = `${item.id}-${svgCodeToParse.substring(0, 50)}`;
       if (parsedCacheRef.current[cacheKey]) {
         return (
-          <View style={{ width: 90, height: 140, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={styles.itemMediaFrame}>
             {parsedCacheRef.current[cacheKey]}
           </View>
         );
       }
-      
+
       const parsedSVG = parseSVGCode(svgCodeToParse);
       if (parsedSVG) {
         parsedCacheRef.current[cacheKey] = parsedSVG;
-        return (
-          <View style={{ width: 90, height: 140, alignItems: 'center', justifyContent: 'center' }}>
-            {parsedSVG}
-          </View>
-        );
+        return <View style={styles.itemMediaFrame}>{parsedSVG}</View>;
       }
     }
-    
-    // Fallback to imageSource/imageKey
+
+    if (remoteUrl) {
+      return (
+        <View style={styles.itemMediaFrame}>
+          <SvgUri
+            uri={remoteUrl}
+            width={90}
+            height={140}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </View>
+      );
+    }
+
     if (item.imageSource) {
       return <Image source={item.imageSource} style={styles.image} />;
     }
-    
-    return null;
+
+    return (
+      <View style={styles.itemMediaFrame}>
+        <ActivityIndicator size="small" color="#3372D8" />
+      </View>
+    );
   };
 
   const goLeft = () => {
@@ -143,46 +176,67 @@ export default function CarouselSelectDrill({
     setIndex(prev => (prev + 1) % normalizedItems.length);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (submitted) return;
-    const correct = selected?.id === correctId;
+    const current = normalizedItems[index] || normalizedItems[0];
+    const correct = current?.id === correctId;
     setSubmitted(true);
     setIsCorrect(correct);
     setShowingExplanation(true);
-  };
+  }, [submitted, normalizedItems, index, correctId]);
 
-  const handleContinue = () => {
-    const correct = selected?.id === correctId;
+  const handleContinue = useCallback(() => {
+    const current = normalizedItems[index] || normalizedItems[0];
+    const correct = current?.id === correctId;
     const explanation = correct ? (correctExplanation || '') : (wrongExplanation || '');
-    onSubmit({ 
-      correct, 
-      selectedId: selected?.id, 
+    onSubmit({
+      correct,
+      selectedId: current?.id,
       isCorrect: correct,
-      explanation
+      explanation,
     });
-  };
+  }, [normalizedItems, index, correctId, correctExplanation, wrongExplanation, onSubmit]);
 
-  const handleTryAgain = () => {
+  const handleTryAgain = useCallback(() => {
     setSubmitted(false);
     setShowingExplanation(false);
     setIsCorrect(false);
-  };
+  }, []);
 
-  const submitOnce = showingExplanation ? handleContinue : handleSubmit;
+  const submitOnce = useCallback(() => {
+    if (showingExplanation) {
+      handleContinue();
+    } else {
+      handleSubmit();
+    }
+  }, [showingExplanation, handleContinue, handleSubmit]);
 
   useEffect(() => {
-    onStateChange?.({
+    const next = {
       submitted,
       showingFeedback: submitted && showingExplanation,
       isCorrect,
-    });
-  }, [submitted, showingExplanation, isCorrect, onStateChange]);
+    };
+    const prev = lastNotifiedStateRef.current;
+    if (
+      prev.submitted === next.submitted &&
+      prev.showingFeedback === next.showingFeedback &&
+      prev.isCorrect === next.isCorrect
+    ) {
+      return;
+    }
+    lastNotifiedStateRef.current = next;
+    onStateChangeRef.current?.(next);
+  }, [submitted, showingExplanation, isCorrect]);
 
   // Expose programmatic submit trigger for the shared global button
   useEffect(() => {
     if (!onSubmitTriggerRef) return;
     onSubmitTriggerRef.current = submitOnce;
-  }, [onSubmitTriggerRef, submitOnce, selected, correctId, correctExplanation, wrongExplanation, submitted, showingExplanation]);
+    return () => {
+      onSubmitTriggerRef.current = null;
+    };
+  }, [onSubmitTriggerRef, submitOnce]);
 
   useEffect(() => {
     if (!onRetryTriggerRef) return;
@@ -306,13 +360,13 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   carouselRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     width: '100%',
-    marginTop: 4,
   },
   arrowButton: {
     width: 44,
@@ -344,6 +398,13 @@ const styles = StyleSheet.create({
     height: 210,
     borderRadius: 120,
     backgroundColor: '#EAF3FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  itemMediaFrame: {
+    width: 90,
+    height: 140,
     alignItems: 'center',
     justifyContent: 'center',
   },

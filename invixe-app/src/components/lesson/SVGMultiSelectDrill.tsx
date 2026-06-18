@@ -175,29 +175,54 @@ function SVGMultiSelectDrill({
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const drillViewportHeight = useDrillViewportHeight();
 
-  /** Lesson yes/no SVGs embed all copy in the graphic — need a tall, non-shrinking frame. */
-  const yesNoMediaSize = useMemo(() => {
-    const timelineWidth = 36;
-    const rowPadding = 20;
-    const cardWidth = Math.max(
-      148,
-      Math.floor(
-        (screenWidth - rowPadding * 2 - timelineWidth - 12) / 2 - 20,
+  /** Two-option timeline layout — compact for icon SVGs, slightly taller when labels exist. */
+  const yesNoHasLabels = useMemo(
+    () => options.some((o) => (o.label?.trim().length ?? 0) > 0),
+    [options],
+  );
+  const yesNoHasLongLabels = useMemo(
+    () =>
+      options.some(
+        (o) => sanitizeDisplayText(o.label || "").replace(/\s+/g, " ").length > 24,
       ),
-    );
-    const heightFromAspect = Math.round(cardWidth * 2.25);
-    const viewportBudget =
-      drillViewportHeight > 120
-        ? drillViewportHeight - 20
-        : Math.floor(screenHeight * 0.44);
-    const cardHeight = Math.min(
-      Math.max(heightFromAspect, 280),
-      Math.max(viewportBudget, 280),
-    );
-    return { width: cardWidth, height: cardHeight };
-  }, [screenWidth, screenHeight, drillViewportHeight]);
+    [options],
+  );
 
-  const yesNoBlockMinHeight = yesNoMediaSize.height + 56;
+  const yesNoMediaSize = useMemo(() => {
+    const timelineWidth = 40;
+    const rowPadding = 16;
+    const cardWidth = Math.max(
+      136,
+      Math.floor((screenWidth - rowPadding * 2 - timelineWidth - 16) / 2),
+    );
+
+    const labelAllowance = yesNoHasLongLabels ? 84 : yesNoHasLabels ? 40 : 0;
+    const chromeAllowance = 36;
+
+    let mediaHeight = yesNoHasLongLabels
+      ? 16
+      : yesNoHasLabels
+        ? Math.min(100, Math.round(cardWidth * 0.45))
+        : Math.min(128, Math.max(90, Math.round(cardWidth * 0.82)));
+
+    const viewportCap =
+      drillViewportHeight > 120
+        ? Math.floor((drillViewportHeight - 96) * 0.38)
+        : Math.floor(screenHeight * 0.2);
+
+    mediaHeight = Math.min(mediaHeight, Math.max(88, viewportCap));
+    const cardHeight = mediaHeight + labelAllowance + chromeAllowance;
+
+    return { width: cardWidth, height: mediaHeight, cardHeight };
+  }, [screenWidth, screenHeight, drillViewportHeight, yesNoHasLabels, yesNoHasLongLabels]);
+
+  const yesNoBlockMinHeight = yesNoMediaSize.cardHeight + 12;
+
+  const gridSvgSize = useMemo(() => {
+    const containerWidth = Math.min(screenWidth - 32, 480);
+    const cardWidth = Math.floor((containerWidth - 20) / 2);
+    return Math.min(120, Math.max(88, Math.floor(cardWidth * 0.72)));
+  }, [screenWidth]);
 
   // For yes/no questions, only allow selecting one option (toggle behavior)
   const handleYesNoToggle = (id: string) => {
@@ -314,6 +339,12 @@ function SVGMultiSelectDrill({
     </View>
   );
 
+  const renderGridMediaFrame = (content: React.ReactNode) => (
+    <View style={[styles.gridMediaFrame, { minHeight: gridSvgSize + 8 }]}>
+      {content}
+    </View>
+  );
+
   const renderSVG = (
     option: SVGMultiSelectOption,
     isYesNoMode: boolean = false,
@@ -335,13 +366,13 @@ function SVGMultiSelectDrill({
           );
         }
         return (
-          <View style={styles.svgContainer}>
+          renderGridMediaFrame(
             <Image
               source={{ uri: pngUrl }}
-              style={styles.pngImage}
+              style={{ width: gridSvgSize, height: gridSvgSize }}
               resizeMode="contain"
-            />
-          </View>
+            />,
+          )
         );
       }
       return (
@@ -372,7 +403,14 @@ function SVGMultiSelectDrill({
           />,
         );
       }
-      return <SvgUri uri={svgUrl} />;
+      return renderGridMediaFrame(
+        <SvgUri
+          uri={svgUrl}
+          width={gridSvgSize}
+          height={gridSvgSize}
+          preserveAspectRatio="xMidYMid meet"
+        />,
+      );
     }
 
     // Fallback to parsing svgCode if provided
@@ -406,12 +444,12 @@ function SVGMultiSelectDrill({
         const fixedSVG = React.cloneElement(
           parsedSVG as React.ReactElement<any>,
           {
-            width: 96,
-            height: 96,
+            width: gridSvgSize,
+            height: gridSvgSize,
             preserveAspectRatio: "xMidYMid meet",
           } as any,
         );
-        return <View style={styles.svgContainer}>{fixedSVG}</View>;
+        return renderGridMediaFrame(fixedSVG);
       }
       // Fallback to placeholder if parsing fails
       return (
@@ -451,12 +489,7 @@ function SVGMultiSelectDrill({
       {options && options.length > 0 ? (
         isYesNoQuestion ? (
           // Yes/No question design with timeline - horizontal layout (no panel)
-          <View
-            style={[
-              styles.yesNoContainer,
-              { minHeight: yesNoBlockMinHeight },
-            ]}
-          >
+          <View style={styles.yesNoContainer}>
             <View style={styles.yesNoRow}>
               {/* Left option */}
               {options[0] &&
@@ -504,12 +537,15 @@ function SVGMultiSelectDrill({
                           backgroundColor,
                           borderColor,
                           borderWidth,
-                          minHeight: yesNoMediaSize.height + 44,
+                          minHeight: yesNoMediaSize.cardHeight,
                         },
                       ]}
                     >
                       {opt.label ? (
-                        <Text style={styles.yesNoLabel} numberOfLines={1}>
+                        <Text
+                          style={styles.yesNoLabel}
+                          numberOfLines={yesNoHasLongLabels ? 4 : 1}
+                        >
                           {sanitizeDisplayText(opt.label)}
                         </Text>
                       ) : null}
@@ -539,7 +575,12 @@ function SVGMultiSelectDrill({
                 })()}
 
               {/* Timeline in center */}
-              <View style={styles.timelineContainer}>
+              <View
+                style={[
+                  styles.timelineContainer,
+                  { height: yesNoMediaSize.cardHeight },
+                ]}
+              >
                 <View
                   style={[styles.timelineDiamond, styles.timelineDiamondTop]}
                 />
@@ -595,12 +636,15 @@ function SVGMultiSelectDrill({
                           backgroundColor,
                           borderColor,
                           borderWidth,
-                          minHeight: yesNoMediaSize.height + 44,
+                          minHeight: yesNoMediaSize.cardHeight,
                         },
                       ]}
                     >
                       {opt.label ? (
-                        <Text style={styles.yesNoLabel} numberOfLines={1}>
+                        <Text
+                          style={styles.yesNoLabel}
+                          numberOfLines={yesNoHasLongLabels ? 4 : 1}
+                        >
                           {sanitizeDisplayText(opt.label)}
                         </Text>
                       ) : null}
@@ -631,27 +675,14 @@ function SVGMultiSelectDrill({
             </View>
           </View>
         ) : (
-          // Regular grid/list design
+          // Regular grid/list — option cards only, no outer panel wrapper
           <View
             style={[
-              styles.panel,
-              isPractice && {
-                backgroundColor: "transparent",
-                borderColor: "transparent",
-                shadowOpacity: 0,
-                elevation: 0,
-                paddingHorizontal: 0,
-                paddingVertical: 0,
-              },
+              styles.optionsContainer,
+              layout === "grid" ? styles.grid : styles.list,
             ]}
           >
-            <View
-              style={[
-                styles.optionsContainer,
-                layout === "grid" ? styles.grid : styles.list,
-              ]}
-            >
-              {options.map((opt, index) => {
+            {options.map((opt, index) => {
                 const picked = !!selected[opt.id];
                 const isCorrectAfterSubmit = submitted
                   ? perOptionCorrectness[opt.id]
@@ -771,7 +802,6 @@ function SVGMultiSelectDrill({
                   </Pressable>
                 );
               })}
-            </View>
           </View>
         )
       ) : (
@@ -804,7 +834,7 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
     alignItems: "center",
-    paddingTop: 10,
+    paddingTop: 4,
   },
   containerYesNo: {
     width: "100%",
@@ -813,21 +843,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 4,
     paddingBottom: 8,
-  },
-  panel: {
-    width: "100%",
-    maxWidth: 480,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    borderWidth: 1,
-    borderColor: "#E4E7EC",
-    shadowColor: "#101828",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
   },
   title: {
     fontSize: 18,
@@ -839,35 +854,36 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 480,
     alignSelf: "center",
-    paddingTop: 10,
-    paddingBottom: 6,
-    paddingHorizontal: 10,
-    position: "relative",
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 8,
   },
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    rowGap: 14,
+    columnGap: 10,
   },
   list: {
     flexDirection: "column",
   },
   optionCard: {
-    width: "45%",
+    width: "47%",
     backgroundColor: "#FFFFFF",
     borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    marginVertical: 10,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginVertical: 0,
     alignItems: "center",
     justifyContent: "center",
-    minHeight: 100,
+    minHeight: 120,
     // Shadow and border properties are set dynamically based on selection state
   },
   optionDot: {
     position: "absolute",
-    top: 10,
-    left: 10,
+    top: 12,
+    left: 12,
     width: 10,
     height: 10,
     borderRadius: 5,
@@ -882,10 +898,12 @@ const styles = StyleSheet.create({
   optionDotWrong: {
     backgroundColor: "#D92D20",
   },
-  svgContainer: {
+  gridMediaFrame: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
+    width: "100%",
+    paddingVertical: 6,
+    paddingHorizontal: 4,
   },
   svgPlaceholder: {
     width: 60,
@@ -899,10 +917,6 @@ const styles = StyleSheet.create({
     color: "#334155",
     fontWeight: "700",
     fontSize: 12,
-  },
-  pngImage: {
-    width: 110,
-    height: 110,
   },
   optionLabel: {
     fontSize: 14,
@@ -933,17 +947,17 @@ const styles = StyleSheet.create({
   },
   yesNoRow: {
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
     justifyContent: "space-between",
   },
   yesNoBox: {
     flex: 1,
     flexShrink: 0,
     borderRadius: 12,
-    padding: 10,
-    justifyContent: "flex-start",
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    justifyContent: "center",
     alignItems: "center",
-    alignSelf: "stretch",
   },
   yesNoBoxLeft: {
     marginRight: 12,
@@ -952,12 +966,13 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   yesNoLabel: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "700",
     color: "#0D2033",
     textAlign: "center",
-    marginBottom: 12,
+    marginBottom: 8,
     width: "100%",
+    lineHeight: 21,
   },
   yesNoContent: {
     alignItems: "center",
@@ -1007,7 +1022,7 @@ const styles = StyleSheet.create({
     width: 40,
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "stretch",
+    alignSelf: "center",
     zIndex: 0,
   },
   timelineLine: {

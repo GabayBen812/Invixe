@@ -38,7 +38,10 @@ import PageBackground from "../components/ui/PageBackground";
 import { useUser } from "../context/UserContext";
 import TopBar from "../components/ui/TopBar";
 import DrillViewport from "../components/lesson/DrillViewport";
-import { useChoiceDrillLayout } from "../hooks/useChoiceDrillLayout";
+import {
+  useChoiceDrillLayout,
+  useUniformChoiceRowHeight,
+} from "../hooks/useChoiceDrillLayout";
 import {
   HammerCandleSVG,
   BullishCandleSVG,
@@ -73,6 +76,7 @@ import DrillChoiceLabel from "../components/lesson/DrillChoiceLabel";
 import { getDrillChoicePlainText, normalizeDrillChoices } from "../utils/drillFitLayout";
 import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
+import TextWithImageExplainDrill from "../components/lesson/TextWithImageExplainDrill";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
 import HtmlText from "../components/ui/HtmlText";
 import { sanitizeDisplayText } from "../utils/decodeHtmlEntities";
@@ -262,6 +266,12 @@ function SimpleQuestionChoiceList({
 }) {
   const layout = useChoiceDrillLayout(choices.length, { hasMedia: false });
   const isPractice = theme.variant === "practice";
+  const isGrid = isPractice && choices.length > 2;
+  const uniformRowHeight = useUniformChoiceRowHeight(
+    choices as unknown as Record<string, unknown>[],
+    layout,
+    isGrid ? 200 : 420,
+  );
 
   return (
     <View
@@ -326,9 +336,10 @@ function SimpleQuestionChoiceList({
                 paddingVertical: layout.choicePaddingVertical,
                 paddingHorizontal: layout.choicePaddingHorizontal,
                 marginVertical: 0,
-                ...(isPractice && choices.length > 2
-                  ? { width: "46%" as const }
-                  : {}),
+                minHeight: uniformRowHeight,
+                height: uniformRowHeight,
+                justifyContent: "center",
+                ...(isGrid ? { width: "46%" as const } : {}),
               },
               pressed && !isSubmitted && { transform: [{ scale: 0.985 }] },
             ]}
@@ -1131,26 +1142,7 @@ export default function LessonScreen({ navigation, route }: Props) {
               setSpeechBubbleHeight(height);
             }}
           >
-            {/* Text with image explain speech bubble */}
-            {step.activity === "textWithImageExplain" &&
-              step.message &&
-              step.message.trim() !== "" && (
-                <SpeechBubble
-                  message={step.message}
-                  position={step.bubblePosition || "topRight"}
-                  align={
-                    step.bubblePosition?.includes("Right")
-                      ? "flex-end"
-                      : step.bubblePosition?.includes("Left")
-                        ? "flex-start"
-                        : "center"
-                  }
-                  disableTyping
-                  disableEnterAnim
-                />
-              )}
-
-            {/* Graph question speech bubbles */}
+            {/* Text with image explain — title lives inside the drill card */}
             {activityType === "graphQuestion" &&
               (step.activityConfig as any)?.graphQuestion &&
               (() => {
@@ -1486,35 +1478,20 @@ export default function LessonScreen({ navigation, route }: Props) {
           (() => {
             if (!step.activityConfig?.questionWithImage) return null;
 
-            const imageUrl =
+            const rawImageUrl =
               step.activityConfig.questionWithImage.uploadedImagePublicUrl ||
               step.activityConfig.questionWithImage.uploadedImageUrl ||
               step.activityConfig.questionWithImage.uploadedImage;
+            const imageUrl = normalizeSupabaseUrl(rawImageUrl);
 
             return (
               <View style={styles.textWithImageFullScreen}>
-                {imageUrl ? (
-                  <View style={styles.textWithImageFullScreenImageWrapper}>
-                    <ImageWithFallback
-                      uri={imageUrl}
-                      style={styles.textWithImageFullScreenImage}
-                      stepId={step.id || "unknown"}
-                    />
-                  </View>
-                ) : (
-                  <View style={styles.textWithImageFullScreen}>
-                    <Text
-                      style={{
-                        color: "#999",
-                        textAlign: "center",
-                        padding: 20,
-                        fontSize: 14,
-                      }}
-                    >
-                      Image not available
-                    </Text>
-                  </View>
-                )}
+                <TextWithImageExplainDrill
+                  title=""
+                  imageUrl={imageUrl}
+                  stepId={step.id || "unknown"}
+                  fullscreen
+                />
               </View>
             );
           })()}
@@ -1718,19 +1695,71 @@ export default function LessonScreen({ navigation, route }: Props) {
         {isExplanation && (
           <DrillViewport style={styles.drillContentArea}>
             <ExplanationDrill step={step} />
-          </DrillViewport>
-        )}
+            </DrillViewport>
+          )}
+
+        {/* Carousel select drill — centered in drill area */}
+        {step.activity === "carouselSelect" &&
+          step.activityConfig?.carousel && (
+            <DrillViewport style={styles.drillContentArea}>
+              <View style={styles.carouselDrillWrap}>
+                <CarouselSelectDrill
+                  items={step.activityConfig.carousel.items.map((i: any) => ({
+                    id: i.id,
+                    label: i.label,
+                    imageKey: i.imageKey,
+                    imageSource:
+                      i.imageKey && characterImages[i.imageKey]
+                        ? characterImages[i.imageKey]
+                        : undefined,
+                    svgCode: i.svgCode || undefined,
+                    svgUrl: i.svgUrl || undefined,
+                    svgPublicUrl: i.svgPublicUrl || undefined,
+                    svgPath: i.svgPath || undefined,
+                  }))}
+                  correctId={step.activityConfig.carousel.correctId}
+                  submitText={
+                    step.activityConfig.carousel.submitText || "אישור"
+                  }
+                  correctExplanation={
+                    step.activityConfig.carousel.correctExplanation
+                  }
+                  wrongExplanation={
+                    step.activityConfig.carousel.wrongExplanation
+                  }
+                  onSubmit={handleDrillComplete}
+                  showSubmitButton={false}
+                  onSubmitTriggerRef={carouselSubmitRef}
+                  onRetryTriggerRef={carouselRetryRef}
+                  onStateChange={(state) => {
+                    setCarouselFeedback((prev) =>
+                      prev.showing === state.showingFeedback &&
+                      prev.isCorrect === state.isCorrect
+                        ? prev
+                        : {
+                            showing: state.showingFeedback,
+                            isCorrect: state.isCorrect,
+                          },
+                    );
+                  }}
+                />
+              </View>
+            </DrillViewport>
+          )}
 
         {!(step.activity === "textWithImageExplain" && !step.message?.trim()) &&
           !isExplanation &&
-          !(activityType === "graphQuestionPNG") && (
+          !(activityType === "graphQuestionPNG") &&
+          step.activity !== "carouselSelect" && (
             <DrillViewport style={styles.drillContentArea}>
               <View
                 style={[
                   styles.drillContentInner,
                   (isSimpleQuestion ||
                     (step.activity === "pathSelect" &&
-                      pathSelectViewingOption === null)) && {
+                      pathSelectViewingOption === null) ||
+                    (activityType === "graphQuestion" &&
+                      !graphQuestionViewingExplanation)) && {
                     justifyContent: "flex-start",
                     paddingTop: 6,
                   },
@@ -1760,68 +1789,23 @@ export default function LessonScreen({ navigation, route }: Props) {
                     step.activityConfig.questionWithImage.uploadedImage;
                   const imageUrl = normalizeSupabaseUrl(rawImageUrl);
 
-                  // Always render the wrapper, even if no image URL (for debugging)
                   if (!imageUrl) {
                     console.warn(
                       "textWithImageExplain: No image URL found for step",
                       step.id,
-                      {
-                        uploadedImagePublicUrl:
-                          step.activityConfig.questionWithImage
-                            .uploadedImagePublicUrl,
-                        uploadedImageUrl:
-                          step.activityConfig.questionWithImage
-                            .uploadedImageUrl,
-                        uploadedImage: step.activityConfig.questionWithImage
-                          .uploadedImage
-                          ? "exists"
-                          : "missing",
-                      },
-                    );
-                  } else {
-                    console.log(
-                      "textWithImageExplain: Rendering step",
-                      step.id,
-                      "with image URL:",
-                      imageUrl.substring(0, 50) + "...",
                     );
                   }
 
-                  // Only render here if there's a message (no message is handled above)
-                  if (!step.message || !step.message.trim()) {
+                  if (!step.message?.trim() && !imageUrl) {
                     return null;
                   }
 
                   return (
-                    <View style={styles.textWithImageWrapper}>
-                      {step.message && (
-                        <View style={styles.explainTextContainer}>
-                          <HtmlText value={step.message} style={styles.explainText} />
-                        </View>
-                      )}
-                      {imageUrl ? (
-                        <View style={styles.textWithImageContainer}>
-                          <ImageWithFallback
-                            uri={imageUrl}
-                            style={styles.textWithImageImage}
-                            stepId={step.id || "unknown"}
-                          />
-                        </View>
-                      ) : (
-                        <View style={styles.textWithImageContainer}>
-                          <Text
-                            style={{
-                              color: "#999",
-                              textAlign: "center",
-                              padding: 20,
-                              fontSize: 14,
-                            }}
-                          >
-                            Image not available
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+                    <TextWithImageExplainDrill
+                      title={step.message || ""}
+                      imageUrl={imageUrl}
+                      stepId={step.id || "unknown"}
+                    />
                   );
                 })()}
 
@@ -2445,7 +2429,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                             opts.length === 2 &&
                             opts.filter((o: { correct?: boolean }) => o.correct)
                               .length === 1;
-                          return yesNo ? styles.mediaDrillWrapYesNo : null;
+                          return yesNo
+                            ? styles.mediaDrillWrapYesNo
+                            : styles.mediaDrillWrapSized;
                         })(),
                       ]}
                     >
@@ -2502,58 +2488,6 @@ export default function LessonScreen({ navigation, route }: Props) {
                         onStateChange={(state) => {
                           // Track if we can submit - button should only show when selections are made
                           setSvgMultiSelectCanSubmit(state.canSubmit);
-                        }}
-                      />
-                    </View>
-                  )}
-
-                {/* Carousel select drill */}
-                {step.activity === "carouselSelect" &&
-                  step.activityConfig?.carousel && (
-                    <View
-                      style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        width: "100%",
-                        marginTop: 30,
-                      }}
-                    >
-                      <CarouselSelectDrill
-                        items={step.activityConfig.carousel.items.map(
-                          (i: any) => ({
-                            id: i.id,
-                            label: i.label,
-                            imageKey: i.imageKey,
-                            // Use character images when the key matches, otherwise rely on SVG fields
-                            imageSource:
-                              i.imageKey && characterImages[i.imageKey]
-                                ? characterImages[i.imageKey]
-                                : undefined,
-                            svgCode: i.svgCode || undefined,
-                            svgUrl: i.svgUrl || undefined,
-                            svgPublicUrl: i.svgPublicUrl || undefined,
-                            svgPath: i.svgPath || undefined,
-                          }),
-                        )}
-                        correctId={step.activityConfig.carousel.correctId}
-                        submitText={
-                          step.activityConfig.carousel.submitText || "אישור"
-                        }
-                        correctExplanation={
-                          step.activityConfig.carousel.correctExplanation
-                        }
-                        wrongExplanation={
-                          step.activityConfig.carousel.wrongExplanation
-                        }
-                        onSubmit={handleDrillComplete}
-                        showSubmitButton={false}
-                        onSubmitTriggerRef={carouselSubmitRef}
-                        onRetryTriggerRef={carouselRetryRef}
-                        onStateChange={(state) => {
-                          setCarouselFeedback({
-                            showing: state.showingFeedback,
-                            isCorrect: state.isCorrect,
-                          });
                         }}
                       />
                     </View>
@@ -3634,6 +3568,13 @@ const styles = StyleSheet.create({
     flexGrow: 0,
     flexShrink: 0,
     minHeight: undefined,
+  },
+  carouselDrillWrap: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 100,
   },
   choiceCard: {
     width: "92%",

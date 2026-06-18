@@ -22,6 +22,9 @@ export default function PracticeMediaSurface({
   const { theme, isPractice } = useLessonTheme();
 
   if (!isPractice) {
+    if (style) {
+      return <View style={style}>{children}</View>;
+    }
     return <>{children}</>;
   }
 

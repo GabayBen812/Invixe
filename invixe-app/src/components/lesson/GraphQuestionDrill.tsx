@@ -88,8 +88,7 @@ export default function GraphQuestionDrill({
       !!(c as GraphQuestionChoice).svgPublicUrl ||
       !!(c as GraphQuestionChoice).svgUrl,
   );
-  const isYesNoPractice =
-    isPractice &&
+  const isYesNo =
     visibleChoices.length === 2 &&
     visibleChoices.every((c) => {
       const t = getDrillChoicePlainText(c).trim();
@@ -98,7 +97,7 @@ export default function GraphQuestionDrill({
 
   const layout = useChoiceDrillLayout(
     visibleChoices.length || choices.length,
-    { hasMedia: true },
+    { hasMedia: true, gridCols: isYesNo ? 2 : undefined },
   );
   const stackGap = DRILL_MEDIA_STACK_GAP;
   const blockMinHeight =
@@ -224,8 +223,13 @@ export default function GraphQuestionDrill({
         },
       ]}
     >
-      <View style={[styles.mediaWrapper, { flexShrink: 0 }]}>
-        <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
+      <View
+        style={[
+          styles.mediaWrapper,
+          { flexShrink: 0, height: layout.mediaHeight, overflow: "hidden" },
+        ]}
+      >
+        <PracticeMediaSurface style={{ height: layout.mediaHeight, width: "100%" }}>
           <View
             style={[styles.mediaContainer, { height: "100%" }]}
             pointerEvents="none"
@@ -279,15 +283,18 @@ export default function GraphQuestionDrill({
       <View
         style={[
           styles.choicesContainer,
-          { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
-          isYesNoPractice && styles.choicesContainerYesNo,
+          {
+            gap: layout.choiceGap,
+            minHeight: isYesNo ? undefined : layout.choicesMinHeight,
+          },
+          isYesNo && styles.choicesContainerYesNo,
         ]}
       >
         {visibleChoices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
           const choiceText = getDrillChoicePlainText(choice).trim();
           const yesNoBaseColor =
-            isYesNoPractice && !submitted
+            isPractice && isYesNo && !submitted
               ? choiceText === "כן"
                 ? theme.choiceYesBg
                 : choiceText === "לא"
@@ -304,7 +311,7 @@ export default function GraphQuestionDrill({
           let buttonStyle: any = [
             styles.choiceButton,
             isPractice &&
-              !isYesNoPractice && {
+              !isYesNo && {
                 backgroundColor: theme.choiceBg,
                 borderColor: theme.choiceBorder,
               },
@@ -361,7 +368,7 @@ export default function GraphQuestionDrill({
                   paddingHorizontal: layout.choicePaddingHorizontal,
                   marginBottom: 0,
                 },
-                isYesNoPractice && { flex: 1 },
+                isYesNo && styles.choiceButtonYesNo,
               ]}
               onPress={() => {
                 if (!submitted) {
@@ -521,12 +528,20 @@ const styles = StyleSheet.create({
   },
   choicesContainerYesNo: {
     flexDirection: "row",
+    alignItems: "stretch",
     maxWidth: "100%",
     paddingHorizontal: 12,
+  },
+  choiceButtonYesNo: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 52,
   },
   choiceTextWrap: {
     width: "100%",
     alignItems: "center",
+    justifyContent: "center",
   },
   choiceButton: {
     backgroundColor: "#FFFFFF",

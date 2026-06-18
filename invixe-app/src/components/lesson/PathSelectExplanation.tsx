@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  useWindowDimensions,
 } from "react-native";
 import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
@@ -30,6 +31,11 @@ export default function PathSelectExplanation({
   svgPublicUrl,
   isComplexMedia = false,
 }: Props) {
+  const { height: screenHeight } = useWindowDimensions();
+  const mediaHeight = useMemo(
+    () => Math.min(300, Math.max(220, Math.round(screenHeight * 0.28))),
+    [screenHeight],
+  );
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = React.useRef<React.ReactElement | null>(null);
   const cacheUrlRef = useRef<string | null>(null); // Track which URL the cache came from
@@ -177,7 +183,7 @@ export default function PathSelectExplanation({
 
         {imageUrl && (
           <Pressable
-            style={styles.imageContainer}
+            style={[styles.imageContainer, { height: mediaHeight }]}
             onPress={() => isComplexMedia && setFullScreenOpen(true)}
             disabled={!isComplexMedia}
           >
@@ -253,7 +259,7 @@ export default function PathSelectExplanation({
 
         {(svgCode || svgUrl || svgPublicUrl || svgCache) && (
           <Pressable
-            style={styles.svgContainer}
+            style={[styles.svgContainer, { height: mediaHeight }]}
             onPress={() => isComplexMedia && setFullScreenOpen(true)}
             disabled={!isComplexMedia}
           >
@@ -320,8 +326,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
-    padding: 24,
+    paddingTop: 24,
+    paddingHorizontal: 24,
+    paddingBottom: 32,
     alignItems: "center",
+    justifyContent: "flex-start",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
@@ -338,9 +347,7 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     width: "100%",
-    flex: 1,
-    minHeight: 300,
-    marginBottom: 16,
+    marginBottom: 32,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: "#f5f5f5",
@@ -352,12 +359,12 @@ const styles = StyleSheet.create({
   },
   svgContainer: {
     width: "100%",
-    flex: 1,
-    minHeight: 300,
-    marginBottom: 16,
+    marginBottom: 32,
     alignItems: "center",
     justifyContent: "center",
     padding: 8,
+    borderRadius: 12,
+    backgroundColor: "#f5f5f5",
   },
   svgPlaceholder: {
     width: 200,
