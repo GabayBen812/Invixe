@@ -25,7 +25,7 @@ export default function DrillChoiceLabel({
   preferPlain = true,
 }: Props) {
   const raw = getDrillChoiceText(choice);
-  const plain = getDrillChoicePlainText(choice) || raw.replace(/<[^>]+>/g, " ").trim();
+  const plain = getDrillChoicePlainText(choice);
 
   if (!plain && !raw) {
     return null;

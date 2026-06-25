@@ -186,16 +186,13 @@ export default function SandboxScreen({ navigation, route }: Props) {
     [],
   );
 
-  const handleTabPress = (tab: 'map' | 'profile' | 'shop' | 'graph') => {
+  const handleTabPress = (tab: 'map' | 'profile' | 'graph') => {
     switch (tab) {
       case 'map':
         navigation.navigate('Map');
         break;
       case 'profile':
         navigation.navigate('Profile');
-        break;
-      case 'shop':
-        navigation.navigate('Shop');
         break;
       case 'graph':
         break;

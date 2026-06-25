@@ -1,4 +1,4 @@
-import { sanitizeDisplayText } from "./decodeHtmlEntities";
+import { sanitizeDisplayText, toPlainDisplayText } from "./decodeHtmlEntities";
 
 export type ChoiceLike = Record<string, unknown>;
 
@@ -65,21 +65,35 @@ export function normalizeDrillChoices<T extends ChoiceLike>(
   });
 }
 
-/** Plain label for layout checks (strips empty HTML wrappers). */
+/** Plain label for layout checks and plain Text rendering. */
 export function getDrillChoicePlainText(choice: ChoiceLike): string {
-  const raw = getDrillChoiceText(choice);
-  if (!raw) return "";
-  if (!raw.includes("<")) return raw;
-  const stripped = raw
-    .replace(/\s*style="[^"]*"/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return stripped;
+  return toPlainDisplayText(getDrillChoiceText(choice));
 }
 
 /** Gap between media block and choice list — not the same as inter-choice gap. */
 export const DRILL_MEDIA_STACK_GAP = 10;
+
+/** Space reserved above the absolute בדוק / המשך button at the bottom of drills. */
+export const DRILL_FLOATING_BUTTON_INSET = 108;
+
+/** True when the choice stack would overflow the drill viewport (needs ScrollView). */
+export function needsScrollableChoiceList(
+  layout: ChoiceDrillLayout,
+  viewportHeight: number,
+  mediaHeight: number,
+  bottomInset = DRILL_FLOATING_BUTTON_INSET,
+): boolean {
+  if (viewportHeight <= 0) {
+    return layout.choicesMinHeight > 260;
+  }
+  const available =
+    viewportHeight -
+    layout.containerPadding * 2 -
+    mediaHeight -
+    DRILL_MEDIA_STACK_GAP -
+    bottomInset;
+  return layout.choicesMinHeight > available + 4;
+}
 
 export type ChoiceDrillLayout = {
   mediaHeight: number;

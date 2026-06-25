@@ -1,5 +1,5 @@
 import React, { useMemo, useEffect, useState, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { parseSVGCode } from '../../utils/svgParser';
 import { fetchRemoteText } from '../../utils/remoteAssetCache';
 import HtmlText from '../ui/HtmlText';
@@ -25,9 +25,13 @@ export default function TextWithSVG({
   onContinue,
   showButton = true
 }: Props) {
+  const { width: screenWidth } = useWindowDimensions();
   const [svgCache, setSvgCache] = useState<string | null>(null);
   const parsedCacheRef = useRef<React.ReactElement | null>(null);
   const viewportHeight = useDrillViewportHeight();
+  const cardHorizontalPadding = 14;
+  const cardWidth = Math.min(500, screenWidth - 32);
+  const htmlContentWidth = cardWidth - cardHorizontalPadding * 2;
   const layout = useMemo(
     () =>
       computeStackDrillLayout(viewportHeight > 0 ? viewportHeight : 360, {
@@ -68,19 +72,32 @@ export default function TextWithSVG({
 
   return (
     <View style={styles.container}>
-      <View style={[styles.explainContainer, { gap: layout.gap }]}>
+      <View
+        style={[
+          styles.explainContainer,
+          {
+            width: cardWidth,
+            maxWidth: cardWidth,
+            gap: layout.gap,
+            paddingHorizontal: cardHorizontalPadding,
+          },
+        ]}
+      >
         {!!text && (
-          <HtmlText
-            value={text}
-            style={[
-              styles.explainText,
-              {
-                fontSize: layout.textFontSize,
-                lineHeight: layout.textLineHeight,
-                marginBottom: layout.gap,
-              },
-            ]}
-          />
+          <View style={styles.textWrap}>
+            <HtmlText
+              value={text}
+              contentWidth={htmlContentWidth}
+              style={[
+                styles.explainText,
+                {
+                  fontSize: layout.textFontSize,
+                  lineHeight: layout.textLineHeight,
+                  marginBottom: layout.gap,
+                },
+              ]}
+            />
+          </View>
         )}
         <View style={[styles.svgContainer, { height: layout.imageHeight }]}>
           {parsedSVG || (
@@ -112,13 +129,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   explainContainer: {
-    width: '92%',
-    maxWidth: 500,
+    alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     paddingVertical: 12,
-    paddingHorizontal: 14,
     borderRadius: 16,
     alignItems: 'center',
+  },
+  textWrap: {
+    width: '100%',
+    alignSelf: 'stretch',
   },
   explainText: {
     color: '#0D2033',

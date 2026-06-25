@@ -12,7 +12,7 @@ import { parseSVGCode } from "../../utils/svgParser";
 import { useDrillViewportHeight } from "./DrillViewport";
 import HtmlText from "../ui/HtmlText";
 import { useLessonTheme } from "../../context/LessonThemeContext";
-import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
+import { toPlainDisplayText } from "../../utils/decodeHtmlEntities";
 
 export interface SVGMultiSelectOption {
   id: string;
@@ -183,7 +183,7 @@ function SVGMultiSelectDrill({
   const yesNoHasLongLabels = useMemo(
     () =>
       options.some(
-        (o) => sanitizeDisplayText(o.label || "").replace(/\s+/g, " ").length > 24,
+        (o) => toPlainDisplayText(o.label || "").length > 24,
       ),
     [options],
   );
@@ -546,7 +546,7 @@ function SVGMultiSelectDrill({
                           style={styles.yesNoLabel}
                           numberOfLines={yesNoHasLongLabels ? 4 : 1}
                         >
-                          {sanitizeDisplayText(opt.label)}
+                          {toPlainDisplayText(opt.label)}
                         </Text>
                       ) : null}
                       <View style={styles.yesNoContent}>
@@ -645,7 +645,7 @@ function SVGMultiSelectDrill({
                           style={styles.yesNoLabel}
                           numberOfLines={yesNoHasLongLabels ? 4 : 1}
                         >
-                          {sanitizeDisplayText(opt.label)}
+                          {toPlainDisplayText(opt.label)}
                         </Text>
                       ) : null}
                       <View style={styles.yesNoContent}>
@@ -796,7 +796,7 @@ function SVGMultiSelectDrill({
                     {renderSVG(opt)}
                     {opt.label ? (
                       <Text style={[styles.optionLabel, { color: textColor }]}>
-                        {sanitizeDisplayText(opt.label)}
+                        {toPlainDisplayText(opt.label)}
                       </Text>
                     ) : null}
                   </Pressable>

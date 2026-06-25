@@ -8,6 +8,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import HtmlText from "../ui/HtmlText";
+import { useLessonTheme } from "../../context/LessonThemeContext";
 import {
   getAlternateSupabaseUrl,
   normalizeSupabaseUrl,
@@ -27,6 +28,7 @@ export default function TextWithImageExplainDrill({
   stepId,
   fullscreen = false,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const hasTitle = !!title?.trim();
   const cardWidth = Math.min(480, screenWidth - 24);
@@ -73,7 +75,14 @@ export default function TextWithImageExplainDrill({
 
   const imageContent = imageUrl ? (
     hasError ? (
-      <Text style={styles.imageError}>התמונה לא זמינה</Text>
+      <Text
+        style={[
+          styles.imageError,
+          isPractice && { color: theme.choiceDisabledText },
+        ]}
+      >
+        התמונה לא זמינה
+      </Text>
     ) : (
       <>
         <Image
@@ -84,14 +93,29 @@ export default function TextWithImageExplainDrill({
           onLoad={() => setIsLoading(false)}
         />
         {isLoading && (
-          <View style={styles.imageLoading}>
-            <ActivityIndicator size="small" color="#3372D8" />
+          <View
+            style={[
+              styles.imageLoading,
+              isPractice && styles.imageLoadingPractice,
+            ]}
+          >
+            <ActivityIndicator
+              size="small"
+              color={isPractice ? theme.progressFill : "#3372D8"}
+            />
           </View>
         )}
       </>
     )
   ) : (
-    <Text style={styles.imageError}>התמונה לא זמינה</Text>
+    <Text
+      style={[
+        styles.imageError,
+        isPractice && { color: theme.choiceDisabledText },
+      ]}
+    >
+      התמונה לא זמינה
+    </Text>
   );
 
   // Image-only: no card chrome — let the asset fill the drill area.
@@ -105,12 +129,43 @@ export default function TextWithImageExplainDrill({
 
   return (
     <View style={styles.root}>
-      <View style={[styles.card, { width: cardWidth, maxWidth: cardWidth }]}>
-        <View style={styles.titleSection}>
-          <HtmlText value={title} style={styles.title} />
+      <View
+        style={[
+          styles.card,
+          { width: cardWidth, maxWidth: cardWidth },
+          isPractice && {
+            backgroundColor: theme.contentPanelBg,
+            borderWidth: 1,
+            borderColor: theme.mediaSurfaceBorder,
+            shadowOpacity: 0,
+            elevation: 0,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.titleSection,
+            isPractice && { borderBottomColor: theme.mediaSurfaceBorder },
+          ]}
+        >
+          <HtmlText
+            value={title}
+            style={styles.title}
+            contentColor={isPractice ? theme.instructionText : "#0D2033"}
+          />
         </View>
 
-        <View style={[styles.imagePanel, { height: imageHeight }]}>
+        <View
+          style={[
+            styles.imagePanel,
+            { height: imageHeight },
+            isPractice && {
+              backgroundColor: theme.mediaSurfaceBg,
+              borderWidth: 1,
+              borderColor: theme.mediaSurfaceBorder,
+            },
+          ]}
+        >
           {imageContent}
         </View>
       </View>
@@ -188,6 +243,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(244, 247, 252, 0.85)",
+  },
+  imageLoadingPractice: {
+    backgroundColor: "rgba(15, 20, 36, 0.55)",
   },
   imageError: {
     color: "#64748B",

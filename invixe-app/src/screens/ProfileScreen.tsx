@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useRef } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
@@ -139,6 +139,7 @@ export default function ProfileScreen({ navigation }: Props) {
     refreshPortfolio,
     portfolioStats,
     getHoldingChangePercent,
+    portfolioHistory,
   } = usePortfolio();
 
   useFocusEffect(
@@ -207,23 +208,34 @@ export default function ProfileScreen({ navigation }: Props) {
     return (first + last).trim() || resolvedFirstName.slice(0, 2).toUpperCase();
   })();
 
-  const chartTrend = Math.min(
-    1,
-    Math.max(0.2, 0.5 + portfolioStats.gainPercent / 20),
-  );
-
   const sparklineWidth = Math.min(screenWidth - 80, 320);
 
-  const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewportHeightRef = useRef(400);
+  const holdingsSectionYRef = useRef(0);
+  const holdingsSectionHeightRef = useRef(0);
+
+  const scrollToHoldings = useCallback(() => {
+    const viewportH = scrollViewportHeightRef.current;
+    const sectionCenter =
+      holdingsSectionYRef.current + holdingsSectionHeightRef.current / 2;
+    const targetY = Math.max(0, sectionCenter - viewportH / 2);
+    scrollViewRef.current?.scrollTo({ y: targetY, animated: true });
+  }, []);
+
+  const handleScrollToHoldings = useCallback(() => {
+    requestAnimationFrame(() => {
+      scrollToHoldings();
+    });
+  }, [scrollToHoldings]);
+
+  const handleTabPress = (tab: "map" | "profile" | "graph") => {
     switch (tab) {
       case "map":
         navigation.navigate("Map", {});
         break;
       case "graph":
         navigation.navigate("Sandbox");
-        break;
-      case "shop":
-        navigation.navigate("Shop");
         break;
       case "profile":
         break;
@@ -291,8 +303,12 @@ export default function ProfileScreen({ navigation }: Props) {
     <View style={styles.container}>
       <TopBar />
       <ScrollView
+        ref={scrollViewRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        onLayout={(e) => {
+          scrollViewportHeightRef.current = e.nativeEvent.layout.height;
+        }}
       >
         <View style={styles.profileHeader}>
           <View style={styles.avatar}>
@@ -344,9 +360,12 @@ export default function ProfileScreen({ navigation }: Props) {
                   </Text>
                 </View>
               </View>
-              <PortfolioSparkline width={sparklineWidth} trend={chartTrend} />
+              <PortfolioSparkline
+                width={sparklineWidth}
+                values={portfolioHistory}
+              />
               <Pressable
-                onPress={() => openTrading()}
+                onPress={handleScrollToHoldings}
                 hitSlop={8}
                 style={styles.portfolioLinkWrap}
               >
@@ -391,7 +410,13 @@ export default function ProfileScreen({ navigation }: Props) {
           />
         </View>
 
-        <View style={styles.holdingsSection}>
+        <View
+          style={styles.holdingsSection}
+          onLayout={(e) => {
+            holdingsSectionYRef.current = e.nativeEvent.layout.y;
+            holdingsSectionHeightRef.current = e.nativeEvent.layout.height;
+          }}
+        >
           <View style={styles.holdingsHeader}>
             <Text style={styles.sectionTitle}>אחזקות</Text>
             <Pressable onPress={() => openTrading()} hitSlop={8}>

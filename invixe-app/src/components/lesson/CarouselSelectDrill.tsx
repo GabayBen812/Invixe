@@ -5,6 +5,7 @@ import { parseSVGCode } from '../../utils/svgParser';
 import { fetchRemoteText } from '../../utils/remoteAssetCache';
 import { useLessonTheme } from '../../context/LessonThemeContext';
 import { normalizeSupabaseUrl } from '../../utils/supabaseUrl';
+import { toPlainDisplayText } from '../../utils/decodeHtmlEntities';
 
 export interface CarouselItem {
   id: string;
@@ -281,28 +282,43 @@ export default function CarouselSelectDrill({
             ‹
           </Text>
         </Pressable>
-        <View
-          style={[
-            styles.centerCard,
-            { backgroundColor: cardBgColor },
-            isPractice && !submitted && {
-              borderWidth: 1,
-              borderColor: theme.mediaSurfaceBorder,
-            },
-          ]}
-        >
-          {/* Correct/Wrong indicator badge */}
+        <View style={styles.centerCardWrap}>
           {submitted && (
-            <View style={styles.feedbackBadge}>
-              <Text style={styles.feedbackText}>
-                {isCorrect ? '✓ נכון' : '✗ שגוי'}
-              </Text>
+            <View style={styles.feedbackBadgeAnchor}>
+              <View
+                style={[
+                  styles.feedbackBadge,
+                  isCorrect ? styles.feedbackBadgeCorrect : styles.feedbackBadgeWrong,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.feedbackText,
+                    isCorrect ? styles.feedbackTextCorrect : styles.feedbackTextWrong,
+                  ]}
+                >
+                  {isCorrect ? "✓ נכון" : "✗ שגוי"}
+                </Text>
+              </View>
             </View>
           )}
-          {selected ? renderItemContent(selected) : null}
-          {selected?.label ? (
-            <Text style={[styles.label, submitted && styles.labelLight]}>{selected.label}</Text>
-          ) : null}
+          <View
+            style={[
+              styles.centerCard,
+              { backgroundColor: cardBgColor },
+              isPractice && !submitted && {
+                borderWidth: 1,
+                borderColor: theme.mediaSurfaceBorder,
+              },
+            ]}
+          >
+            {selected ? renderItemContent(selected) : null}
+            {selected?.label ? (
+              <Text style={[styles.label, submitted && styles.labelLight]}>
+                {toPlainDisplayText(selected.label)}
+              </Text>
+            ) : null}
+          </View>
         </View>
         <Pressable 
           onPress={goRight} 
@@ -393,6 +409,13 @@ const styles = StyleSheet.create({
   arrowTextDisabled: {
     color: '#999999',
   },
+  centerCardWrap: {
+    width: 210,
+    height: 210,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   centerCard: {
     width: 210,
     height: 210,
@@ -422,25 +445,39 @@ const styles = StyleSheet.create({
   labelLight: {
     color: '#FFFFFF',
   },
-  feedbackBadge: {
+  feedbackBadgeAnchor: {
     position: 'absolute',
-    top: 12,
-    right: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    top: -10,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  feedbackBadge: {
     borderRadius: 20,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 6,
-    zIndex: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 4,
+  },
+  feedbackBadgeCorrect: {
+    backgroundColor: '#FFFFFF',
+  },
+  feedbackBadgeWrong: {
+    backgroundColor: '#FFFFFF',
   },
   feedbackText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#0D2033',
+  },
+  feedbackTextCorrect: {
+    color: '#12B76A',
+  },
+  feedbackTextWrong: {
+    color: '#D92D20',
   },
   localActions: {
     marginTop: 18,

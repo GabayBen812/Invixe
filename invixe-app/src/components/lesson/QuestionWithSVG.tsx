@@ -5,9 +5,12 @@ import { parseSVGCode } from "../../utils/svgParser";
 import { fetchRemoteText } from "../../utils/remoteAssetCache";
 import { useChoiceDrillLayout } from "../../hooks/useChoiceDrillLayout";
 import DrillChoiceLabel from "./DrillChoiceLabel";
+import DrillChoiceScrollArea from "./DrillChoiceScrollArea";
+import { useDrillViewportHeight } from "./DrillViewport";
 import {
   DRILL_MEDIA_STACK_GAP,
   getDrillChoicePlainText,
+  needsScrollableChoiceList,
 } from "../../utils/drillFitLayout";
 import { useLessonTheme } from "../../context/LessonThemeContext";
 import PracticeMediaSurface from "./PracticeMediaSurface";
@@ -54,6 +57,7 @@ export default function QuestionWithSVG({
   onSubmit,
 }: Props) {
   const { theme, isPractice } = useLessonTheme();
+  const viewportHeight = useDrillViewportHeight();
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -68,6 +72,11 @@ export default function QuestionWithSVG({
     gridCols: useGridLayout ? 2 : 1,
   });
   const stackGap = DRILL_MEDIA_STACK_GAP;
+  const scrollChoices = needsScrollableChoiceList(
+    layout,
+    viewportHeight,
+    layout.mediaHeight,
+  );
   const blockMinHeight =
     layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
 
@@ -195,8 +204,9 @@ export default function QuestionWithSVG({
           paddingHorizontal: layout.containerPadding + 6,
           paddingVertical: layout.containerPadding,
           gap: stackGap,
-          minHeight: blockMinHeight,
+          minHeight: scrollChoices ? undefined : blockMinHeight,
         },
+        scrollChoices && styles.containerScrollable,
       ]}
     >
       {renderSVG() && (
@@ -207,26 +217,30 @@ export default function QuestionWithSVG({
         </PracticeMediaSurface>
       )}
 
-      <View
-        style={[
-          styles.choicesContainer,
-          useGridLayout && styles.choicesGrid,
-          { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
-        ]}
-      >
-        {visibleChoices.map((choice) => {
+      {(() => {
+        const choiceNodes = visibleChoices.map((choice) => {
             if (!choice || !choice.id) {
               console.warn("QuestionWithSVG: Invalid choice object:", choice);
               return null;
             }
             const isSelected = selectedChoice === choice.id;
             const isCorrectChoice = choice.correct;
-            const labelColor =
-              submitted || isSelected
-                ? "#FFFFFF"
-                : isPractice
-                  ? theme.choiceText
-                  : "#374151";
+            const showFeedbackHighlight =
+              submitted &&
+              ((isSelected && isCorrectChoice) ||
+                (isSelected && !isCorrectChoice) ||
+                (!isSelected && isCorrectChoice));
+            const labelColor = showFeedbackHighlight
+              ? "#FFFFFF"
+              : submitted
+                ? isPractice
+                  ? theme.choiceDisabledText
+                  : "#9CA3AF"
+                : isSelected
+                  ? "#FFFFFF"
+                  : isPractice
+                    ? theme.choiceText
+                    : "#374151";
             let buttonStyle: any[] = [
               styles.choiceButton,
               isPractice && {
@@ -301,8 +315,30 @@ export default function QuestionWithSVG({
                 </View>
               </Pressable>
             );
-          })}
-      </View>
+          });
+
+        const choiceContainerStyle = [
+          styles.choicesContainer,
+          useGridLayout && styles.choicesGrid,
+          {
+            gap: layout.choiceGap,
+            minHeight: scrollChoices ? undefined : layout.choicesMinHeight,
+          },
+        ];
+
+        if (scrollChoices) {
+          return (
+            <DrillChoiceScrollArea
+              gap={layout.choiceGap}
+              contentStyle={useGridLayout ? styles.choicesGrid : undefined}
+            >
+              {choiceNodes}
+            </DrillChoiceScrollArea>
+          );
+        }
+
+        return <View style={choiceContainerStyle}>{choiceNodes}</View>;
+      })()}
     </View>
   );
 }
@@ -312,6 +348,11 @@ const styles = StyleSheet.create({
     width: "100%",
     flexShrink: 0,
     justifyContent: "flex-start",
+  },
+  containerScrollable: {
+    flex: 1,
+    minHeight: 0,
+    flexShrink: 1,
   },
   svgContainer: {
     alignItems: "center",

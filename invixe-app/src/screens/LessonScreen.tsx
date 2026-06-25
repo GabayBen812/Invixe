@@ -62,6 +62,7 @@ import {
   InvertedHammerNew,
 } from "../assets/Candels";
 import DojiLessonVisuals from "../components/lesson/DojiLessonVisuals";
+import { LessonLoadingView } from "../components/lesson/LessonLoadingView";
 import MultiSelectDrill from "../components/lesson/MultiSelectDrill";
 import SVGMultiSelectDrill from "../components/lesson/SVGMultiSelectDrill";
 import CarouselSelectDrill from "../components/lesson/CarouselSelectDrill";
@@ -72,6 +73,7 @@ import QuestionWithImage from "../components/lesson/QuestionWithImage";
 import QuestionWithSVG from "../components/lesson/QuestionWithSVG";
 import TextWithSVG from "../components/lesson/TextWithSVG";
 import GraphQuestionDrill from "../components/lesson/GraphQuestionDrill";
+import GraphQuestionExplanationMedia from "../components/lesson/GraphQuestionExplanationMedia";
 import DrillChoiceLabel from "../components/lesson/DrillChoiceLabel";
 import { getDrillChoicePlainText, normalizeDrillChoices } from "../utils/drillFitLayout";
 import PathSelectDrill from "../components/lesson/PathSelectDrill";
@@ -79,7 +81,7 @@ import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import TextWithImageExplainDrill from "../components/lesson/TextWithImageExplainDrill";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
 import HtmlText from "../components/ui/HtmlText";
-import { sanitizeDisplayText } from "../utils/decodeHtmlEntities";
+import { toPlainDisplayText } from "../utils/decodeHtmlEntities";
 
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
@@ -324,6 +326,12 @@ function SimpleQuestionChoiceList({
           textStyle.push({ color: theme.choiceSelectedText });
         }
 
+        const showFeedbackHighlight =
+          isSubmitted &&
+          ((isSelected && isCorrect) ||
+            (isSelected && !isCorrect) ||
+            (!isSelected && isCorrect));
+
         return (
           <Pressable
             key={choice.text}
@@ -347,10 +355,10 @@ function SimpleQuestionChoiceList({
             <DrillChoiceLabel
               choice={choice}
               color={
-                isSubmitted && isSelected && isCorrect
+                showFeedbackHighlight
                   ? "#FFFFFF"
-                  : isSubmitted && isSelected && !isCorrect
-                    ? "#FFFFFF"
+                  : isSubmitted
+                    ? theme.choiceDisabledText
                     : isSelected
                       ? theme.choiceSelectedText
                       : theme.choiceText
@@ -515,14 +523,16 @@ export default function LessonScreen({ navigation, route }: Props) {
     [],
   );
   const [lessonContentReady, setLessonContentReady] = useState(false);
-  const [preloadStatusText, setPreloadStatusText] = useState("טוען שיעור...");
+  const [preloadStatusText, setPreloadStatusText] = useState("טוען שיעור");
+  const [loadProgress, setLoadProgress] = useState(0);
 
   const unitId = route.params?.unitId;
 
   useEffect(() => {
     let cancelled = false;
     setLessonContentReady(false);
-    setPreloadStatusText("טוען שיעור...");
+    setPreloadStatusText("טוען שיעור");
+    setLoadProgress(0.08);
     setCurrentLessonSteps([]);
 
     (async () => {
@@ -535,15 +545,33 @@ export default function LessonScreen({ navigation, route }: Props) {
       if (cancelled) return;
 
       setCurrentLessonSteps(steps);
-      setPreloadStatusText("מכין את השיעור...");
-      const result = await preloadLessonAssetsCached(cacheKey, steps);
+      setLoadProgress(0.28);
+      setPreloadStatusText("מכין את השיעור");
+
+      const assetBase = 0.28;
+      const assetSpan = 0.64;
+      const result = await preloadLessonAssetsCached(cacheKey, steps, {
+        onProgress: (loaded, total) => {
+          if (cancelled || total === 0) return;
+          setLoadProgress(assetBase + (loaded / total) * assetSpan);
+        },
+      });
       if (cancelled) return;
+
+      if (result.total === 0) {
+        setLoadProgress(0.92);
+      } else if (result.total > 0) {
+        setLoadProgress(
+          assetBase + (result.loaded / result.total) * assetSpan,
+        );
+      }
 
       if (result.timedOut && result.total > 0) {
         console.warn(
           `Lesson asset preload timed out (${result.loaded}/${result.total} loaded)`,
         );
       }
+      setLoadProgress(1);
       setLessonContentReady(true);
     })().catch((err) => {
       console.error("Failed to prepare lesson:", err);
@@ -1022,47 +1050,6 @@ export default function LessonScreen({ navigation, route }: Props) {
     });
   };
 
-  // Loading state animations
-  const loadingAnimation = useRef(new Animated.Value(0)).current;
-  const spinAnimation = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    // Opacity pulse animation for character
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(loadingAnimation, {
-          toValue: 1,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(loadingAnimation, {
-          toValue: 0,
-          duration: 1500,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
-    // Spin animation for loader
-    Animated.loop(
-      Animated.timing(spinAnimation, {
-        toValue: 1,
-        duration: 2000,
-        useNativeDriver: true,
-      }),
-    ).start();
-  }, []);
-
-  const spin = spinAnimation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
-
-  const opacity = loadingAnimation.interpolate({
-    inputRange: [0, 0.5, 1],
-    outputRange: [0.6, 1, 0.6],
-  });
-
   if (!lessonContentReady || currentLessonSteps.length === 0) {
     return (
       <LessonThemeProvider lesson={lessonMeta}>
@@ -1072,32 +1059,13 @@ export default function LessonScreen({ navigation, route }: Props) {
           backgroundSource={backgroundImages.defaultBackground}
         >
           <TopBar />
-          <View style={styles.loadingContainer}>
-            <Animated.View
-              style={[styles.loadingCharacterContainer, { opacity }]}
-            >
-              <Image
-                source={getCharacterImg("character_orange_noback.png")}
-                style={styles.loadingCharacter}
-              />
-            </Animated.View>
-            <View style={styles.loadingSpinnerContainer}>
-              <Animated.View style={{ transform: [{ rotate: spin }] }}>
-                <ActivityIndicator
-                  size="large"
-                  color={isPractice ? "#76D761" : "#3372D8"}
-                />
-              </Animated.View>
-            </View>
-            <Text
-              style={[
-                styles.loadingText,
-                isPractice && { color: "#FFFFFF" },
-              ]}
-            >
-              {preloadStatusText}
-            </Text>
-          </View>
+          <LessonLoadingView
+            lessonId={lessonId}
+            lessonTitle={lessonMeta?.title ?? "שיעור"}
+            statusText={preloadStatusText}
+            progress={loadProgress}
+            isPractice={isPractice}
+          />
         </LessonScreenBackground>
       </LessonThemeProvider>
     );
@@ -1414,7 +1382,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                               choices.length === 1 &&
                               choices[0] &&
                               step.id !== "simple_text_step"
-                            ? sanitizeDisplayText(choices[0].text)
+                            ? toPlainDisplayText(choices[0].text)
                             : undefined
                     }
                     onButtonPress={
@@ -1501,7 +1469,7 @@ export default function LessonScreen({ navigation, route }: Props) {
           (step.activityConfig as any)?.graphQuestionPNG &&
           !graphQuestionPNGViewingExplanation && (
             <DrillViewport style={styles.drillContentArea}>
-              <View style={styles.mediaDrillWrapSized}>
+              <View style={styles.mediaDrillWrap}>
               <GraphQuestionDrill
                 mediaType="png"
                 pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
@@ -1551,7 +1519,8 @@ export default function LessonScreen({ navigation, route }: Props) {
                   selectedChoice.explanationImageUrl ||
                   selectedChoice.explanationImagePath ||
                   selectedChoice.pngUrl ||
-                  selectedChoice.pngPath;
+                  selectedChoice.pngPath ||
+                  (step.activityConfig as any).graphQuestionPNG?.pngUrl;
 
                 return (
                   <View
@@ -1563,129 +1532,13 @@ export default function LessonScreen({ navigation, route }: Props) {
                       pointerEvents: "box-none",
                     }}
                   >
-                    {(imageUrl ||
-                      selectedChoice.explanationSvgCode ||
-                      selectedChoice.explanationSvgUrl ||
-                      selectedChoice.explanationSvgPublicUrl) && (
-                      <View
-                        style={{
-                          width: "100%",
-                          flex: 1,
-                          maxHeight: 200,
-                          position: "relative",
-                          borderRadius: 12,
-                          overflow: "hidden",
-                          backgroundColor: "#f5f5f5",
-                        }}
-                      >
-                        {/* Show correct/wrong indicator inside container */}
-                        <View
-                          style={{
-                            position: "absolute",
-                            top: 16,
-                            right: 16,
-                            zIndex: 10,
-                          }}
-                        >
-                          {!isCorrect && (
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                alignItems: "center",
-                                gap: 12,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: "#0D2033",
-                                  fontWeight: "700",
-                                  fontSize: 18,
-                                }}
-                              >
-                                לא בדיוק
-                              </Text>
-                              <View
-                                style={{
-                                  backgroundColor: "#D92D20",
-                                  borderRadius: 20,
-                                  paddingHorizontal: 16,
-                                  paddingVertical: 8,
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    color: "#FFFFFF",
-                                    fontWeight: "700",
-                                    fontSize: 14,
-                                  }}
-                                >
-                                  ✗ שגוי
-                                </Text>
-                              </View>
-                            </View>
-                          )}
-                          {isCorrect && (
-                            <View
-                              style={{
-                                backgroundColor: "#12B76A",
-                                borderRadius: 20,
-                                paddingHorizontal: 16,
-                                paddingVertical: 8,
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: "#FFFFFF",
-                                  fontWeight: "700",
-                                  fontSize: 14,
-                                }}
-                              >
-                                ✓ נכון
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        {/* Image/SVG - fill available space */}
-                        {imageUrl && (
-                          <Image
-                            source={{ uri: imageUrl }}
-                            style={{ width: "100%", height: "100%" }}
-                            resizeMode="contain"
-                          />
-                        )}
-                        {(selectedChoice.explanationSvgCode ||
-                          selectedChoice.explanationSvgUrl ||
-                          selectedChoice.explanationSvgPublicUrl) &&
-                          (() => {
-                            const svgUrl =
-                              selectedChoice.explanationSvgPublicUrl ||
-                              selectedChoice.explanationSvgUrl;
-                            const svgCode = selectedChoice.explanationSvgCode;
-
-                            return (
-                              <View
-                                style={{
-                                  width: "100%",
-                                  height: "100%",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                {svgUrl ? (
-                                  <SvgUri
-                                    uri={svgUrl}
-                                    width="100%"
-                                    height="100%"
-                                    preserveAspectRatio="xMidYMid meet"
-                                  />
-                                ) : svgCode ? (
-                                  parseSVGCode(svgCode)
-                                ) : null}
-                              </View>
-                            );
-                          })()}
-                      </View>
-                    )}
+                    <GraphQuestionExplanationMedia
+                      isCorrect={isCorrect}
+                      imageUrl={imageUrl}
+                      svgCode={selectedChoice.explanationSvgCode}
+                      svgUrl={selectedChoice.explanationSvgUrl}
+                      svgPublicUrl={selectedChoice.explanationSvgPublicUrl}
+                    />
                   </View>
                 );
               })()}
@@ -1747,10 +1600,38 @@ export default function LessonScreen({ navigation, route }: Props) {
             </DrillViewport>
           )}
 
+        {/* Text with SVG — centered card in drill area */}
+        {step.activity === "textWithSVG" &&
+          step.activityConfig?.questionWithImage && (
+            <DrillViewport style={styles.drillContentArea}>
+              <View style={styles.textWithSVGDrillWrap}>
+                <TextWithSVG
+                  text={step.message}
+                  svgCode={step.activityConfig.questionWithImage.svgCode}
+                  svgUrl={step.activityConfig.questionWithImage.svgUrl}
+                  svgPublicUrl={
+                    step.activityConfig.questionWithImage.svgPublicUrl
+                  }
+                  submitText={
+                    step.activityConfig.questionWithImage.submitText ||
+                    "המשך"
+                  }
+                  onContinue={() => {
+                    if (choices && choices.length >= 1) {
+                      handleChoice(choices[0].nextStep);
+                    }
+                  }}
+                  showButton={false}
+                />
+              </View>
+            </DrillViewport>
+          )}
+
         {!(step.activity === "textWithImageExplain" && !step.message?.trim()) &&
           !isExplanation &&
           !(activityType === "graphQuestionPNG") &&
-          step.activity !== "carouselSelect" && (
+          step.activity !== "carouselSelect" &&
+          step.activity !== "textWithSVG" && (
             <DrillViewport style={styles.drillContentArea}>
               <View
                 style={[
@@ -1827,43 +1708,10 @@ export default function LessonScreen({ navigation, route }: Props) {
                   />
                 )}
 
-                {/* Text with SVG explanation activity */}
-                {step.activity === "textWithSVG" &&
-                  step.activityConfig?.questionWithImage && (
-                    <View
-                      style={{
-                        flex: 1,
-                        justifyContent: "center",
-                        width: "100%",
-                      }}
-                    >
-                      <TextWithSVG
-                        text={step.message}
-                        svgCode={step.activityConfig.questionWithImage.svgCode}
-                        svgUrl={step.activityConfig.questionWithImage.svgUrl}
-                        svgPublicUrl={
-                          step.activityConfig.questionWithImage.svgPublicUrl
-                        }
-                        submitText={
-                          step.activityConfig.questionWithImage.submitText ||
-                          "המשך"
-                        }
-                        onContinue={() => {
-                          if (choices && choices.length >= 1) {
-                            handleChoice(choices[0].nextStep);
-                          }
-                        }}
-                        showButton={false}
-                      />
-                    </View>
-                  )}
-
                 {/* Question with image drill */}
                 {step.activity === "questionWithImage" &&
                   step.activityConfig?.questionWithImage && (
-                    <View
-                      style={[styles.mediaDrillWrap, styles.mediaDrillWrapSized]}
-                    >
+                    <View style={styles.mediaDrillWrap}>
                       <QuestionWithImage
                         question={
                           step.activityConfig.questionWithImage.question || ""
@@ -1954,12 +1802,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     }
 
                     return (
-                      <View
-                        style={{
-                          width: "100%",
-                          paddingBottom: 120,
-                        }}
-                      >
+                      <View style={styles.mediaDrillWrap}>
                         <QuestionWithSVG
                           question={
                             step.activityConfig.questionWithImage.question || ""
@@ -2007,7 +1850,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 {activityType === "graphQuestion" &&
                   (step.activityConfig as any)?.graphQuestion &&
                   !graphQuestionViewingExplanation && (
-                    <View style={styles.mediaDrillWrapSized}>
+                    <View style={styles.mediaDrillWrap}>
                       <GraphQuestionDrill
                         mediaType="svg"
                         svgCode={
@@ -2077,158 +1920,23 @@ export default function LessonScreen({ navigation, route }: Props) {
                       selectedChoice.explanationSvgPublicUrl ||
                       (step.activityConfig as any).graphQuestion.svgPublicUrl;
 
-                    console.log(
-                      "GraphQuestion Explanation - selectedChoice:",
-                      selectedChoice,
-                    );
-                    console.log(
-                      "GraphQuestion Explanation - imageUrl:",
-                      imageUrl,
-                    );
-                    console.log(
-                      "GraphQuestion Explanation - SVG Code:",
-                      explanationSvgCode ? "exists" : "missing",
-                    );
-                    console.log(
-                      "GraphQuestion Explanation - SVG URL:",
-                      explanationSvgUrl || explanationSvgPublicUrl,
-                    );
-
                     return (
                       <View
                         style={{
                           width: "100%",
                           flex: 1,
-                          justifyContent: "flex-start",
+                          justifyContent: "center",
                           alignItems: "center",
-                          paddingTop: 10,
-                          paddingBottom: 100,
                           pointerEvents: "box-none",
                         }}
                       >
-                        {/* Image/SVG container with indicator inside */}
-                        {(imageUrl ||
-                          explanationSvgCode ||
-                          explanationSvgUrl ||
-                          explanationSvgPublicUrl) && (
-                          <View
-                            style={{
-                              width: "100%",
-                              flex: 1,
-                              maxHeight: "75%",
-                              position: "relative",
-                              borderRadius: 12,
-                              overflow: "hidden",
-                              backgroundColor: "#f5f5f5",
-                            }}
-                          >
-                            {/* Show correct/wrong indicator inside container */}
-                            <View
-                              style={{
-                                position: "absolute",
-                                top: 16,
-                                right: 16,
-                                zIndex: 10,
-                              }}
-                            >
-                              {!isCorrect && (
-                                <View
-                                  style={{
-                                    flexDirection: "row",
-                                    alignItems: "center",
-                                    gap: 12,
-                                  }}
-                                >
-                                  <Text
-                                    style={{
-                                      color: "#0D2033",
-                                      fontWeight: "700",
-                                      fontSize: 18,
-                                    }}
-                                  >
-                                    לא בדיוק
-                                  </Text>
-                                  <View
-                                    style={{
-                                      backgroundColor: "#D92D20",
-                                      borderRadius: 20,
-                                      paddingHorizontal: 16,
-                                      paddingVertical: 8,
-                                    }}
-                                  >
-                                    <Text
-                                      style={{
-                                        color: "#FFFFFF",
-                                        fontWeight: "700",
-                                        fontSize: 14,
-                                      }}
-                                    >
-                                      ✗ שגוי
-                                    </Text>
-                                  </View>
-                                </View>
-                              )}
-                              {isCorrect && (
-                                <View
-                                  style={{
-                                    backgroundColor: "#12B76A",
-                                    borderRadius: 20,
-                                    paddingHorizontal: 16,
-                                    paddingVertical: 8,
-                                  }}
-                                >
-                                  <Text
-                                    style={{
-                                      color: "#FFFFFF",
-                                      fontWeight: "700",
-                                      fontSize: 14,
-                                    }}
-                                  >
-                                    ✓ נכון
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            {/* Image/SVG - fill available space */}
-                            {imageUrl && (
-                              <Image
-                                source={{ uri: imageUrl }}
-                                style={{ width: "100%", height: "100%" }}
-                                resizeMode="contain"
-                              />
-                            )}
-                            {(explanationSvgCode ||
-                              explanationSvgUrl ||
-                              explanationSvgPublicUrl) &&
-                              (() => {
-                                const svgUrl =
-                                  explanationSvgPublicUrl || explanationSvgUrl;
-                                const svgCode = explanationSvgCode;
-
-                                return (
-                                  <View
-                                    style={{
-                                      width: "100%",
-                                      height: "100%",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                    }}
-                                  >
-                                    {svgUrl ? (
-                                      <SvgUri
-                                        uri={svgUrl}
-                                        width="100%"
-                                        height="100%"
-                                        preserveAspectRatio="xMidYMid meet"
-                                      />
-                                    ) : svgCode ? (
-                                      parseSVGCode(svgCode)
-                                    ) : null}
-                                  </View>
-                                );
-                              })()}
-                          </View>
-                        )}
+                        <GraphQuestionExplanationMedia
+                          isCorrect={isCorrect}
+                          imageUrl={imageUrl}
+                          svgCode={explanationSvgCode}
+                          svgUrl={explanationSvgUrl}
+                          svgPublicUrl={explanationSvgPublicUrl}
+                        />
                       </View>
                     );
                   })()}
@@ -2828,7 +2536,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     onPress={() => handleChoicePress(choices[0])}
                   >
                     <Text style={styles.primaryButtonText}>
-                      {sanitizeDisplayText(choices[0].text || "המשך")}
+                      {toPlainDisplayText(choices[0].text || "המשך")}
                     </Text>
                   </Pressable>
                 )}
@@ -2838,21 +2546,65 @@ export default function LessonScreen({ navigation, route }: Props) {
       {/* Legacy overlay - only show for non-drill steps if needed */}
       {showCorrectOverlay && !showingDrillExplanation && (
         <View style={styles.correctOverlayContainer}>
-          <View style={styles.correctSheet}>
-            <Text style={styles.correctTitle}>
+          <View
+            style={[
+              styles.correctSheet,
+              isPractice && {
+                backgroundColor: visualTheme.contentPanelBg,
+                borderTopWidth: 1,
+                borderColor: visualTheme.mediaSurfaceBorder,
+                shadowOpacity: 0,
+                elevation: 0,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.correctTitle,
+                drillRewards > 0
+                  ? styles.correctTitleSuccess
+                  : styles.correctTitleWrong,
+                isPractice &&
+                  (drillRewards > 0
+                    ? { color: visualTheme.progressFill }
+                    : { color: visualTheme.choiceWrongBg }),
+              ]}
+            >
               {drillRewards > 0 ? "תשובה נכונה!" : "תשובה שגויה"}
             </Text>
-            <View style={styles.rewardPill}>
-              <Text
-                style={styles.rewardPillText}
-              >{`⚡ X ${drillRewards} - זכית ב־`}</Text>
-            </View>
+            {drillRewards > 0 && (
+              <View
+                style={[
+                  styles.rewardPill,
+                  isPractice && {
+                    backgroundColor: "rgba(118, 215, 97, 0.16)",
+                    borderWidth: 1,
+                    borderColor: visualTheme.mediaSurfaceBorder,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.rewardPillText,
+                    isPractice && { color: visualTheme.progressFill },
+                  ]}
+                >
+                  {isPractice
+                    ? `זכית ב- ${drillRewards} ⚡`
+                    : `הרווחת ${drillRewards}$`}
+                </Text>
+              </View>
+            )}
             <Pressable
               style={[
                 styles.nextButton,
-                isPractice && {
-                  backgroundColor: visualTheme.continueButtonCorrectBg,
-                },
+                drillRewards > 0
+                  ? isPractice
+                    ? { backgroundColor: visualTheme.continueButtonCorrectBg }
+                    : styles.nextButtonCorrect
+                  : isPractice
+                    ? { backgroundColor: visualTheme.continueButtonWrongBg }
+                    : styles.nextButtonWrong,
               ]}
               onPress={() => {
                 setShowCorrectOverlay(false);
@@ -2865,7 +2617,9 @@ export default function LessonScreen({ navigation, route }: Props) {
                 }
               }}
             >
-              <Text style={styles.nextButtonText}>שאלה הבאה</Text>
+              <Text style={styles.nextButtonText}>
+                {isPractice ? "שאלה הבאה" : "המשך"}
+              </Text>
             </Pressable>
           </View>
         </View>
@@ -2922,20 +2676,49 @@ export default function LessonScreen({ navigation, route }: Props) {
           (step.activity as any) === "dragMatch" ||
           step.activity === "svgMultiSelect") && (
           <View style={styles.buttonSheetContainer}>
-            <View style={styles.buttonSheet}>
+            <View
+              style={[
+                styles.buttonSheet,
+                isPractice && {
+                  backgroundColor: visualTheme.contentPanelBg,
+                  borderTopWidth: 1,
+                  borderColor: visualTheme.mediaSurfaceBorder,
+                  shadowOpacity: 0,
+                  elevation: 0,
+                },
+              ]}
+            >
               <Text
                 style={[
                   styles.buttonSheetTitle,
                   simpleQuestionIsCorrect
                     ? styles.buttonSheetTitleCorrect
                     : styles.buttonSheetTitleWrong,
+                  isPractice &&
+                    (simpleQuestionIsCorrect
+                      ? { color: visualTheme.progressFill }
+                      : { color: visualTheme.choiceWrongBg }),
                 ]}
               >
                 {simpleQuestionIsCorrect ? "תשובה נכונה!" : "טעות"}
               </Text>
               {simpleQuestionIsCorrect && drillRewards > 0 && (
-                <View style={styles.buttonSheetRewardRow}>
-                  <Text style={styles.buttonSheetRewardText}>
+                <View
+                  style={[
+                    styles.buttonSheetRewardRow,
+                    isPractice && {
+                      backgroundColor: "rgba(118, 215, 97, 0.16)",
+                      borderWidth: 1,
+                      borderColor: visualTheme.mediaSurfaceBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.buttonSheetRewardText,
+                      isPractice && { color: visualTheme.progressFill },
+                    ]}
+                  >
                     {isPractice
                       ? `זכית ב- ${drillRewards} ⚡`
                       : `הרווחת ${drillRewards}$`}
@@ -3478,10 +3261,12 @@ const styles = StyleSheet.create({
   },
   bubbleWrapper: {
     width: "100%",
+    flex: 1,
+    minHeight: 0,
     alignItems: "center",
     alignSelf: "center",
     flexDirection: "column",
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   textWithImageWrapper: {
     width: "100%",
@@ -3570,6 +3355,13 @@ const styles = StyleSheet.create({
     minHeight: undefined,
   },
   carouselDrillWrap: {
+    flex: 1,
+    width: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingBottom: 100,
+  },
+  textWithSVGDrillWrap: {
     flex: 1,
     width: "100%",
     justifyContent: "center",
@@ -3850,10 +3642,15 @@ const styles = StyleSheet.create({
     elevation: 14,
   },
   correctTitle: {
-    color: "#12B76A",
     fontWeight: "800",
     fontSize: 28,
     marginBottom: 16,
+  },
+  correctTitleSuccess: {
+    color: "#12B76A",
+  },
+  correctTitleWrong: {
+    color: "#FF6B6B",
   },
   rewardPill: {
     backgroundColor: "#EEF7EE",
@@ -3875,6 +3672,14 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 40,
     marginTop: 8,
+    width: "100%",
+    alignItems: "center",
+  },
+  nextButtonCorrect: {
+    backgroundColor: "#12B76A",
+  },
+  nextButtonWrong: {
+    backgroundColor: "#D92D20",
   },
   nextButtonText: {
     color: "#FFFFFF",
@@ -3888,35 +3693,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: -1, // Ensure it's behind other elements
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingTop: 100,
-  },
-  loadingCharacterContainer: {
-    marginBottom: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingCharacter: {
-    width: 120,
-    height: 120,
-    resizeMode: "contain",
-  },
-  loadingSpinnerContainer: {
-    marginBottom: 20,
-    width: 50,
-    height: 50,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#3F9FFF",
-    marginTop: 10,
   },
   buttonSheetContainer: {
     position: "absolute",

@@ -28,13 +28,14 @@ import {
   formatLessonDuration,
   gradeFromAccuracy,
 } from "../utils/lessonResults";
-import Svg, { Path } from "react-native-svg";
-import TopBar from "../components/ui/TopBar";
+import { getThemeForLesson } from "../modules/lessons/lessonTheme";
+import DictionaryBookIcon from "../components/ui/DictionaryBookIcon";
 //@ts-ignore
 import TrophyImage from "../assets/nodes/Trophy.png";
 //@ts-ignore
 import MoneyIconSource from "../assets/money.svg";
-
+import Svg, { Path } from "react-native-svg";
+import TopBar from "../components/ui/TopBar";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
@@ -104,14 +105,24 @@ function StatPill({
   value,
   accent,
   metrics,
+  labelColor,
+  pillStyle,
 }: {
   label: string;
   value: string;
   accent: string;
   metrics: LayoutMetrics;
+  labelColor?: string;
+  pillStyle?: object;
 }) {
   return (
-    <View style={[styles.statPill, { paddingVertical: metrics.statPillPadV }]}>
+    <View
+      style={[
+        styles.statPill,
+        { paddingVertical: metrics.statPillPadV },
+        pillStyle,
+      ]}
+    >
       <Text
         style={[
           styles.statPillValue,
@@ -120,7 +131,14 @@ function StatPill({
       >
         {value}
       </Text>
-      <Text style={styles.statPillLabel}>{label}</Text>
+      <Text
+        style={[
+          styles.statPillLabel,
+          labelColor ? { color: labelColor } : null,
+        ]}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -129,10 +147,14 @@ function AccuracyRing({
   percent,
   color,
   metrics,
+  ringStyle,
+  labelColor,
 }: {
   percent: number | null;
   color: string;
   metrics: LayoutMetrics;
+  ringStyle?: object;
+  labelColor?: string;
 }) {
   const display = percent === null ? "—" : `${percent}%`;
   const ringFont = Math.round(16 * metrics.scale);
@@ -147,19 +169,27 @@ function AccuracyRing({
           borderWidth: metrics.ringBorder,
           borderColor: color,
         },
+        ringStyle,
       ]}
     >
       <Text style={[styles.gradeRingPercent, { color, fontSize: ringFont }]}>
         {display}
       </Text>
-      <Text style={styles.gradeRingSub}>דיוק</Text>
+      <Text
+        style={[
+          styles.gradeRingSub,
+          labelColor ? { color: labelColor } : null,
+        ]}
+      >
+        דיוק
+      </Text>
     </View>
   );
 }
 
 export default function LessonCompleteScreen({ navigation, route }: Props) {
   const layout = useCompactLayout();
-  const { setCoins } = useUser();
+  const { setCoins, currentUserEmail } = useUser();
   const { lessonsRegistry, loadingRegistry } = useLessons();
   const { openDictionary } = useDictionary();
   const [coinsLoading, setCoinsLoading] = useState(false);
@@ -189,6 +219,12 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
     return findLessonInRegistry(lessonsRegistry, lessonId)?.lesson ?? null;
   }, [lessonsRegistry, lessonId]);
 
+  const visualTheme = useMemo(
+    () => getThemeForLesson(currentLesson),
+    [currentLesson],
+  );
+  const isPractice = visualTheme.variant === "practice";
+
   const nextLesson = useMemo(() => {
     if (!lessonId || !lessonsRegistry.length) return null;
     return getNextLessonFromRegistry(lessonsRegistry, lessonId);
@@ -202,13 +238,13 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     const addCoins = async () => {
-      if (earnedCoins <= 0) return;
+      if (earnedCoins <= 0 || !currentUserEmail) return;
       setCoinsLoading(true);
       try {
         const res = await fetchWithTimeout(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ coins: earnedCoins }),
+          body: JSON.stringify({ email: currentUserEmail, coins: earnedCoins }),
         });
         if (!res.ok) {
           const data = await res.json();
@@ -229,7 +265,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
       void addCoins();
     }, 100);
     return () => clearTimeout(timer);
-  }, [earnedCoins, setCoins]);
+  }, [earnedCoins, setCoins, currentUserEmail]);
 
   const resetToMap = useCallback(
     (selectedUnitIdx?: number) => {
@@ -330,15 +366,50 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   );
 
   const stackGap = layout.sectionGap;
+  const mutedText = isPractice
+    ? visualTheme.choiceDisabledText
+    : theme.colors.neutral[500];
+  const cardStyle = isPractice
+    ? {
+        backgroundColor: visualTheme.contentPanelBg,
+        borderColor: visualTheme.mediaSurfaceBorder,
+        shadowOpacity: 0,
+        elevation: 0,
+      }
+    : null;
+  const pillStyle = isPractice
+    ? {
+        backgroundColor: visualTheme.mediaSurfaceBg,
+        borderColor: visualTheme.mediaSurfaceBorder,
+      }
+    : null;
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        isPractice && { backgroundColor: visualTheme.screenBg },
+      ]}
+    >
       <TopBar />
       <View style={[styles.body, bodyPadding]}>
         <View style={[styles.contentStack, { gap: stackGap }]}>
-        <View style={[styles.heroCard, { paddingVertical: layout.heroPadV }]}>
-          <View style={styles.heroBadge}>
-            <Text style={[styles.heroBadgeText, { fontSize: layout.badgeFont }]}>
+        <View style={[styles.heroCard, { paddingVertical: layout.heroPadV }, cardStyle]}>
+          <View
+            style={[
+              styles.heroBadge,
+              isPractice && {
+                backgroundColor: "rgba(118, 215, 97, 0.16)",
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.heroBadgeText,
+                { fontSize: layout.badgeFont },
+                isPractice && { color: visualTheme.progressFill },
+              ]}
+            >
               {grade.label}
             </Text>
           </View>
@@ -351,11 +422,21 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             }}
             resizeMode="contain"
           />
-          <Text style={[styles.title, { fontSize: layout.titleSize }]}>
+          <Text
+            style={[
+              styles.title,
+              { fontSize: layout.titleSize },
+              isPractice && { color: visualTheme.progressFill },
+            ]}
+          >
             כל הכבוד!
           </Text>
           <Text
-            style={[styles.subtitle, { fontSize: layout.subtitleSize }]}
+            style={[
+              styles.subtitle,
+              { fontSize: layout.subtitleSize },
+              isPractice && { color: visualTheme.instructionText },
+            ]}
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.85}
@@ -363,14 +444,18 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             סיימת את {currentLesson?.title || "השיעור"}
           </Text>
           <Text
-            style={[styles.summaryLine, { fontSize: layout.summarySize }]}
+            style={[
+              styles.summaryLine,
+              { fontSize: layout.summarySize },
+              isPractice && { color: mutedText },
+            ]}
             numberOfLines={1}
           >
             {summaryLine}
           </Text>
         </View>
 
-        <View style={[styles.resultsCard, { padding: layout.cardPad }]}>
+        <View style={[styles.resultsCard, { padding: layout.cardPad }, cardStyle]}>
           <View style={styles.gradeRow}>
             <View style={styles.gradeLetterBlock}>
               <Text
@@ -385,12 +470,25 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
               >
                 {grade.letter}
               </Text>
-              <Text style={styles.gradeLetterCaption}>ציון</Text>
+              <Text
+                style={[
+                  styles.gradeLetterCaption,
+                  isPractice && { color: mutedText },
+                ]}
+              >
+                ציון
+              </Text>
             </View>
             <AccuracyRing
               percent={accuracy}
-              color={grade.color}
+              color={isPractice ? visualTheme.progressFill : grade.color}
               metrics={layout}
+              ringStyle={
+                isPractice
+                  ? { backgroundColor: visualTheme.mediaSurfaceBg }
+                  : undefined
+              }
+              labelColor={isPractice ? mutedText : undefined}
             />
           </View>
 
@@ -398,14 +496,22 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             <StatPill
               label="זמן"
               value={timeSpent}
-              accent={theme.colors.primary[500]}
+              accent={
+                isPractice ? visualTheme.progressFill : theme.colors.primary[500]
+              }
               metrics={layout}
+              labelColor={isPractice ? mutedText : undefined}
+              pillStyle={pillStyle ?? undefined}
             />
             <StatPill
               label="שאלות"
               value={totalGraded > 0 ? String(totalGraded) : "—"}
-              accent={theme.colors.neutral[700]}
+              accent={
+                isPractice ? visualTheme.instructionText : theme.colors.neutral[700]
+              }
               metrics={layout}
+              labelColor={isPractice ? mutedText : undefined}
+              pillStyle={pillStyle ?? undefined}
             />
           </View>
         </View>
@@ -417,6 +523,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
                 styles.rewardCard,
                 styles.rewardCardCoins,
                 { paddingVertical: layout.rewardPadV },
+                isPractice && styles.rewardCardCoinsPractice,
               ]}
             >
               <MoneyIconSource
@@ -446,6 +553,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
                   styles.rewardCard,
                   styles.rewardCardLightning,
                   { paddingVertical: layout.rewardPadV },
+                  isPractice && styles.rewardCardLightningPractice,
                 ]}
               >
                 <Svg
@@ -474,17 +582,25 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           </View>
 
           <Pressable
-            style={[styles.dictionaryHint, { paddingVertical: layout.statPillPadV }]}
+            style={[
+              styles.dictionaryHint,
+              { paddingVertical: layout.statPillPadV },
+              cardStyle,
+            ]}
             onPress={() => openDictionary()}
           >
-            <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
-              <Path
-                d="M19 2H5C3.89543 2 3 2.89543 3 4V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V4C21 2.89543 20.1046 2 19 2Z"
-                fill={theme.colors.primary[400]}
-              />
-            </Svg>
+            <DictionaryBookIcon
+              size={18}
+              color={
+                isPractice ? visualTheme.progressFill : theme.colors.primary[400]
+              }
+            />
             <Text
-              style={[styles.dictionaryHintText, { fontSize: layout.hintFont }]}
+              style={[
+                styles.dictionaryHintText,
+                { fontSize: layout.hintFont },
+                isPractice && { color: visualTheme.instructionText },
+              ]}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.8}
@@ -500,6 +616,10 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             style={[
               styles.continueButton,
               { paddingVertical: layout.btnPadV },
+              isPractice && {
+                backgroundColor: visualTheme.confirmButtonBg,
+                shadowColor: visualTheme.confirmButtonBg,
+              },
               !canNavigate && styles.buttonDisabled,
             ]}
             onPress={handleContinue}
@@ -520,12 +640,22 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             style={[
               styles.homeButton,
               { paddingVertical: layout.btnPadV },
+              isPractice && {
+                backgroundColor: "transparent",
+                borderColor: visualTheme.progressFill,
+              },
               !canNavigate && styles.buttonDisabled,
             ]}
             onPress={handleHome}
             disabled={!canNavigate}
           >
-            <Text style={[styles.homeButtonText, { fontSize: layout.btnFont }]}>
+            <Text
+              style={[
+                styles.homeButtonText,
+                { fontSize: layout.btnFont },
+                isPractice && { color: visualTheme.progressFill },
+              ]}
+            >
               חזרה לבית
             </Text>
           </Pressable>
@@ -688,6 +818,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#E8F8E0",
     borderWidth: 1,
     borderColor: "rgba(54, 134, 66, 0.25)",
+  },
+  rewardCardCoinsPractice: {
+    backgroundColor: "rgba(18, 183, 106, 0.14)",
+    borderColor: "rgba(118, 215, 97, 0.35)",
+  },
+  rewardCardLightningPractice: {
+    backgroundColor: "rgba(18, 183, 106, 0.14)",
+    borderColor: "rgba(118, 215, 97, 0.35)",
   },
   rewardValue: {
     fontFamily: theme.font.bold,

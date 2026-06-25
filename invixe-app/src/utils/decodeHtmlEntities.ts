@@ -122,3 +122,25 @@ export function sanitizeDisplayText(text: string): string {
   if (!text || typeof text !== "string") return text;
   return decodeHtmlEntities(text).replace(/\u00A0/g, " ");
 }
+
+/**
+ * Plain text for Text components — decodes entities and removes HTML tags
+ * (including malformed fragments like </p<) so tags are never shown to users.
+ */
+export function toPlainDisplayText(text: string): string {
+  if (!text || typeof text !== "string") return "";
+
+  const decoded = sanitizeDisplayText(text);
+  if (!decoded.includes("<") && !decoded.includes(">")) {
+    return decoded.replace(/\s+/g, " ").trim();
+  }
+
+  let out = decoded
+    .replace(/\s*style="[^"]*"/gi, "")
+    .replace(/<\/[a-zA-Z]+\s*</g, " ")
+    .replace(/>\s*\/[a-zA-Z]+\s*</g, " ")
+    .replace(/<[^>]*>?/g, " ")
+    .replace(/>\s*/g, " ");
+
+  return out.replace(/\s+/g, " ").trim();
+}

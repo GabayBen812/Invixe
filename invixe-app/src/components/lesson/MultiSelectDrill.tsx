@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { View, Text, Pressable, Image, StyleSheet } from "react-native";
 import HtmlText from "../ui/HtmlText";
 import { useLessonTheme } from "../../context/LessonThemeContext";
-import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
+import { toPlainDisplayText } from "../../utils/decodeHtmlEntities";
 
 export interface MultiSelectOption {
   id: string;
@@ -151,7 +151,7 @@ export default function MultiSelectDrill({
               ) : null}
               {opt.label ? (
                 <Text style={[styles.optionLabel, { color: textColor }]}>
-                  {sanitizeDisplayText(opt.label)}
+                  {toPlainDisplayText(opt.label)}
                 </Text>
               ) : null}
             </Pressable>

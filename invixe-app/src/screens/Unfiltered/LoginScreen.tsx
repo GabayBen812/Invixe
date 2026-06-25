@@ -70,11 +70,11 @@ export default function LoginScreen({ navigation }: Props) {
         throw new Error(data.error || "Login failed");
       }
       const data = await res.json();
-      navigation.navigate("Map", {});
-      void setCurrentUser(data.phone || phone, {
+      await setCurrentUser(data.phone || phone, {
         firstName: data.firstName,
         lastName: data.lastName,
       });
+      navigation.navigate("Map", {});
     } catch (e: any) {
       const msg = e.message || "Network error";
       setError(getHebrewError(msg));

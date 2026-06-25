@@ -12,11 +12,14 @@ import { SvgUri } from "react-native-svg";
 import { parseSVGCode } from "../../utils/svgParser";
 import { fetchRemoteText } from "../../utils/remoteAssetCache";
 import { useChoiceDrillLayout } from "../../hooks/useChoiceDrillLayout";
+import { useDrillViewportHeight } from "./DrillViewport";
 import DrillChoiceLabel from "./DrillChoiceLabel";
+import DrillChoiceScrollArea from "./DrillChoiceScrollArea";
 import {
   DRILL_MEDIA_STACK_GAP,
   getDrillChoicePlainText,
   getDrillChoiceText,
+  needsScrollableChoiceList,
 } from "../../utils/drillFitLayout";
 import {
   getAlternateSupabaseUrl,
@@ -24,6 +27,10 @@ import {
 } from "../../utils/supabaseUrl";
 import { useLessonTheme } from "../../context/LessonThemeContext";
 import PracticeMediaSurface from "./PracticeMediaSurface";
+import {
+  computeBareChartHeight,
+  isLandscapePhotoAsset,
+} from "../../utils/graphQuestionMedia";
 
 export interface GraphQuestionChoice {
   id: string;
@@ -80,7 +87,12 @@ export default function GraphQuestionDrill({
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
   const [fullScreenOpen, setFullScreenOpen] = useState(false);
-  const { width: screenWidth } = useWindowDimensions();
+  const [pngDimensions, setPngDimensions] = useState<{
+    width: number;
+    height: number;
+  } | null>(null);
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  const drillViewportHeight = useDrillViewportHeight();
   const visibleChoices = choices.filter(
     (c) =>
       getDrillChoicePlainText(c).length > 0 ||
@@ -95,13 +107,71 @@ export default function GraphQuestionDrill({
       return t === "כן" || t === "לא";
     });
 
+  const [pngUri, setPngUri] = useState<string | null>(null);
+  const triedAlternatePngRef = useRef(false);
+
+  const activePngUrl = useMemo(() => {
+    if (mediaType !== "png") return null;
+    return normalizeSupabaseUrl(pngUrl) || pngUrl || null;
+  }, [mediaType, pngUrl]);
+
+  useEffect(() => {
+    triedAlternatePngRef.current = false;
+    setPngUri(activePngUrl);
+    setPngDimensions(null);
+  }, [activePngUrl]);
+
+  useEffect(() => {
+    if (mediaType !== "png" || !pngUri) {
+      setPngDimensions(null);
+      return;
+    }
+    Image.getSize(
+      pngUri,
+      (width, height) => setPngDimensions({ width, height }),
+      () => setPngDimensions(null),
+    );
+  }, [mediaType, pngUri]);
+
+  const isLandscapePhoto = useMemo(() => {
+    if (mediaType !== "png" || !pngDimensions) return false;
+    return isLandscapePhotoAsset(pngDimensions.width, pngDimensions.height);
+  }, [mediaType, pngDimensions]);
+
+  const isBareChart =
+    mediaType === "svg" || (mediaType === "png" && !isLandscapePhoto);
+  const showEnlargeControl = mediaType === "png" && isLandscapePhoto;
+
   const layout = useChoiceDrillLayout(
     visibleChoices.length || choices.length,
     { hasMedia: true, gridCols: isYesNo ? 2 : undefined },
   );
   const stackGap = DRILL_MEDIA_STACK_GAP;
-  const blockMinHeight =
-    layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
+  const mediaHeight = useMemo(() => {
+    if (!isBareChart) return layout.mediaHeight;
+
+    return computeBareChartHeight(drillViewportHeight, screenHeight, {
+      reservedSpace:
+        layout.containerPadding * 2 +
+        layout.choicesMinHeight +
+        stackGap +
+        20,
+      fraction: isYesNo ? 0.64 : 0.5,
+    });
+  }, [
+    isBareChart,
+    layout.mediaHeight,
+    layout.containerPadding,
+    layout.choicesMinHeight,
+    drillViewportHeight,
+    screenHeight,
+    isYesNo,
+    stackGap,
+  ]);
+  const blockMinHeight = mediaHeight + layout.choicesMinHeight + stackGap + 16;
+  const scrollChoices =
+    !isYesNo &&
+    needsScrollableChoiceList(layout, drillViewportHeight, mediaHeight);
 
   // Active media - always use the main graph, don't change based on selected choice
   const activeSvgCode = useMemo(() => {
@@ -114,20 +184,6 @@ export default function GraphQuestionDrill({
     return svgPublicUrl || svgUrl;
   }, [mediaType, svgPublicUrl, svgUrl]);
 
-  const [pngUri, setPngUri] = useState<string | null>(null);
-  const triedAlternatePngRef = useRef(false);
-
-  const activePngUrl = useMemo(() => {
-    if (mediaType !== "png") return null;
-    return normalizeSupabaseUrl(pngUrl) || pngUrl || null;
-  }, [mediaType, pngUrl]);
-
-  useEffect(() => {
-    triedAlternatePngRef.current = false;
-    setPngUri(activePngUrl);
-  }, [activePngUrl]);
-
-  // Fetch SVG text when only URL is available
   const [svgCache, setSvgCache] = useState<string | null>(null);
 
   useEffect(() => {
@@ -219,21 +275,20 @@ export default function GraphQuestionDrill({
           paddingVertical: layout.containerPadding,
           paddingHorizontal: layout.containerPadding + 4,
           gap: stackGap,
-          minHeight: blockMinHeight,
+          minHeight: scrollChoices ? undefined : blockMinHeight,
         },
+        scrollChoices && styles.containerScrollable,
       ]}
     >
       <View
         style={[
           styles.mediaWrapper,
-          { flexShrink: 0, height: layout.mediaHeight, overflow: "hidden" },
+          isBareChart && styles.mediaWrapperBare,
+          { flexShrink: 0, height: mediaHeight, overflow: "hidden" },
         ]}
       >
-        <PracticeMediaSurface style={{ height: layout.mediaHeight, width: "100%" }}>
-          <View
-            style={[styles.mediaContainer, { height: "100%" }]}
-            pointerEvents="none"
-          >
+        {isBareChart ? (
+          <View style={[styles.mediaContainer, styles.mediaContainerBare, { height: "100%" }]}>
             {mediaType === "svg" ? (
               parsedSVG ? (
                 <View style={styles.svgContainer}>{parsedSVG}</View>
@@ -262,35 +317,50 @@ export default function GraphQuestionDrill({
               </View>
             )}
           </View>
-        </PracticeMediaSurface>
+        ) : (
+          <>
+            <PracticeMediaSurface style={{ height: mediaHeight, width: "100%" }}>
+              <View
+                style={[styles.mediaContainer, { height: "100%" }]}
+                pointerEvents="none"
+              >
+                {pngUri ? (
+                  <Image
+                    source={{ uri: pngUri } as any}
+                    style={styles.pngImage}
+                    resizeMode="contain"
+                    onError={() => {
+                      if (!activePngUrl || triedAlternatePngRef.current) return;
+                      const alternate = getAlternateSupabaseUrl(activePngUrl);
+                      if (alternate) {
+                        triedAlternatePngRef.current = true;
+                        setPngUri(alternate);
+                      }
+                    }}
+                  />
+                ) : (
+                  <View style={styles.mediaPlaceholder}>
+                    <Text style={styles.mediaPlaceholderText}>No Image</Text>
+                  </View>
+                )}
+              </View>
+            </PracticeMediaSurface>
 
-        {/* Clickable overlay for fullscreen */}
-        <Pressable
-          style={styles.fullScreenOverlay}
-          onPress={() => {
-            console.log("Fullscreen pressed!");
-            setFullScreenOpen(true);
-          }}
-        >
-          {/* Fullscreen indicator */}
-          <View style={styles.fullScreenIndicator} pointerEvents="none">
-            <Text style={styles.fullScreenIcon}>⛶</Text>
-            <Text style={styles.fullScreenText}>הקש להגדלה</Text>
-          </View>
-        </Pressable>
+            <Pressable
+              style={styles.fullScreenOverlay}
+              onPress={() => setFullScreenOpen(true)}
+            >
+              <View style={styles.fullScreenIndicator} pointerEvents="none">
+                <Text style={styles.fullScreenIcon}>⛶</Text>
+                <Text style={styles.fullScreenText}>הקש להגדלה</Text>
+              </View>
+            </Pressable>
+          </>
+        )}
       </View>
 
-      <View
-        style={[
-          styles.choicesContainer,
-          {
-            gap: layout.choiceGap,
-            minHeight: isYesNo ? undefined : layout.choicesMinHeight,
-          },
-          isYesNo && styles.choicesContainerYesNo,
-        ]}
-      >
-        {visibleChoices.map((choice) => {
+      {(() => {
+        const choiceNodes = visibleChoices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
           const choiceText = getDrillChoicePlainText(choice).trim();
           const yesNoBaseColor =
@@ -301,21 +371,24 @@ export default function GraphQuestionDrill({
                   ? theme.choiceNoBg
                   : theme.choiceBg
               : null;
-          const labelColor =
-            submitted || isSelected || yesNoBaseColor
-              ? "#FFFFFF"
-              : isPractice
-                ? theme.choiceText
-                : "#374151";
           const isCorrectChoice = choice.correct;
-          let buttonStyle: any = [
-            styles.choiceButton,
-            isPractice &&
-              !isYesNo && {
-                backgroundColor: theme.choiceBg,
-                borderColor: theme.choiceBorder,
-              },
-          ];
+          const showFeedbackHighlight =
+            submitted &&
+            ((isSelected && isCorrectChoice) ||
+              (isSelected && !isCorrectChoice) ||
+              (!isSelected && isCorrectChoice));
+          const labelColor = showFeedbackHighlight
+            ? "#FFFFFF"
+            : submitted
+              ? isPractice
+                ? theme.choiceDisabledText
+                : "#9CA3AF"
+              : isSelected
+                ? theme.choiceSelectedText
+                : yesNoBaseColor
+                  ? "#FFFFFF"
+                  : theme.choiceText;
+          let buttonStyle: any = [styles.choiceButton];
 
           if (submitted) {
             if (isSelected && isCorrectChoice) {
@@ -345,9 +418,17 @@ export default function GraphQuestionDrill({
               styles.choiceButton,
               {
                 backgroundColor: yesNoBaseColor,
-                borderColor: "transparent",
+                borderColor: isSelected ? "rgba(255,255,255,0.9)" : "transparent",
+                borderWidth: isSelected ? 2 : 0,
                 flex: 1,
+                borderRadius: 8,
               },
+            ];
+          } else if (isYesNo && !isPractice) {
+            buttonStyle = [
+              styles.choiceButton,
+              isSelected ? styles.choiceButtonSelected : styles.choiceButtonYesNoLight,
+              { flex: 1 },
             ];
           } else if (isSelected) {
             buttonStyle = [
@@ -355,6 +436,14 @@ export default function GraphQuestionDrill({
               isPractice
                 ? { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" }
                 : styles.choiceButtonSelected,
+            ];
+          } else if (isPractice) {
+            buttonStyle = [
+              styles.choiceButton,
+              {
+                backgroundColor: theme.choiceBg,
+                borderColor: theme.choiceBorder,
+              },
             ];
           }
 
@@ -433,11 +522,31 @@ export default function GraphQuestionDrill({
               </View>
             </Pressable>
           );
-        })}
-      </View>
+        });
+
+        const choiceContainerStyle = [
+          styles.choicesContainer,
+          {
+            gap: layout.choiceGap,
+            minHeight: scrollChoices || isYesNo ? undefined : layout.choicesMinHeight,
+          },
+          isYesNo && styles.choicesContainerYesNo,
+        ];
+
+        if (scrollChoices) {
+          return (
+            <DrillChoiceScrollArea gap={layout.choiceGap}>
+              {choiceNodes}
+            </DrillChoiceScrollArea>
+          );
+        }
+
+        return <View style={choiceContainerStyle}>{choiceNodes}</View>;
+      })()}
       {/* No inline submit button – submit triggered by absolute button in LessonScreen */}
 
-      {/* Full-screen modal */}
+      {/* Full-screen modal — PNG charts only */}
+      {showEnlargeControl ? (
       <Modal
         visible={fullScreenOpen}
         transparent={true}
@@ -471,6 +580,7 @@ export default function GraphQuestionDrill({
           </View>
         </View>
       </Modal>
+      ) : null}
     </View>
   );
 }
@@ -482,15 +592,26 @@ const styles = StyleSheet.create({
     justifyContent: "flex-start",
     alignItems: "center",
   },
+  containerScrollable: {
+    flex: 1,
+    minHeight: 0,
+    flexShrink: 1,
+  },
   mediaWrapper: {
     width: "100%",
     position: "relative",
     zIndex: 100,
   },
+  mediaWrapperBare: {
+    zIndex: 1,
+  },
   mediaContainer: {
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
+  },
+  mediaContainerBare: {
+    paddingHorizontal: 4,
   },
   fullScreenOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -530,13 +651,26 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "stretch",
     maxWidth: "100%",
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
+    gap: 10,
   },
   choiceButtonYesNo: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    minHeight: 52,
+    minHeight: 46,
+    borderRadius: 8,
+  },
+  choiceButtonYesNoLight: {
+    backgroundColor: "#FFFFFF",
+    borderColor: "#CBD5E1",
+    borderWidth: 1.5,
+    borderRadius: 8,
+    shadowColor: "#0F2233",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   choiceTextWrap: {
     width: "100%",
@@ -545,7 +679,7 @@ const styles = StyleSheet.create({
   },
   choiceButton: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
@@ -557,6 +691,11 @@ const styles = StyleSheet.create({
   choiceButtonSelected: {
     borderColor: "#3372D8",
     backgroundColor: "#3372D8",
+    shadowColor: "#3F9FFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
   choiceButtonCorrect: {
     borderColor: "#12B76A",

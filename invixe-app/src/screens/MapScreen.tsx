@@ -13,6 +13,7 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
+import { resolveUnitAssetId } from "../components/map/nodeAssets";
 import { isLessonUnlocked } from "../modules/lessons/registry";
 import {
   computeUnitProgress,
@@ -559,6 +560,10 @@ export default function MapScreen({ navigation, route }: Props) {
   // Scroll Ref
   const scrollViewRef = React.useRef<ScrollView>(null);
   const scrollOffsetRef = React.useRef(0);
+  const headerBlockHeightRef = React.useRef(160);
+  const scrollViewportHeightRef = React.useRef(
+    Dimensions.get("window").height - 175,
+  );
 
   // Initialize animations immediately
   React.useEffect(() => {
@@ -618,7 +623,7 @@ export default function MapScreen({ navigation, route }: Props) {
     });
   };
 
-  const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
+  const handleTabPress = (tab: "map" | "profile" | "graph") => {
     switch (tab) {
       case "map":
         // Already on map screen, do nothing
@@ -628,9 +633,6 @@ export default function MapScreen({ navigation, route }: Props) {
         break;
       case "profile":
         navigation.navigate("Profile");
-        break;
-      case "shop":
-        navigation.navigate("Shop");
         break;
     }
   };
@@ -716,6 +718,47 @@ export default function MapScreen({ navigation, route }: Props) {
       lessonId: lesson.id,
     };
   });
+
+  const currentNodeIdx = lessonStatuses.findIndex((s) => s.current);
+
+  const scrollToCurrentNode = React.useCallback(
+    (animated: boolean) => {
+      if (selectedUnitIdx === null || currentNodeIdx < 0) return;
+
+      const viewportH = scrollViewportHeightRef.current;
+      const nodeCenterY =
+        headerBlockHeightRef.current +
+        24 +
+        nodePositions[currentNodeIdx].y +
+        CIRCLE_SIZE / 2;
+      const targetY = nodeCenterY - viewportH / 2;
+
+      if (targetY <= 8) return;
+
+      const nodeInViewport = nodeCenterY - scrollOffsetRef.current;
+      if (nodeInViewport > viewportH * 0.52) {
+        scrollViewRef.current?.scrollTo({
+          y: Math.max(0, targetY),
+          animated,
+        });
+      }
+    },
+    [selectedUnitIdx, currentNodeIdx, nodePositions],
+  );
+
+  React.useEffect(() => {
+    if (selectedUnitIdx === null || currentNodeIdx < 0) return;
+    const timer = setTimeout(() => scrollToCurrentNode(true), 320);
+    return () => clearTimeout(timer);
+  }, [selectedUnitIdx, currentNodeIdx, scrollToCurrentNode]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (selectedUnitIdx === null || currentNodeIdx < 0) return;
+      const timer = setTimeout(() => scrollToCurrentNode(true), 380);
+      return () => clearTimeout(timer);
+    }, [selectedUnitIdx, currentNodeIdx, scrollToCurrentNode]),
+  );
 
   // Enhanced Unit Selector Icons
   const TechnicalAnalysisIcon = ({ size = 48 }: { size?: number }) => (
@@ -900,13 +943,22 @@ export default function MapScreen({ navigation, route }: Props) {
             onScroll={handleScroll}
             scrollEventThrottle={16}
             onScrollBeginDrag={dismissActiveTooltip}
+            onLayout={(e) => {
+              scrollViewportHeightRef.current = e.nativeEvent.layout.height;
+            }}
             removeClippedSubviews={false} // Changed to false to avoid clipping overflow tooltips
             decelerationRate="normal"
             bounces={false}
             keyboardShouldPersistTaps="handled"
           >
             {/* Unit Header Card matching Figma */}
-            <View style={styles.headerCard}>
+            <View
+              style={styles.headerCard}
+              onLayout={(e) => {
+                const { height } = e.nativeEvent.layout;
+                headerBlockHeightRef.current = height + 16 + 24;
+              }}
+            >
               <View style={styles.headerRow}>
 
                                               {/* Actions Row */}
@@ -989,16 +1041,17 @@ export default function MapScreen({ navigation, route }: Props) {
                     y1 - controlY
                   } ${x1} ${y1}`;
 
+                  const segmentCompleted = lessonStatuses[idx]?.completed;
+
                   return (
                     <Path
                       key={`conn-${idx}`}
                       d={d}
-                      stroke="#3B82F6"
-                      strokeWidth={4}
+                      stroke={segmentCompleted ? "#3F9FFF" : "#BFCBE2"}
+                      strokeWidth={7}
                       fill="none"
                       strokeLinecap="round"
-                      strokeDasharray="10, 10"
-                      opacity={0.8}
+                      strokeDasharray="1, 17"
                     />
                   );
                 })}
@@ -1088,7 +1141,10 @@ export default function MapScreen({ navigation, route }: Props) {
                             <LessonNode
                               title={lesson.title}
                               unlocked={unlocked}
-                              lessonId={lesson.id}
+                              unitAssetId={resolveUnitAssetId(
+                                activeStep?.step ?? 1,
+                                idx,
+                              )}
                               onStart={() => {
                                 // Toggle tooltip logic
                                 if (activeTooltipId === lesson.id) {
@@ -1124,7 +1180,6 @@ export default function MapScreen({ navigation, route }: Props) {
                               completed={completed}
                               current={current}
                               position={position}
-                              lessonType={lesson.lessonType || "info"}
                             />
 
                             {/* Tooltip Rendered Below Node (Inside the absolute view) */}

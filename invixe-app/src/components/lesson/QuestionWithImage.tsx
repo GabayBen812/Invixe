@@ -2,9 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Pressable, StyleSheet, Image, ActivityIndicator } from 'react-native';
 import { useChoiceDrillLayout } from '../../hooks/useChoiceDrillLayout';
 import DrillChoiceLabel from './DrillChoiceLabel';
+import DrillChoiceScrollArea from './DrillChoiceScrollArea';
+import { useDrillViewportHeight } from './DrillViewport';
 import {
   DRILL_MEDIA_STACK_GAP,
   getDrillChoicePlainText,
+  needsScrollableChoiceList,
 } from '../../utils/drillFitLayout';
 import { normalizeSupabaseUrl } from '../../utils/supabaseUrl';
 import { useLessonTheme } from '../../context/LessonThemeContext';
@@ -45,6 +48,7 @@ export default function QuestionWithImage({
   onStateChange
 }: Props) {
   const { theme, isPractice } = useLessonTheme();
+  const viewportHeight = useDrillViewportHeight();
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
@@ -117,54 +121,33 @@ export default function QuestionWithImage({
   }, [onStateChange, showingExplanation, selectedChoice]);
 
   const stackGap = DRILL_MEDIA_STACK_GAP;
+  const scrollChoices = needsScrollableChoiceList(
+    layout,
+    viewportHeight,
+    layout.mediaHeight,
+  );
   const blockMinHeight =
     layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
 
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          paddingVertical: layout.containerPadding,
-          paddingHorizontal: layout.containerPadding + 8,
-          gap: stackGap,
-          minHeight: blockMinHeight,
-        },
-      ]}
-    >
-      <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
-        <View style={[styles.imageContainer, { height: "100%" }]}>
-          {imageLoading && (
-            <View style={styles.imageLoadingContainer}>
-              <ActivityIndicator size="large" color="#3F9FFF" />
-            </View>
-          )}
-          <Image
-            source={resolvedSource}
-            style={[styles.image, imageLoading && styles.imageHidden]}
-            resizeMode="contain"
-            onLoadStart={() => setImageLoading(true)}
-            onLoadEnd={() => setImageLoading(false)}
-            onError={() => setImageLoading(false)}
-          />
-        </View>
-      </PracticeMediaSurface>
-
-      <View
-        style={[
-          styles.choicesContainer,
-          { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
-        ]}
-      >
-        {visibleChoices.map((choice) => {
+  const choiceNodes = visibleChoices.map((choice) => {
           const isSelected = selectedChoice === choice.id;
           const isCorrectChoice = choice.correct;
-          const labelColor =
-            submitted || isSelected
-              ? '#FFFFFF'
-              : isPractice
-                ? theme.choiceText
-                : '#374151';
+          const showFeedbackHighlight =
+            submitted &&
+            ((isSelected && isCorrectChoice) ||
+              (isSelected && !isCorrectChoice) ||
+              (!isSelected && isCorrectChoice));
+          const labelColor = showFeedbackHighlight
+            ? "#FFFFFF"
+            : submitted
+              ? isPractice
+                ? theme.choiceDisabledText
+                : "#9CA3AF"
+              : isSelected
+                ? "#FFFFFF"
+                : isPractice
+                  ? theme.choiceText
+                  : "#374151";
           let buttonStyle: object[] = [
             styles.choiceButton,
             isPractice && {
@@ -258,8 +241,53 @@ export default function QuestionWithImage({
               </View>
             </Pressable>
           );
-        })}
-      </View>
+        });
+
+  return (
+    <View
+      style={[
+        styles.container,
+        {
+          paddingVertical: layout.containerPadding,
+          paddingHorizontal: layout.containerPadding + 8,
+          gap: stackGap,
+          minHeight: scrollChoices ? undefined : blockMinHeight,
+        },
+        scrollChoices && styles.containerScrollable,
+      ]}
+    >
+      <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
+        <View style={[styles.imageContainer, { height: "100%" }]}>
+          {imageLoading && (
+            <View style={styles.imageLoadingContainer}>
+              <ActivityIndicator size="large" color="#3F9FFF" />
+            </View>
+          )}
+          <Image
+            source={resolvedSource}
+            style={[styles.image, imageLoading && styles.imageHidden]}
+            resizeMode="contain"
+            onLoadStart={() => setImageLoading(true)}
+            onLoadEnd={() => setImageLoading(false)}
+            onError={() => setImageLoading(false)}
+          />
+        </View>
+      </PracticeMediaSurface>
+
+      {scrollChoices ? (
+        <DrillChoiceScrollArea gap={layout.choiceGap}>
+          {choiceNodes}
+        </DrillChoiceScrollArea>
+      ) : (
+        <View
+          style={[
+            styles.choicesContainer,
+            { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
+          ]}
+        >
+          {choiceNodes}
+        </View>
+      )}
     </View>
   );
 }
@@ -269,6 +297,11 @@ const styles = StyleSheet.create({
     width: "100%",
     flexShrink: 0,
     justifyContent: "flex-start",
+  },
+  containerScrollable: {
+    flex: 1,
+    minHeight: 0,
+    flexShrink: 1,
   },
   imageContainer: {
     width: '100%',

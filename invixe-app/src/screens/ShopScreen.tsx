@@ -42,7 +42,7 @@ export default function ShopScreen({ navigation }: Props) {
     return Math.floor(available / 3);
   }, [screenWidth]);
 
-  const handleTabPress = (tab: "map" | "profile" | "shop" | "graph") => {
+  const handleTabPress = (tab: "map" | "profile" | "graph") => {
     switch (tab) {
       case "map":
         navigation.navigate("Map");
@@ -52,8 +52,6 @@ export default function ShopScreen({ navigation }: Props) {
         break;
       case "profile":
         navigation.navigate("Profile");
-        break;
-      case "shop":
         break;
     }
   };
@@ -173,7 +171,7 @@ export default function ShopScreen({ navigation }: Props) {
         </View>
       </ScrollView>
 
-      <BottomNavbar activeTab="shop" onTabPress={handleTabPress} />
+      <BottomNavbar activeTab="map" onTabPress={handleTabPress} />
     </View>
   );
 }

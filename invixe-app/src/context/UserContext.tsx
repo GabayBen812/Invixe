@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   ReactNode,
 } from "react";
@@ -19,6 +20,15 @@ interface LessonAttempt {
   completed: boolean;
   lastAttempted: Date;
   attempts: number;
+}
+
+interface ProgressPayload {
+  completedLessons: number[];
+  lessonAttempts: LessonAttempt[];
+  coins: number;
+  lightnings: number;
+  firstName?: string | null;
+  lastName?: string | null;
 }
 
 interface UserContextType {
@@ -46,6 +56,13 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
+function mergeCompletedLessons(
+  local: number[],
+  server: number[],
+): number[] {
+  return [...new Set([...local, ...server])].sort((a, b) => a - b);
+}
+
 export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [completedLessons, setCompletedLessonsState] = useState<number[]>([]);
   const [lessonAttempts, setLessonAttemptsState] = useState<LessonAttempt[]>(
@@ -60,36 +77,103 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   );
   const [isHydrating, setIsHydrating] = useState(true);
 
-  const fetchUserData = useCallback(async (email?: string) => {
-    try {
-      const userEmail = email ?? currentUserEmail;
+  const currentUserEmailRef = useRef<string | null>(null);
+  const progressFetchGen = useRef(0);
+  const progressSaveInFlight = useRef(0);
+  const completedLessonsRef = useRef<number[]>([]);
+  const lessonAttemptsRef = useRef<LessonAttempt[]>([]);
+
+  useEffect(() => {
+    currentUserEmailRef.current = currentUserEmail;
+  }, [currentUserEmail]);
+
+  useEffect(() => {
+    completedLessonsRef.current = completedLessons;
+  }, [completedLessons]);
+
+  useEffect(() => {
+    lessonAttemptsRef.current = lessonAttempts;
+  }, [lessonAttempts]);
+
+  const resetUserState = useCallback(() => {
+    setCompletedLessonsState([]);
+    setLessonAttemptsState([]);
+    setCoinsState(0);
+    setLightningsState(0);
+    setFirstNameState(null);
+    setLastNameState(null);
+    completedLessonsRef.current = [];
+    lessonAttemptsRef.current = [];
+  }, []);
+
+  const applyProgressPayload = useCallback(
+    (email: string, requestGen: number, data: ProgressPayload) => {
+      if (requestGen !== progressFetchGen.current) return;
+      if (email !== currentUserEmailRef.current) return;
+
+      const serverCompleted = data.completedLessons ?? [];
+      setCompletedLessonsState((prev) => {
+        const next =
+          progressSaveInFlight.current > 0
+            ? mergeCompletedLessons(prev, serverCompleted)
+            : serverCompleted;
+        completedLessonsRef.current = next;
+        return next;
+      });
+
+      const serverAttempts = data.lessonAttempts ?? [];
+      setLessonAttemptsState((prev) => {
+        const next =
+          progressSaveInFlight.current > 0
+            ? mergeLessonAttempts(prev, serverAttempts)
+            : serverAttempts;
+        lessonAttemptsRef.current = next;
+        return next;
+      });
+
+      setCoinsState(data.coins || 0);
+      setLightningsState(data.lightnings || 0);
+      if (data.firstName !== undefined) {
+        setFirstNameState(data.firstName ?? null);
+      }
+      if (data.lastName !== undefined) {
+        setLastNameState(data.lastName ?? null);
+      }
+    },
+    [],
+  );
+
+  const fetchUserData = useCallback(
+    async (email?: string) => {
+      const userEmail = email ?? currentUserEmailRef.current;
       if (!userEmail) {
-        setCompletedLessonsState([]);
-        setLessonAttemptsState([]);
-        setCoinsState(0);
-        setLightningsState(0);
-        setFirstNameState(null);
-        setLastNameState(null);
+        resetUserState();
         return;
       }
 
-      const res = await fetchWithTimeout(
-        `${API_BASE_URL}/user/progress?email=${encodeURIComponent(userEmail)}`,
-      );
-      if (!res.ok) {
-        throw new Error(`Failed to fetch user data: ${res.status}`);
+      if (progressSaveInFlight.current > 0) {
+        return;
       }
-      const data = await res.json();
-      setCompletedLessonsState(data.completedLessons || []);
-      setLessonAttemptsState(data.lessonAttempts || []);
-      setCoinsState(data.coins || 0);
-      setLightningsState(data.lightnings || 0);
-      setFirstNameState((prev) => data.firstName ?? prev ?? null);
-      setLastNameState((prev) => data.lastName ?? prev ?? null);
-    } catch (e) {
-      console.error("Error fetching user data:", e);
-    }
-  }, [currentUserEmail]);
+
+      const requestGen = ++progressFetchGen.current;
+
+      try {
+        const res = await fetchWithTimeout(
+          `${API_BASE_URL}/user/progress?email=${encodeURIComponent(userEmail)}`,
+        );
+        if (requestGen !== progressFetchGen.current) return;
+        if (userEmail !== currentUserEmailRef.current) return;
+        if (!res.ok) {
+          throw new Error(`Failed to fetch user data: ${res.status}`);
+        }
+        const data = (await res.json()) as ProgressPayload;
+        applyProgressPayload(userEmail, requestGen, data);
+      } catch (e) {
+        console.error("Error fetching user data:", e);
+      }
+    },
+    [applyProgressPayload, resetUserState],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -98,20 +182,22 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         const savedEmail = await AsyncStorage.getItem(
           STORAGE_KEYS.sessionEmail,
         );
-        if (cancelled || !savedEmail) return;
+        if (cancelled) return;
+        if (!savedEmail) return;
 
+        const requestGen = ++progressFetchGen.current;
         setCurrentUserEmail(savedEmail);
+        currentUserEmailRef.current = savedEmail;
+
         const res = await fetchWithTimeout(
           `${API_BASE_URL}/user/progress?email=${encodeURIComponent(savedEmail)}`,
         );
-        if (cancelled || !res.ok) return;
-        const data = await res.json();
-        setCompletedLessonsState(data.completedLessons || []);
-        setLessonAttemptsState(data.lessonAttempts || []);
-        setCoinsState(data.coins || 0);
-        setLightningsState(data.lightnings || 0);
-        setFirstNameState(data.firstName ?? null);
-        setLastNameState(data.lastName ?? null);
+        if (cancelled || requestGen !== progressFetchGen.current) return;
+        if (savedEmail !== currentUserEmailRef.current) return;
+        if (!res.ok) return;
+
+        const data = (await res.json()) as ProgressPayload;
+        applyProgressPayload(savedEmail, requestGen, data);
       } catch (e) {
         console.error("Error restoring session:", e);
       } finally {
@@ -120,15 +206,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     })();
     return () => {
       cancelled = true;
+      progressFetchGen.current += 1;
     };
-  }, []);
+  }, [applyProgressPayload]);
 
   const setCurrentUser = useCallback(
     async (
       email: string,
       profile?: { firstName?: string; lastName?: string },
     ) => {
+      progressFetchGen.current += 1;
+      resetUserState();
       setCurrentUserEmail(email);
+      currentUserEmailRef.current = email;
       await AsyncStorage.setItem(STORAGE_KEYS.sessionEmail, email);
       if (profile) {
         if (profile.firstName !== undefined) {
@@ -140,81 +230,106 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
       await fetchUserData(email);
     },
-    [fetchUserData],
+    [fetchUserData, resetUserState],
   );
 
   const logout = useCallback(async () => {
+    progressFetchGen.current += 1;
     setCurrentUserEmail(null);
-    setCompletedLessonsState([]);
-    setLessonAttemptsState([]);
-    setCoinsState(0);
-    setLightningsState(0);
-    setFirstNameState(null);
-    setLastNameState(null);
+    currentUserEmailRef.current = null;
+    resetUserState();
     await AsyncStorage.removeItem(STORAGE_KEYS.sessionEmail);
-  }, []);
+  }, [resetUserState]);
 
-  const setCompletedLessons = useCallback(
-    async (lessons: number[]) => {
-      setCompletedLessonsState(lessons);
-      const userEmail = currentUserEmail;
-      if (!userEmail) return;
+  const persistCompletedLessons = useCallback(
+    async (userEmail: string, lessons: number[]) => {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/user/progress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: userEmail,
+          completedLessons: lessons,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to save progress: ${res.status}`);
+      }
+    },
+    [],
+  );
 
-      try {
-        const res = await fetchWithTimeout(`${API_BASE_URL}/user/progress`, {
+  const persistLessonAttempts = useCallback(
+    async (userEmail: string, attempts: LessonAttempt[]) => {
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/user/lesson-attempts`,
+        {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: userEmail,
-            completedLessons: lessons,
+            lessonAttempts: attempts,
           }),
-        });
-        if (!res.ok) {
-          throw new Error(`Failed to save progress: ${res.status}`);
-        }
+        },
+      );
+      if (!res.ok) {
+        throw new Error(`Failed to save lesson attempts: ${res.status}`);
+      }
+    },
+    [],
+  );
+
+  const setCompletedLessons = useCallback(
+    async (lessons: number[]) => {
+      const userEmail = currentUserEmailRef.current;
+      setCompletedLessonsState(lessons);
+      completedLessonsRef.current = lessons;
+      if (!userEmail) return;
+
+      progressSaveInFlight.current += 1;
+      try {
+        await persistCompletedLessons(userEmail, lessons);
       } catch (error) {
         console.error("Error saving progress:", error);
         throw error;
+      } finally {
+        progressSaveInFlight.current -= 1;
       }
     },
-    [currentUserEmail],
+    [persistCompletedLessons],
   );
 
   const setLessonAttempts = useCallback(
     async (attempts: LessonAttempt[]) => {
+      const userEmail = currentUserEmailRef.current;
       setLessonAttemptsState(attempts);
-      const userEmail = currentUserEmail;
+      lessonAttemptsRef.current = attempts;
       if (!userEmail) return;
 
+      progressSaveInFlight.current += 1;
       try {
-        const res = await fetchWithTimeout(
-          `${API_BASE_URL}/user/lesson-attempts`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              email: userEmail,
-              lessonAttempts: attempts,
-            }),
-          },
-        );
-        if (!res.ok) {
-          throw new Error(`Failed to save lesson attempts: ${res.status}`);
-        }
+        await persistLessonAttempts(userEmail, attempts);
       } catch (error) {
         console.error("Error saving lesson attempts:", error);
         throw error;
+      } finally {
+        progressSaveInFlight.current -= 1;
       }
     },
-    [currentUserEmail],
+    [persistLessonAttempts],
   );
 
   const markLessonCompleted = useCallback(
     async (lessonId: number) => {
-      const existingAttempt = lessonAttempts.find(
+      const userEmail = currentUserEmailRef.current;
+      if (!userEmail) return;
+
+      const prevAttempts = lessonAttemptsRef.current;
+      const prevCompleted = completedLessonsRef.current;
+
+      const existingAttempt = prevAttempts.find(
         (a) => a.lessonId === lessonId,
       );
-      const updatedAttempts = [...lessonAttempts];
+      const updatedAttempts = [...prevAttempts];
 
       if (existingAttempt) {
         const index = updatedAttempts.findIndex(
@@ -235,7 +350,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
       }
 
-      let newCompletedLessons = [...completedLessons];
+      let newCompletedLessons = [...prevCompleted];
       if (!newCompletedLessons.includes(lessonId)) {
         newCompletedLessons.push(lessonId);
       }
@@ -250,46 +365,33 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
       setLessonAttemptsState(updatedAttempts);
       setCompletedLessonsState(newCompletedLessons);
+      lessonAttemptsRef.current = updatedAttempts;
+      completedLessonsRef.current = newCompletedLessons;
 
+      progressSaveInFlight.current += 1;
       try {
         await Promise.all([
-          setLessonAttempts(updatedAttempts),
-          setCompletedLessons(newCompletedLessons),
+          persistLessonAttempts(userEmail, updatedAttempts),
+          persistCompletedLessons(userEmail, newCompletedLessons),
         ]);
       } catch (error) {
         console.error("Error persisting lesson completion:", error);
         throw error;
+      } finally {
+        progressSaveInFlight.current -= 1;
       }
     },
-    [lessonAttempts, completedLessons, setLessonAttempts, setCompletedLessons],
-  );
-
-  const persistLessonAttempts = useCallback(
-    (attempts: LessonAttempt[]) => {
-      setLessonAttemptsState(attempts);
-      const userEmail = currentUserEmail;
-      if (!userEmail) return;
-
-      fetchWithTimeout(`${API_BASE_URL}/user/lesson-attempts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: userEmail,
-          lessonAttempts: attempts,
-        }),
-      }).catch((error) => {
-        console.error("Error saving lesson attempts:", error);
-      });
-    },
-    [currentUserEmail],
+    [persistCompletedLessons, persistLessonAttempts],
   );
 
   const markLessonAttempted = useCallback(
     (lessonId: number) => {
-      const existingAttempt = lessonAttempts.find(
+      const userEmail = currentUserEmailRef.current;
+      const prevAttempts = lessonAttemptsRef.current;
+      const existingAttempt = prevAttempts.find(
         (a) => a.lessonId === lessonId,
       );
-      const updatedAttempts = [...lessonAttempts];
+      const updatedAttempts = [...prevAttempts];
 
       if (existingAttempt) {
         const index = updatedAttempts.findIndex(
@@ -309,43 +411,50 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         });
       }
 
-      persistLessonAttempts(updatedAttempts);
-    },
-    [lessonAttempts, persistLessonAttempts],
-  );
-
-  const setCoins = useCallback(
-    async (nextCoins: number) => {
-      setCoinsState(nextCoins);
-      const userEmail = currentUserEmail;
+      setLessonAttemptsState(updatedAttempts);
+      lessonAttemptsRef.current = updatedAttempts;
       if (!userEmail) return;
 
-      fetchWithTimeout(`${API_BASE_URL}/user/currency`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: userEmail, coins: nextCoins }),
-      }).catch((e) => console.error("Error saving coins:", e));
-    },
-    [currentUserEmail],
-  );
-
-  const setLightnings = useCallback(
-    async (nextLightnings: number) => {
-      setLightningsState(nextLightnings);
-      const userEmail = currentUserEmail;
-      if (!userEmail) return;
-
-      fetchWithTimeout(`${API_BASE_URL}/user/currency`, {
+      fetchWithTimeout(`${API_BASE_URL}/user/lesson-attempts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: userEmail,
-          lightnings: nextLightnings,
+          lessonAttempts: updatedAttempts,
         }),
-      }).catch((e) => console.error("Error saving lightnings:", e));
+      }).catch((error) => {
+        console.error("Error saving lesson attempts:", error);
+      });
     },
-    [currentUserEmail],
+    [],
   );
+
+  const setCoins = useCallback(async (nextCoins: number) => {
+    setCoinsState(nextCoins);
+    const userEmail = currentUserEmailRef.current;
+    if (!userEmail) return;
+
+    fetchWithTimeout(`${API_BASE_URL}/user/currency`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: userEmail, coins: nextCoins }),
+    }).catch((e) => console.error("Error saving coins:", e));
+  }, []);
+
+  const setLightnings = useCallback(async (nextLightnings: number) => {
+    setLightningsState(nextLightnings);
+    const userEmail = currentUserEmailRef.current;
+    if (!userEmail) return;
+
+    fetchWithTimeout(`${API_BASE_URL}/user/currency`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: userEmail,
+        lightnings: nextLightnings,
+      }),
+    }).catch((e) => console.error("Error saving lightnings:", e));
+  }, []);
 
   const refreshUserData = useCallback(
     () => fetchUserData(),
@@ -397,6 +506,32 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     <UserContext.Provider value={value}>{children}</UserContext.Provider>
   );
 };
+
+function mergeLessonAttempts(
+  local: LessonAttempt[],
+  server: LessonAttempt[],
+): LessonAttempt[] {
+  const byId = new Map<number, LessonAttempt>();
+  for (const attempt of server) {
+    byId.set(attempt.lessonId, attempt);
+  }
+  for (const attempt of local) {
+    const existing = byId.get(attempt.lessonId);
+    if (!existing) {
+      byId.set(attempt.lessonId, attempt);
+      continue;
+    }
+    const localTime = new Date(attempt.lastAttempted).getTime();
+    const serverTime = new Date(existing.lastAttempted).getTime();
+    byId.set(attempt.lessonId, {
+      lessonId: attempt.lessonId,
+      completed: existing.completed || attempt.completed,
+      attempts: Math.max(existing.attempts, attempt.attempts),
+      lastAttempted: new Date(Math.max(localTime, serverTime)),
+    });
+  }
+  return [...byId.values()];
+}
 
 export const useUser = () => {
   const ctx = useContext(UserContext);

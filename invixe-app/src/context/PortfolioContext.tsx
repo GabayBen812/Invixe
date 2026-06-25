@@ -17,6 +17,7 @@ import {
   normalizePortfolioHolding,
   normalizeStockPrice,
 } from "../utils/portfolioNormalize";
+import { buildPortfolioHistory } from "../utils/portfolioHistory";
 import { useUser } from "./UserContext";
 
 type PortfolioContextValue = {
@@ -30,6 +31,7 @@ type PortfolioContextValue = {
   getCurrentPrice: (symbol: string, fallback?: number) => number;
   getHoldingChangePercent: (holding: NormalizedHolding) => number;
   portfolioStats: ReturnType<typeof computePortfolioStats>;
+  portfolioHistory: number[];
 };
 
 const PortfolioContext = createContext<PortfolioContextValue | undefined>(
@@ -40,12 +42,14 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const { currentUserEmail } = useUser();
   const [holdings, setHoldings] = useState<NormalizedHolding[]>([]);
   const [stockPrices, setStockPrices] = useState<NormalizedStockPrice[]>([]);
+  const [portfolioHistory, setPortfolioHistory] = useState<number[]>([]);
   const [loading, setLoading] = useState(false);
 
   const refreshPortfolio = useCallback(async () => {
     if (!currentUserEmail) {
       setHoldings([]);
       setStockPrices([]);
+      setPortfolioHistory([]);
       return;
     }
 
@@ -62,19 +66,23 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
       if (normalized.length === 0) {
         setStockPrices([]);
+        setPortfolioHistory([]);
         return;
       }
 
       const symbols = normalized.map((h) => h.symbol).join(",");
-      const pricesRes = await fetchWithTimeout(
-        `${API_BASE_URL}/stocks/prices?symbols=${symbols}`,
-      );
+      const [pricesRes, history] = await Promise.all([
+        fetchWithTimeout(`${API_BASE_URL}/stocks/prices?symbols=${symbols}`),
+        buildPortfolioHistory(normalized),
+      ]);
+
       if (!pricesRes.ok) throw new Error("Failed to fetch stock prices");
       const pricesData = await pricesRes.json();
       const prices = (pricesData.prices || [])
         .map((row: Record<string, unknown>) => normalizeStockPrice(row))
         .filter(Boolean) as NormalizedStockPrice[];
       setStockPrices(prices);
+      setPortfolioHistory(history);
     } catch (error) {
       console.error("Error loading portfolio:", error);
     } finally {
@@ -136,6 +144,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       getCurrentPrice,
       getHoldingChangePercent,
       portfolioStats,
+      portfolioHistory,
     }),
     [
       holdings,
@@ -148,6 +157,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       getCurrentPrice,
       getHoldingChangePercent,
       portfolioStats,
+      portfolioHistory,
     ],
   );
 

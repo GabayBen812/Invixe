@@ -4,8 +4,8 @@ import Svg, { Path, Circle, Rect } from "react-native-svg";
 import theme from "../../theme";
 
 interface BottomNavbarProps {
-  activeTab?: "map" | "profile" | "shop" | "graph";
-  onTabPress?: (tab: "map" | "profile" | "shop" | "graph") => void;
+  activeTab?: "map" | "profile" | "graph";
+  onTabPress?: (tab: "map" | "profile" | "graph") => void;
 }
 
 export default function BottomNavbar({
@@ -15,7 +15,6 @@ export default function BottomNavbar({
   const tabs = [
     { id: "map", label: "שיעורים" },
     { id: "graph", label: "מסחר" },
-    { id: "shop", label: "חנות" },
     { id: "profile", label: "פרופיל" },
   ] as const;
 
@@ -59,35 +58,6 @@ export default function BottomNavbar({
               />
               <Path
                 d="M4 21v-1a4 4 0 014-4h8a4 4 0 014 4v1"
-                stroke={color}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </Svg>
-            <Text>{tabs.find((t) => t.id === tabId)?.label}</Text>
-          </View>
-        );
-      case "shop":
-        return (
-          <View style={{ alignItems: "center" }}>
-            <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-              <Path
-                d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"
-                stroke={color}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <Path
-                d="M3 6h18"
-                stroke={color}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <Path
-                d="M16 10a4 4 0 01-8 0"
                 stroke={color}
                 strokeWidth={2}
                 strokeLinecap="round"

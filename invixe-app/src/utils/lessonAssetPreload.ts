@@ -27,6 +27,7 @@ export function markLessonAssetsPreloaded(cacheKey: string): void {
 type PreloadOptions = {
   concurrency?: number;
   timeoutMs?: number;
+  onProgress?: (loaded: number, total: number) => void;
 };
 
 function addUnique(
@@ -145,10 +146,15 @@ async function preloadUrl(url: string): Promise<void> {
 async function runWithConcurrency(
   urls: string[],
   concurrency: number,
+  onProgress?: (loaded: number, total: number) => void,
 ): Promise<{ loaded: number; failed: number }> {
   let loaded = 0;
   let failed = 0;
   let index = 0;
+
+  const report = () => {
+    onProgress?.(loaded + failed, urls.length);
+  };
 
   const worker = async () => {
     while (index < urls.length) {
@@ -159,6 +165,7 @@ async function runWithConcurrency(
       } catch {
         failed += 1;
       }
+      report();
     }
   };
 
@@ -184,7 +191,11 @@ export async function preloadLessonAssets(
   }
 
   let timedOut = false;
-  const preloadPromise = runWithConcurrency(urls, concurrency);
+  const preloadPromise = runWithConcurrency(
+    urls,
+    concurrency,
+    options.onProgress,
+  );
 
   const result = await Promise.race([
     preloadPromise,

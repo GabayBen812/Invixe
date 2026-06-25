@@ -5,78 +5,115 @@ import Svg, { Path, Defs, LinearGradient, Stop, Circle } from "react-native-svg"
 type Props = {
   width?: number;
   height?: number;
-  /** >0 ascending (green), <=0 flatter. Shape stays stock-like either way. */
-  trend?: number;
+  /** Raw portfolio values over time (oldest → newest). */
+  values?: number[];
 };
 
-// Normalized y-from-top values (0 = top, 1 = bottom). Jagged, generally rising.
-const SHAPE = [
-  0.58, 0.52, 0.63, 0.47, 0.54, 0.44, 0.5, 0.36, 0.43, 0.3, 0.37, 0.24, 0.3,
-  0.16, 0.22, 0.1,
-];
+function buildPaths(
+  values: number[],
+  width: number,
+  height: number,
+) {
+  const padX = 6;
+  const padTop = 12;
+  const padBottom = 10;
+  const w = width - padX * 2;
+  const h = height - padTop - padBottom;
+  const n = values.length;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+
+  const coords = values.map((v, i) => {
+    const x = padX + (i / Math.max(n - 1, 1)) * w;
+    const normalized = (v - min) / span;
+    const y = padTop + (1 - normalized) * h;
+    return { x, y };
+  });
+
+  let linePath = `M ${coords[0].x.toFixed(2)} ${coords[0].y.toFixed(2)}`;
+  coords.slice(1).forEach((c) => {
+    linePath += ` L ${c.x.toFixed(2)} ${c.y.toFixed(2)}`;
+  });
+
+  const last = coords[n - 1];
+  const first = coords[0];
+  const areaPath = `${linePath} L ${last.x.toFixed(2)} ${height} L ${first.x.toFixed(
+    2,
+  )} ${height} Z`;
+
+  return {
+    line: linePath,
+    area: areaPath,
+    endX: last.x,
+    endY: last.y,
+    isUp: values[n - 1] >= values[0],
+  };
+}
 
 export default function PortfolioSparkline({
   width = 300,
   height = 96,
-  trend = 0.7,
+  values = [],
 }: Props) {
-  const { line, area, endX, endY } = useMemo(() => {
-    const padX = 6;
-    const padTop = 12;
-    const padBottom = 10;
-    const w = width - padX * 2;
-    const h = height - padTop - padBottom;
-    const n = SHAPE.length;
+  const chart = useMemo(() => {
+    if (values.length < 2) return null;
+    return buildPaths(values, width, height);
+  }, [values, width, height]);
 
-    // Lower trend → flatter line (less vertical spread).
-    const spread = Math.max(0.35, Math.min(1, 0.5 + trend * 0.5));
-    const midline = 0.45;
+  const colors = chart?.isUp
+    ? {
+        fillTop: "#62D24C",
+        fillBottom: "#62D24C",
+        lineStart: "#9BE38A",
+        lineEnd: "#37B24D",
+        dot: "#37B24D",
+        dotGlow: "#37B24D",
+      }
+    : {
+        fillTop: "#F87171",
+        fillBottom: "#F87171",
+        lineStart: "#FCA5A5",
+        lineEnd: "#EF4444",
+        dot: "#EF4444",
+        dotGlow: "#EF4444",
+      };
 
-    const coords = SHAPE.map((v, i) => {
-      const adjusted = midline + (v - midline) * spread;
-      const x = padX + (i / (n - 1)) * w;
-      const y = padTop + adjusted * h;
-      return { x, y };
-    });
-
-    let linePath = `M ${coords[0].x.toFixed(2)} ${coords[0].y.toFixed(2)}`;
-    coords.slice(1).forEach((c) => {
-      linePath += ` L ${c.x.toFixed(2)} ${c.y.toFixed(2)}`;
-    });
-
-    const last = coords[n - 1];
-    const first = coords[0];
-    const areaPath = `${linePath} L ${last.x.toFixed(2)} ${height} L ${first.x.toFixed(
-      2,
-    )} ${height} Z`;
-
-    return { line: linePath, area: areaPath, endX: last.x, endY: last.y };
-  }, [width, height, trend]);
+  if (!chart) {
+    return <View style={[styles.wrap, { width, height }]} />;
+  }
 
   return (
     <View style={[styles.wrap, { width, height }]}>
       <Svg width={width} height={height}>
         <Defs>
           <LinearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0%" stopColor="#62D24C" stopOpacity="0.22" />
-            <Stop offset="100%" stopColor="#62D24C" stopOpacity="0" />
+            <Stop offset="0%" stopColor={colors.fillTop} stopOpacity="0.22" />
+            <Stop offset="100%" stopColor={colors.fillBottom} stopOpacity="0" />
           </LinearGradient>
           <LinearGradient id="sparkLine" x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0%" stopColor="#9BE38A" />
-            <Stop offset="100%" stopColor="#37B24D" />
+            <Stop offset="0%" stopColor={colors.lineStart} />
+            <Stop offset="100%" stopColor={colors.lineEnd} />
           </LinearGradient>
         </Defs>
-        <Path d={area} fill="url(#sparkFill)" />
+        <Path d={chart.area} fill="url(#sparkFill)" />
         <Path
-          d={line}
+          d={chart.line}
           stroke="url(#sparkLine)"
           strokeWidth={2.5}
           fill="none"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <Circle cx={endX} cy={endY} r={5} fill="#37B24D" />
-        <Circle cx={endX} cy={endY} r={9} fill="#37B24D" fillOpacity={0.18} />
+        <Circle cx={chart.endX} cy={chart.endY} r={5} fill={colors.dot} />
+        <Circle
+          cx={chart.endX}
+          cy={chart.endY}
+          r={9}
+          fill={colors.dotGlow}
+          fillOpacity={0.18}
+        />
       </Svg>
     </View>
   );

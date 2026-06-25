@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 100" width="96" height="100" font-family="&#39;Rubik&#39;,Arial,sans-serif">
+  <defs><filter id="ds" x="-30%" y="-20%" width="160%" height="150%">
+    <feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#23304d" flood-opacity="0.18"></feDropShadow>
+  </filter></defs>
+  <g filter="url(#ds)">
+    <rect x="8" y="14" width="80" height="80" rx="40" fill="#AEB9CE"></rect>
+    <rect x="8" y="6" width="80" height="80" rx="40" fill="#CFD8E7"></rect>
+  </g>
+  <rect x="9" y="7" width="78" height="72" rx="36" fill="none" stroke="#ffffff" stroke-opacity="0.28" stroke-width="2"></rect>
+  <circle cx="48" cy="46" r="29" fill="none" stroke="#94A1B8" stroke-width="5.5"></circle>
+  <g stroke="#94A1B8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M48 33 L48 60"></path><path d="M36 39 L60 39"></path>
+    <circle cx="48" cy="35.5" r="2.2" fill="#94A1B8" stroke="none"></circle>
+    <path d="M36 39 L31 50 A6.5 6.5 0 0 0 41 50 Z"></path>
+    <path d="M60 39 L55 50 A6.5 6.5 0 0 0 65 50 Z"></path>
+    <path d="M41 61 L55 61"></path></g>
+  <circle cx="78" cy="16" r="12" fill="#7C8AA3" stroke="#fff" stroke-width="2.5"></circle>
+  <path d="M74.4 15.2 V13 a3.6 3.6 0 0 1 7.2 0 V15.2" fill="none" stroke="#fff" stroke-width="2"></path>
+  <rect x="73.4" y="15.2" width="9.2" height="7.2" rx="1.8" fill="#fff"></rect>
+</svg>

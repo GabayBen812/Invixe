@@ -14,6 +14,7 @@ import { useUser } from "../../context/UserContext";
 import { useDictionary } from "../../context/DictionaryContext";
 import theme from "../../theme";
 import MoneyIconSource from "../../assets/money.svg";
+import DictionaryBookIcon from "./DictionaryBookIcon";
 
 // Invixe logo SVG (converted)
 const InvixeLogo = () => (
@@ -45,45 +46,7 @@ const LightningIcon = () => (
 );
 
 // Dictionary/Book Icon SVG
-const DictionaryIcon = () => (
-  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <Path
-      d="M19 2H5C3.89543 2 3 2.89543 3 4V20C3 21.1046 3.89543 22 5 22H19C20.1046 22 21 21.1046 21 20V4C21 2.89543 20.1046 2 19 2Z"
-      stroke="#3F9FFF"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M8 2V22"
-      stroke="#3F9FFF"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M12 7H16"
-      stroke="#3F9FFF"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M12 11H16"
-      stroke="#3F9FFF"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <Path
-      d="M12 15H16"
-      stroke="#3F9FFF"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </Svg>
-);
+const DictionaryIcon = () => <DictionaryBookIcon size={24} />;
 
 export default function TopBar() {
   const { coins, lightnings } = useUser();

@@ -8,6 +8,7 @@ import {
   Animated,
   Easing,
 } from "react-native";
+import { toPlainDisplayText } from "../../utils/decodeHtmlEntities";
 import {
   DragonflyDoji,
   InvertedHammerNew,
@@ -802,7 +803,7 @@ export default function DragMatchDrill({
                   }
                 }}
               >
-                <Text style={styles.tokenText}>{t.label}</Text>
+                <Text style={styles.tokenText}>{toPlainDisplayText(t.label)}</Text>
               </Animated.View>
             </React.Fragment>
           );

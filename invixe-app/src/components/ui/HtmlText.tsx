@@ -1,7 +1,7 @@
 import React from "react";
 import { Text, useWindowDimensions, StyleSheet, TextStyle, StyleProp } from "react-native";
 import RenderHtml from "react-native-render-html";
-import { sanitizeDisplayText } from "../../utils/decodeHtmlEntities";
+import { sanitizeDisplayText, toPlainDisplayText } from "../../utils/decodeHtmlEntities";
 
 const defaultTextStyle: TextStyle = {
   fontSize: 18,
@@ -55,16 +55,7 @@ export function stripInlineColorsFromHtml(html: string): string {
 }
 
 function stripTagLikeContent(str: string): string {
-  let out = str;
-  // Remove malformed closing tag fragments (e.g. </p<) so we keep text like "נר בריש"
-  out = out.replace(/<\/[a-zA-Z]+\s*</g, "");
-  // Remove orphan >/tag< fragments (e.g. >/p<)
-  out = out.replace(/>\s*\/[a-zA-Z]+\s*</g, " ");
-  // Remove any remaining <...> and unclosed <...
-  out = out.replace(/<[^>]*>?/g, "");
-  out = out.replace(/>\s*/g, " ");
-  out = out.trim();
-  return out.length ? out : "";
+  return toPlainDisplayText(str);
 }
 
 export interface HtmlTextProps {
@@ -76,6 +67,8 @@ export interface HtmlTextProps {
   tagsStyles?: Record<string, TextStyle>;
   /** Overrides inline/HTML colors (e.g. white lesson HTML on white choice buttons). */
   contentColor?: string;
+  /** Layout width for HTML blocks; defaults to the window width. */
+  contentWidth?: number;
 }
 
 /**
@@ -98,8 +91,10 @@ export default function HtmlText({
   style,
   tagsStyles: customTagsStyles = {},
   contentColor,
+  contentWidth: contentWidthProp,
 }: HtmlTextProps) {
-  const { width } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
+  const contentWidth = contentWidthProp ?? windowWidth;
 
   if (!value || typeof value !== "string") {
     return null;
@@ -141,7 +136,7 @@ export default function HtmlText({
 
   return (
     <RenderHtml
-      contentWidth={width}
+      contentWidth={contentWidth}
       source={{ html }}
       tagsStyles={mergedTagsStyles}
       baseStyle={baseStyle}
