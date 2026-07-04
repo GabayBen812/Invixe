@@ -127,7 +127,7 @@ export default function AppNavigator() {
           component={lazyScreen(LessonCompleteScreen)}
         />
         <Stack.Screen name="LessonFail" component={lazyScreen(LessonFailScreen)} />
-        <Stack.Screen name="Sandbox" component={lazyScreen(SandboxScreen)} />
+        <Stack.Screen name="Sandbox" component={lazyScreen(SandboxScreen)} options={{ gestureEnabled: false }} />
         <Stack.Screen name="Profile" component={lazyScreen(ProfileScreen)} />
         <Stack.Screen name="Shop" component={lazyScreen(ShopScreen)} />
       </Stack.Navigator>

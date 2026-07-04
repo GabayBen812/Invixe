@@ -1,11 +1,26 @@
-import React from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import React, { useRef } from "react";
+import { View, Text, Pressable, StyleSheet, Animated } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import theme from "../../theme";
 import type { DictionaryEntry } from "../../data/dictionary";
-import { dictionaryTextRtl } from "./dictionaryRtl";
 
-const THUMB_SIZE = 52;
+const THUMB_SIZE = 60;
+
+const TOPIC_BG: Record<string, string> = {
+  candles: "#FFF1E6",
+  graphs: "#E8F4FF",
+  "support-resistance": "#E8FBF2",
+  indicators: "#F3EEFF",
+  markets: "#FFFBE8",
+};
+
+const TOPIC_LABEL: Record<string, string> = {
+  candles: "נרות",
+  graphs: "גרפים",
+  "support-resistance": "תמיכה והתנגדות",
+  indicators: "מדדים",
+  markets: "שווקים",
+};
 
 type Props = {
   entry: DictionaryEntry;
@@ -15,10 +30,10 @@ type Props = {
 
 function LockIcon() {
   return (
-    <Svg width={18} height={18} viewBox="0 0 20 20" fill="none">
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
       <Path
-        d="M10 2C8.34 2 7 3.34 7 5V7H5C4.45 7 4 7.45 4 8V16C4 16.55 4.45 17 5 17H15C15.55 17 16 16.55 16 16V8C16 7.45 15.55 7 15 7H13V5C13 3.34 11.66 2 10 2ZM10 3.5C10.83 3.5 11.5 4.17 11.5 5V7H8.5V5C8.5 4.17 9.17 3.5 10 3.5Z"
-        fill={theme.colors.neutral[500]}
+        d="M12 1C9.24 1 7 3.24 7 6V8H5C3.9 8 3 8.9 3 10V20C3 21.1 3.9 22 5 22H19C20.1 22 21 21.1 21 20V10C21 8.9 20.1 8 19 8H17V6C17 3.24 14.76 1 12 1ZM12 3C13.65 3 15 4.35 15 6V8H9V6C9 4.35 10.35 3 12 3Z"
+        fill={theme.colors.neutral[400]}
       />
     </Svg>
   );
@@ -26,11 +41,11 @@ function LockIcon() {
 
 function ChevronIcon() {
   return (
-    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+    <Svg width={16} height={16} viewBox="0 0 24 24" fill="none">
       <Path
         d="M15 6L9 12L15 18"
         stroke={theme.colors.primary[400]}
-        strokeWidth={2}
+        strokeWidth={2.2}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -39,108 +54,154 @@ function ChevronIcon() {
 }
 
 export default function DictionaryTermRow({ entry, isLocked, onPress }: Props) {
+  const scale = useRef(new Animated.Value(1)).current;
   const ImageComponent = entry.imageComponent;
+  const thumbBg = isLocked
+    ? theme.colors.neutral[200]
+    : (TOPIC_BG[entry.topicId] ?? theme.colors.info[100]);
+  const categoryLabel = TOPIC_LABEL[entry.topicId];
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        isLocked && styles.rowLocked,
-        pressed && styles.rowPressed,
-      ]}
+      onPressIn={() =>
+        Animated.spring(scale, {
+          toValue: 0.97,
+          useNativeDriver: true,
+          speed: 60,
+          bounciness: 2,
+        }).start()
+      }
+      onPressOut={() =>
+        Animated.spring(scale, {
+          toValue: 1,
+          useNativeDriver: true,
+          speed: 30,
+          bounciness: 3,
+        }).start()
+      }
+      disabled={isLocked}
     >
-      <View style={styles.leading}>
-        {isLocked ? <LockIcon /> : <ChevronIcon />}
-      </View>
+      <Animated.View
+        style={[
+          styles.card,
+          isLocked && styles.cardLocked,
+          { transform: [{ scale }] },
+        ]}
+      >
+        {/* Left: chevron or lock */}
+        <View style={styles.leading}>
+          {isLocked ? <LockIcon /> : <ChevronIcon />}
+        </View>
 
-      <View style={styles.body}>
-        <Text
-          style={[styles.term, isLocked && styles.termLocked]}
-          numberOfLines={1}
-        >
-          {entry.term}
-        </Text>
-        {isLocked && (
-          <Text style={styles.lockHint}>יפתח לאחר השלמת השיעור</Text>
-        )}
-      </View>
-
-      <View style={[styles.thumb, isLocked && styles.thumbLocked]}>
-        {ImageComponent ? (
-          <ImageComponent width={THUMB_SIZE - 16} height={THUMB_SIZE - 16} />
-        ) : (
-          <Text style={styles.thumbFallback}>
-            {entry.term.charAt(0)}
+        {/* Center: term name + category label */}
+        <View style={styles.body}>
+          <Text
+            style={[styles.term, isLocked && styles.termMuted]}
+            numberOfLines={1}
+          >
+            {entry.term}
           </Text>
-        )}
-      </View>
+          {isLocked ? (
+            <Text style={styles.lockHint}>יפתח לאחר השלמת השיעור</Text>
+          ) : (
+            categoryLabel && (
+              <Text style={styles.category}>{categoryLabel}</Text>
+            )
+          )}
+        </View>
+
+        {/* Right: thumbnail */}
+        <View style={[styles.thumb, { backgroundColor: thumbBg }]}>
+          {!isLocked && ImageComponent ? (
+            <ImageComponent
+              width={THUMB_SIZE - 20}
+              height={THUMB_SIZE - 20}
+            />
+          ) : (
+            <Text style={[styles.thumbLetter, isLocked && styles.thumbLetterMuted]}>
+              {entry.term.charAt(0)}
+            </Text>
+          )}
+        </View>
+      </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
+  card: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: theme.radius.md,
-    padding: 12,
-    marginBottom: theme.spacing.sm,
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
+    shadowColor: theme.colors.neutral[900],
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  rowLocked: {
+  cardLocked: {
     backgroundColor: theme.colors.neutral[100],
-    opacity: 0.85,
-  },
-  rowPressed: {
-    backgroundColor: theme.colors.overlay.hover,
+    shadowOpacity: 0,
+    elevation: 0,
+    opacity: 0.75,
   },
   leading: {
-    width: 24,
+    width: 28,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
   },
-  thumb: {
-    width: THUMB_SIZE,
-    height: THUMB_SIZE,
-    borderRadius: 12,
-    backgroundColor: theme.colors.info[100],
-    borderWidth: 1,
-    borderColor: theme.colors.border.subtle,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 12,
-    flexShrink: 0,
-  },
-  thumbLocked: {
-    backgroundColor: theme.colors.neutral[200],
-  },
-  thumbFallback: {
-    fontSize: 20,
-    fontFamily: theme.font.bold,
-    color: theme.colors.neutral[500],
-  },
   body: {
     flex: 1,
     minWidth: 0,
+    alignItems: "flex-end",
   },
   term: {
     fontSize: 16,
     fontFamily: theme.font.bold,
     color: theme.colors.text,
-    ...dictionaryTextRtl,
+    textAlign: "right",
+    width: "100%",
   },
-  termLocked: {
+  termMuted: {
     color: theme.colors.neutral[500],
+  },
+  category: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[400],
+    marginTop: 3,
+    textAlign: "right",
   },
   lockHint: {
     fontSize: 12,
     fontFamily: theme.font.family,
     color: theme.colors.neutral[400],
-    marginTop: 2,
-    ...dictionaryTextRtl,
+    marginTop: 3,
+    textAlign: "right",
+  },
+  thumb: {
+    width: THUMB_SIZE,
+    height: THUMB_SIZE,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 12,
+    flexShrink: 0,
+    overflow: "hidden",
+  },
+  thumbLetter: {
+    fontSize: 22,
+    fontFamily: theme.font.bold,
+    color: theme.colors.neutral[500],
+  },
+  thumbLetterMuted: {
+    color: theme.colors.neutral[300],
   },
 });

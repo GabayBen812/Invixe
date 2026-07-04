@@ -210,6 +210,23 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const sparklineWidth = Math.min(screenWidth - 80, 320);
 
+  const periodReturns = useMemo(() => {
+    const h = portfolioHistory;
+    if (h.length < 2) return null;
+    const last = h[h.length - 1];
+    const calcChange = (fromIdx: number): number | null => {
+      if (fromIdx < 0 || fromIdx >= h.length - 1) return null;
+      const start = h[fromIdx];
+      if (!start) return null;
+      return ((last - start) / start) * 100;
+    };
+    return {
+      day: calcChange(h.length - 2),
+      week: h.length >= 6 ? calcChange(h.length - 6) : null,
+      month: calcChange(0),
+    };
+  }, [portfolioHistory]);
+
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollViewportHeightRef = useRef(400);
   const holdingsSectionYRef = useRef(0);
@@ -292,7 +309,9 @@ export default function ProfileScreen({ navigation }: Props) {
       </View>
       <View style={styles.holdingMeta}>
         <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
-        <Text style={styles.holdingShares}>{holding.shares} מניות</Text>
+        <Text style={styles.holdingShares}>
+          {holding.shares} מניות · קנייה {formatUsd(holding.avgPrice)}
+        </Text>
       </View>
       {renderChangeLabel(holding.changePercent)}
       <Text style={styles.holdingChevron}>›</Text>
@@ -364,6 +383,40 @@ export default function ProfileScreen({ navigation }: Props) {
                 width={sparklineWidth}
                 values={portfolioHistory}
               />
+              {periodReturns && (
+                <View style={styles.periodRow}>
+                  {[
+                    { label: "יום", value: periodReturns.day },
+                    { label: "שבוע", value: periodReturns.week },
+                    { label: "חודש", value: periodReturns.month },
+                  ].map(({ label, value }, i) => {
+                    if (value === null) return null;
+                    const positive = value > 0.05;
+                    const negative = value < -0.05;
+                    const color = positive
+                      ? theme.colors.growthGreen
+                      : negative
+                        ? theme.colors.error[600]
+                        : theme.colors.neutral[400];
+                    const bg = positive
+                      ? theme.colors.success[100]
+                      : negative
+                        ? theme.colors.error[100]
+                        : theme.colors.neutral[100];
+                    const sign = positive ? "+" : "";
+                    return (
+                      <View key={label} style={[styles.periodItem, i > 0 && styles.periodItemBorder]}>
+                        <Text style={styles.periodLabel}>{label}</Text>
+                        <View style={[styles.periodPill, { backgroundColor: bg }]}>
+                          <Text style={[styles.periodValue, { color }]}>
+                            {sign}{value.toFixed(1)}%
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
               <Pressable
                 onPress={handleScrollToHoldings}
                 hitSlop={8}
@@ -702,5 +755,34 @@ const styles = StyleSheet.create({
     color: theme.colors.error[600],
     fontSize: 15,
     fontFamily: theme.font.family,
+  },
+  periodRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  periodItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
+  periodItemBorder: {
+    borderLeftWidth: 1,
+    borderLeftColor: theme.colors.neutral[200],
+  },
+  periodLabel: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[400],
+  },
+  periodPill: {
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  periodValue: {
+    fontSize: 13,
+    fontFamily: theme.font.bold,
   },
 });

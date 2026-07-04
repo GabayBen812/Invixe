@@ -10,13 +10,38 @@ import {
   BearishEngulfing,
   ShootingStar,
   RegularDoji,
+  CandleStructure,
+  ThreeInsideUp,
+  ThreeInsideDown,
+  MorningStar,
+  EveningStar,
 } from '../assets/Candels';
+import {
+  Trend,
+  PriceMovement,
+  LineChart,
+  Liquidity,
+  Resistance,
+  Support,
+  Breakout,
+  Retest,
+  RSI,
+  Index,
+  BullMarket,
+  BearMarket,
+  Stock,
+  StockExchange,
+} from '../assets/Glossary';
 
 export interface DictionaryTopic {
   id: string;
   title: string;
   icon?: React.ComponentType<any>;
 }
+
+export type EntryDirection = 'bullish' | 'bearish' | 'neutral';
+export type EntryReliability = 'high' | 'medium' | 'low';
+export type EntryFrequency = 'common' | 'rare';
 
 export interface DictionaryEntry {
   id: string;
@@ -29,6 +54,11 @@ export interface DictionaryEntry {
   // The authoritative source at runtime is the unlock map fetched from the
   // backend (Lesson.unlocksdictionary); this is the offline fallback.
   unlockedByLesson?: number | null;
+  // Optional educational metadata shown in the detail view.
+  direction?: EntryDirection;
+  reliability?: EntryReliability;
+  frequency?: EntryFrequency;
+  appearsIn?: string;
 }
 
 /** entryId -> lesson codes that unlock it (from backend). */
@@ -51,6 +81,7 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'כל נר יפני מורכב מגוף (הטווח בין מחיר הפתיחה לסגירה) ומפתילים (הצללים) שמראים את המחיר הגבוה והנמוך ביותר. צבע הגוף מציין אם הנר עלה (ירוק) או ירד (אדום).',
     topicId: 'candles',
+    imageComponent: CandleStructure,
     unlockedByLesson: 103,
   },
   {
@@ -61,6 +92,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: Hammer,
     unlockedByLesson: 201,
+    direction: 'bullish',
+    reliability: 'medium',
+    frequency: 'common',
+    appearsIn: 'מגמת ירידה',
   },
   {
     id: 'inverted-hammer',
@@ -70,6 +105,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: InvertedHammer,
     unlockedByLesson: 201,
+    direction: 'bullish',
+    reliability: 'medium',
+    frequency: 'common',
+    appearsIn: 'מגמת ירידה',
   },
   {
     id: 'shooting-star',
@@ -79,6 +118,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: ShootingStar,
     unlockedByLesson: 203,
+    direction: 'bearish',
+    reliability: 'high',
+    frequency: 'common',
+    appearsIn: 'מגמת עלייה',
   },
   {
     id: 'hanging-man',
@@ -88,6 +131,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: Hammer,
     unlockedByLesson: 203,
+    direction: 'bearish',
+    reliability: 'medium',
+    frequency: 'common',
+    appearsIn: 'מגמת עלייה',
   },
   {
     id: 'gravestone-doji',
@@ -97,6 +144,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: GravestoneDoji,
     unlockedByLesson: 205,
+    direction: 'bearish',
+    reliability: 'high',
+    frequency: 'rare',
+    appearsIn: 'מגמת עלייה',
   },
   {
     id: 'dragonfly-doji',
@@ -106,6 +157,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: DragonflyDoji,
     unlockedByLesson: 205,
+    direction: 'bullish',
+    reliability: 'high',
+    frequency: 'rare',
+    appearsIn: 'מגמת ירידה',
   },
   {
     id: 'doji',
@@ -115,6 +170,9 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: Doji,
     unlockedByLesson: 207,
+    direction: 'neutral',
+    reliability: 'medium',
+    frequency: 'common',
   },
   {
     id: 'regular-doji',
@@ -124,6 +182,9 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: RegularDoji,
     unlockedByLesson: 207,
+    direction: 'neutral',
+    reliability: 'medium',
+    frequency: 'common',
   },
   {
     id: 'long-legged-doji',
@@ -133,6 +194,9 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: LongLeggedDoji,
     unlockedByLesson: 207,
+    direction: 'neutral',
+    reliability: 'low',
+    frequency: 'rare',
   },
   {
     id: 'bullish-engulfing',
@@ -142,6 +206,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: BullishEngulfing,
     unlockedByLesson: 209,
+    direction: 'bullish',
+    reliability: 'high',
+    frequency: 'common',
+    appearsIn: 'מגמת ירידה',
   },
   {
     id: 'bearish-engulfing',
@@ -151,6 +219,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     topicId: 'candles',
     imageComponent: BearishEngulfing,
     unlockedByLesson: 209,
+    direction: 'bearish',
+    reliability: 'high',
+    frequency: 'common',
+    appearsIn: 'מגמת עלייה',
   },
   {
     id: 'three-inside-up',
@@ -158,7 +230,12 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'תבנית היפוך עולה בת שלושה נרות: נר יורד גדול, נר עולה קטן בתוכו, ונר עולה שלישי שמאשר את ההיפוך כלפי מעלה.',
     topicId: 'candles',
+    imageComponent: ThreeInsideUp,
     unlockedByLesson: 211,
+    direction: 'bullish',
+    reliability: 'medium',
+    frequency: 'rare',
+    appearsIn: 'מגמת ירידה',
   },
   {
     id: 'three-inside-down',
@@ -166,7 +243,12 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'תבנית היפוך יורד בת שלושה נרות: נר עולה גדול, נר יורד קטן בתוכו, ונר יורד שלישי שמאשר את ההיפוך כלפי מטה.',
     topicId: 'candles',
+    imageComponent: ThreeInsideDown,
     unlockedByLesson: 211,
+    direction: 'bearish',
+    reliability: 'medium',
+    frequency: 'rare',
+    appearsIn: 'מגמת עלייה',
   },
   {
     id: 'morning-star',
@@ -174,7 +256,12 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'כוכב בוקר היא תבנית היפוך עולה בת שלושה נרות שמופיעה בתחתית מגמת ירידה: נר יורד, נר קטן (הכוכב), ונר עולה חזק שמאשר את ההיפוך.',
     topicId: 'candles',
+    imageComponent: MorningStar,
     unlockedByLesson: 213,
+    direction: 'bullish',
+    reliability: 'high',
+    frequency: 'rare',
+    appearsIn: 'מגמת ירידה',
   },
   {
     id: 'evening-star',
@@ -182,7 +269,12 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'כוכב ערב היא תבנית היפוך יורד בת שלושה נרות שמופיעה בשיא מגמת עלייה: נר עולה, נר קטן (הכוכב), ונר יורד חזק שמאשר את ההיפוך.',
     topicId: 'candles',
+    imageComponent: EveningStar,
     unlockedByLesson: 213,
+    direction: 'bearish',
+    reliability: 'high',
+    frequency: 'rare',
+    appearsIn: 'מגמת עלייה',
   },
 
   // ----- Graphs / price action -----
@@ -192,7 +284,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'מגמה היא הכיוון הכללי של המחיר לאורך זמן: מגמת עלייה (שיאים ושפלים עולים), מגמת ירידה (שיאים ושפלים יורדים), או מגמה צידית (דשדוש).',
     topicId: 'graphs',
+    imageComponent: Trend,
     unlockedByLesson: 106,
+    direction: 'bullish',
+    frequency: 'common',
   },
   {
     id: 'price-movement',
@@ -200,7 +295,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'תנועת מחיר מתארת כיצד המחיר נע לאורך זמן בין קונים למוכרים, ויוצרת שיאים ושפלים שמהם מזהים מגמות, רמות ותבניות.',
     topicId: 'graphs',
+    imageComponent: PriceMovement,
     unlockedByLesson: 401,
+    direction: 'neutral',
+    frequency: 'common',
   },
   {
     id: 'line-chart',
@@ -208,7 +306,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'גרף קווי מחבר את מחירי הסגירה לאורך זמן בקו אחד רציף. הוא פשוט לקריאה ומתאים לזיהוי מגמה כללית, אך אינו מציג את טווח המסחר המלא.',
     topicId: 'graphs',
+    imageComponent: LineChart,
     unlockedByLesson: 403,
+    direction: 'neutral',
+    frequency: 'common',
   },
   {
     id: 'liquidity',
@@ -216,7 +317,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'נזילות היא המידה שבה ניתן לקנות או למכור נכס במהירות ובלי להשפיע משמעותית על מחירו. נכס נזיל מתאפיין במחזור מסחר גבוה ובמרווחים צרים.',
     topicId: 'graphs',
+    imageComponent: Liquidity,
     unlockedByLesson: 404,
+    direction: 'neutral',
+    frequency: 'common',
   },
 
   // ----- Support & resistance -----
@@ -226,7 +330,11 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'רמת התנגדות (תקרה) היא אזור מחיר שבו לחץ המכירה גובר ועוצר עליות. ככל שהמחיר נכשל לפרוץ אותה יותר פעמים, הרמה נחשבת חזקה יותר.',
     topicId: 'support-resistance',
+    imageComponent: Resistance,
     unlockedByLesson: 301,
+    direction: 'bearish',
+    reliability: 'high',
+    frequency: 'common',
   },
   {
     id: 'support',
@@ -234,7 +342,11 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'רמת תמיכה (רצפה) היא אזור מחיר שבו לחץ הקנייה גובר ועוצר ירידות. רמה זו משמשת לעיתים כנקודת כניסה פוטנציאלית.',
     topicId: 'support-resistance',
+    imageComponent: Support,
     unlockedByLesson: 303,
+    direction: 'bullish',
+    reliability: 'high',
+    frequency: 'common',
   },
   {
     id: 'breakout',
@@ -242,7 +354,11 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'פריצה היא מצב שבו המחיר חוצה בבירור רמת תמיכה או התנגדות משמעותית, ולרוב מסמנת תחילת תנועה חזקה בכיוון הפריצה.',
     topicId: 'support-resistance',
+    imageComponent: Breakout,
     unlockedByLesson: 305,
+    direction: 'bullish',
+    reliability: 'medium',
+    frequency: 'common',
   },
   {
     id: 'retest',
@@ -250,7 +366,11 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'ריטסט הוא חזרה של המחיר לבדוק רמת תמיכה/התנגדות שנפרצה, כדי לוודא שהיא הפכה תפקיד (תמיכה שהפכה להתנגדות ולהפך) לפני המשך התנועה.',
     topicId: 'support-resistance',
+    imageComponent: Retest,
     unlockedByLesson: 308,
+    direction: 'bullish',
+    reliability: 'medium',
+    frequency: 'common',
   },
 
   // ----- Indicators (always available) -----
@@ -260,7 +380,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'מדד RSI מודד את עוצמת התנועה של המחיר בסקאלה של 0 עד 100. ערך מעל 70 נחשב קניית-יתר ומתחת ל-30 מכירת-יתר, מצבים שעשויים לרמז על היפוך.',
     topicId: 'indicators',
+    imageComponent: RSI,
     unlockedByLesson: null,
+    direction: 'neutral',
+    frequency: 'common',
   },
   {
     id: 'index',
@@ -268,7 +391,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'מדד הוא מדידה משוקללת של קבוצת נכסים (כמו ת"א 35 או S&P 500), המשמשת לעקוב אחר ביצועי השוק או ענף שלם.',
     topicId: 'indicators',
+    imageComponent: Index,
     unlockedByLesson: null,
+    direction: 'neutral',
+    frequency: 'common',
   },
 
   // ----- Markets (always available) -----
@@ -278,7 +404,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'שוק שורי הוא תקופה שבה המחירים נמצאים במגמת עלייה מתמשכת, מלווה באופטימיות של המשקיעים ובביקוש גובר.',
     topicId: 'markets',
+    imageComponent: BullMarket,
     unlockedByLesson: null,
+    direction: 'bullish',
+    frequency: 'common',
   },
   {
     id: 'bear-market',
@@ -286,7 +415,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'שוק דובי הוא תקופה שבה המחירים נמצאים במגמת ירידה מתמשכת, מלווה בפסימיות ובלחץ מכירות.',
     topicId: 'markets',
+    imageComponent: BearMarket,
     unlockedByLesson: null,
+    direction: 'bearish',
+    frequency: 'common',
   },
   {
     id: 'stock',
@@ -294,7 +426,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'מניה היא יחידת בעלות בחברה. רכישת מניה הופכת אותך לשותף קטן בחברה ומקנה זכות לחלק מרווחיה ומערכה.',
     topicId: 'markets',
+    imageComponent: Stock,
     unlockedByLesson: null,
+    direction: 'neutral',
+    frequency: 'common',
   },
   {
     id: 'stock-exchange',
@@ -302,7 +437,10 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'בורסה היא שוק מאורגן שבו נסחרים ניירות ערך כמו מניות ואיגרות חוב, ומאפשרת לקונים ולמוכרים לסחור במחירים שקופים.',
     topicId: 'markets',
+    imageComponent: StockExchange,
     unlockedByLesson: null,
+    direction: 'neutral',
+    frequency: 'common',
   },
 ];
 

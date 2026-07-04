@@ -4,10 +4,11 @@ import {
   View,
   StyleSheet,
   Modal,
-  Alert,
   TextInput,
   Text,
   TouchableOpacity,
+  Animated,
+  ActivityIndicator,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
@@ -89,6 +90,11 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [tradeShares, setTradeShares] = useState('');
+  const [isTrading, setIsTrading] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
+  const toastTranslateY = useRef(new Animated.Value(16)).current;
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -186,6 +192,26 @@ export default function SandboxScreen({ navigation, route }: Props) {
     [],
   );
 
+  const showToast = useCallback(
+    (message: string, type: 'success' | 'error') => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastOpacity.setValue(0);
+      toastTranslateY.setValue(16);
+      setToast({ message, type });
+      Animated.parallel([
+        Animated.timing(toastOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.timing(toastTranslateY, { toValue: 0, duration: 220, useNativeDriver: true }),
+      ]).start();
+      toastTimer.current = setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(toastOpacity, { toValue: 0, duration: 260, useNativeDriver: true }),
+          Animated.timing(toastTranslateY, { toValue: 16, duration: 260, useNativeDriver: true }),
+        ]).start(() => setToast(null));
+      }, 3200);
+    },
+    [toastOpacity, toastTranslateY],
+  );
+
   const handleTabPress = (tab: 'map' | 'profile' | 'graph') => {
     switch (tab) {
       case 'map':
@@ -213,6 +239,12 @@ export default function SandboxScreen({ navigation, route }: Props) {
   };
 
   const handleTrade = async () => {
+    const shares = Math.floor(parseFloat(tradeShares.replace(/,/g, '.')));
+    if (!tradeShares.trim() || isNaN(shares) || shares <= 0) {
+      showToast('אנא הכנס מספר מניות תקין', 'error');
+      return;
+    }
+
     let price = livePrice;
     if (!price || price <= 0) {
       const quote = await fetchLiveStockQuote(selectedStock.symbol);
@@ -222,91 +254,71 @@ export default function SandboxScreen({ navigation, route }: Props) {
         setLiveChangePercent(quote.changePercent);
       }
     }
-
-    const shares = Math.floor(parseFloat(tradeShares.replace(/,/g, '.')));
     if (!price || price <= 0) {
-      Alert.alert('שגיאה', 'לא הצלחנו לטעון את מחיר המניה. נסה שוב בעוד רגע.');
+      showToast('לא הצלחנו לטעון את מחיר המניה. נסה שוב בעוד רגע.', 'error');
       return;
     }
-    if (!tradeShares.trim() || isNaN(shares) || shares <= 0) {
-      Alert.alert('שגיאה', 'אנא הכנס מספר מניות תקין');
-      return;
-    }
+
     const totalCost = Math.round(shares * price);
 
-    if (tradeType === 'buy') {
-      if (coins < totalCost) {
-        Alert.alert('שגיאה', 'אין לך מספיק מטבעות');
-        return;
-      }
-
-      try {
-        const response = await fetchWithTimeout(`${API_BASE_URL}/user/portfolio/buy`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: currentUserEmail ?? undefined,
-            symbol: selectedStock.symbol,
-            shares,
-            price,
-          }),
-        });
-
-        if (!response.ok) {
-          const message = await readApiError(response, 'שגיאה בקניית המניות');
-          throw new Error(message);
-        }
-
-        const data = await response.json();
-        if (typeof data.newCoins === 'number') {
-          setCoins(data.newCoins);
-        }
-        await refreshPortfolio();
-        setShowTradeModal(false);
-        setTradeShares('');
-        Alert.alert('הצלחה', `קנית ${shares} מניות של ${selectedStock.symbol}`);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'שגיאה בקניית המניות';
-        Alert.alert('שגיאה', message);
-      }
-    } else {
+    if (tradeType === 'buy' && coins < totalCost) {
+      showToast('אין לך מספיק מטבעות', 'error');
+      return;
+    }
+    if (tradeType === 'sell') {
       const holding = getHolding(selectedStock.symbol);
       if (!holding || holding.shares < shares) {
-        Alert.alert('שגיאה', 'אין לך מספיק מניות למכירה');
+        showToast('אין לך מספיק מניות למכירה', 'error');
         return;
       }
+    }
 
-      try {
-        const response = await fetchWithTimeout(`${API_BASE_URL}/user/portfolio/sell`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: currentUserEmail ?? undefined,
-            symbol: selectedStock.symbol,
-            shares,
-            price,
-          }),
-        });
+    setIsTrading(true);
+    try {
+      const endpoint = tradeType === 'buy'
+        ? `${API_BASE_URL}/user/portfolio/buy`
+        : `${API_BASE_URL}/user/portfolio/sell`;
 
-        if (!response.ok) {
-          const message = await readApiError(response, 'שגיאה במכירת המניות');
-          throw new Error(message);
-        }
+      const response = await fetchWithTimeout(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: currentUserEmail ?? undefined,
+          symbol: selectedStock.symbol,
+          shares,
+          price,
+        }),
+      });
 
-        const data = await response.json();
-        if (typeof data.newCoins === 'number') {
-          setCoins(data.newCoins);
-        }
-        await refreshPortfolio();
-        setShowTradeModal(false);
-        setTradeShares('');
-        Alert.alert('הצלחה', `מכרת ${shares} מניות של ${selectedStock.symbol}`);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'שגיאה במכירת המניות';
-        Alert.alert('שגיאה', message);
+      if (!response.ok) {
+        const message = await readApiError(
+          response,
+          tradeType === 'buy' ? 'שגיאה בקניית המניות' : 'שגיאה במכירת המניות',
+        );
+        throw new Error(message);
       }
+
+      const data = await response.json();
+      if (typeof data.newCoins === 'number') {
+        setCoins(data.newCoins);
+      }
+
+      setShowTradeModal(false);
+      setTradeShares('');
+      showToast(
+        tradeType === 'buy'
+          ? `קנית ${shares} מניות של ${selectedStock.symbol}`
+          : `מכרת ${shares} מניות של ${selectedStock.symbol}`,
+        'success',
+      );
+
+      void refreshPortfolio();
+    } catch (error) {
+      const message = error instanceof Error ? error.message
+        : tradeType === 'buy' ? 'שגיאה בקניית המניות' : 'שגיאה במכירת המניות';
+      showToast(message, 'error');
+    } finally {
+      setIsTrading(false);
     }
   };
 
@@ -581,11 +593,12 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[styles.modalButton, styles.cancelButton, isTrading && styles.buttonDisabled]}
                 onPress={() => {
                   setShowTradeModal(false);
                   setTradeShares('');
                 }}
+                disabled={isTrading}
               >
                 <Text style={styles.cancelButtonText}>ביטול</Text>
               </TouchableOpacity>
@@ -593,17 +606,39 @@ export default function SandboxScreen({ navigation, route }: Props) {
                 style={[
                   styles.modalButton,
                   tradeType === 'buy' ? styles.confirmBuy : styles.confirmSell,
+                  isTrading && styles.buttonDisabled,
                 ]}
                 onPress={handleTrade}
+                disabled={isTrading}
               >
-                <Text style={styles.confirmButtonText}>
-                  {tradeType === 'buy' ? 'אשר קנייה' : 'אשר מכירה'}
-                </Text>
+                {isTrading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.confirmButtonText}>
+                    {tradeType === 'buy' ? 'אשר קנייה' : 'אשר מכירה'}
+                  </Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      {toast && (
+        <Animated.View
+          style={[
+            styles.toast,
+            toast.type === 'success' ? styles.toastSuccess : styles.toastError,
+            { opacity: toastOpacity, transform: [{ translateY: toastTranslateY }] },
+          ]}
+          pointerEvents="none"
+        >
+          <View style={[styles.toastIconWrap, toast.type === 'success' ? styles.toastIconSuccess : styles.toastIconError]}>
+            <Text style={styles.toastIconText}>{toast.type === 'success' ? '✓' : '✕'}</Text>
+          </View>
+          <Text style={styles.toastMessage}>{toast.message}</Text>
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -612,6 +647,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+    overflow: 'hidden',
   },
   chartArea: {
     flex: 1,
@@ -761,5 +797,56 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: theme.font.bold,
     color: '#FFFFFF',
+  },
+  buttonDisabled: {
+    opacity: 0.55,
+  },
+  toast: {
+    position: 'absolute',
+    bottom: 96,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  toastSuccess: {
+    backgroundColor: theme.colors.surface.darkBg,
+  },
+  toastError: {
+    backgroundColor: theme.colors.surface.darkBg,
+  },
+  toastIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastIconSuccess: {
+    backgroundColor: theme.colors.growthGreen,
+  },
+  toastIconError: {
+    backgroundColor: theme.colors.error[600],
+  },
+  toastIconText: {
+    fontSize: 15,
+    color: '#FFFFFF',
+    fontFamily: theme.font.bold,
+  },
+  toastMessage: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    color: '#FFFFFF',
+    textAlign: 'right',
   },
 });

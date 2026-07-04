@@ -89,10 +89,6 @@ export function getHoldingGainPercent(
   holding: NormalizedHolding,
   priceBySymbol: Map<string, NormalizedStockPrice>,
 ): number {
-  const quote = priceBySymbol.get(holding.symbol.toUpperCase());
-  if (quote && Number.isFinite(quote.changePercent) && quote.changePercent !== 0) {
-    return quote.changePercent;
-  }
   if (holding.avgPrice <= 0) return 0;
   const current = getHoldingMarketPrice(holding, priceBySymbol);
   return ((current - holding.avgPrice) / holding.avgPrice) * 100;
