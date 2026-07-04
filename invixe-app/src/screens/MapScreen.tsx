@@ -13,6 +13,8 @@ import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useFocusEffect } from "@react-navigation/native";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import LessonNode, { CIRCLE_SIZE } from "../components/map/LessonNode";
+import ComingSoonNode from "../components/map/ComingSoonNode";
+import { COMING_SOON_NODE_ID } from "../components/map/comingSoonNode";
 import { resolveUnitAssetId } from "../components/map/nodeAssets";
 import { isLessonUnlocked } from "../modules/lessons/registry";
 import {
@@ -527,6 +529,8 @@ export default function MapScreen({ navigation, route }: Props) {
     refreshUserData,
   } = useUser();
   const [modalVisible, setModalVisible] = React.useState(false);
+  const [comingSoonModalVisible, setComingSoonModalVisible] =
+    React.useState(false);
   const [selectedMainLesson, setSelectedMainLesson] =
     React.useState<Lesson | null>(null);
   // New: selected unit (step) index. When null → show unit selector
@@ -646,11 +650,11 @@ export default function MapScreen({ navigation, route }: Props) {
     }))
   );
 
-  // Calculate node positions for each lesson (only within active unit)
-  // Calculate node positions for each lesson (only within active unit)
-  // We use useMemo to ensure stability, though the logic is deterministic.
+  const mapNodeCount = allLessons.length + 1;
+
+  // Calculate node positions for lessons + trailing coming-soon node.
   const nodePositions = React.useMemo(() => {
-    return allLessons.map((_, idx) => {
+    return Array.from({ length: mapNodeCount }, (_, idx) => {
       // Increased vertical spacing slightly for a more fluent flow
       const y = idx * (CIRCLE_SIZE + 60);
 
@@ -670,10 +674,15 @@ export default function MapScreen({ navigation, route }: Props) {
       const x = NODE_X_CENTER + baseDirection * offsetMagnitude;
       return { x, y };
     });
-  }, [allLessons.length]);
+  }, [mapNodeCount]);
 
-  // Calculate total height needed for all lessons
-  const totalMapHeight = allLessons.length * (CIRCLE_SIZE + 60) + 200;
+  const allLessonsCompleted =
+    allLessons.length > 0 &&
+    allLessons.every((lessonData) =>
+      isLessonNodeCompleted(lessonData.lesson, completedLessons),
+    );
+
+  const totalMapHeight = mapNodeCount * (CIRCLE_SIZE + 60) + 200;
 
   // Calculate lesson statuses with support for re-taking
   const lessonStatuses = allLessons.map((lessonData, idx) => {
@@ -1208,6 +1217,34 @@ export default function MapScreen({ navigation, route }: Props) {
                   </React.Fragment>
                 );
               })}
+
+              {(() => {
+                const comingSoonIdx = allLessons.length;
+                const position =
+                  comingSoonIdx % 2 === 0 ? "left" : "right";
+                const nodeStyle = {
+                  position: "absolute" as const,
+                  left:
+                    nodePositions[comingSoonIdx].x - CIRCLE_SIZE / 2,
+                  top: nodePositions[comingSoonIdx].y,
+                  alignItems: "center" as const,
+                  zIndex: 1,
+                };
+
+                return (
+                  <View style={nodeStyle}>
+                    <ComingSoonNode
+                      position={position}
+                      highlighted={allLessonsCompleted}
+                      onPress={() => {
+                        setComingSoonModalVisible(true);
+                        setActiveTooltipId(null);
+                      }}
+                    />
+                  </View>
+                );
+              })()}
+
               <LessonModal
                 visible={modalVisible}
                 onClose={() => setModalVisible(false)}
@@ -1215,6 +1252,18 @@ export default function MapScreen({ navigation, route }: Props) {
                 completedLessons={completedLessons}
                 lessonAttempts={lessonAttempts}
                 onStart={handleLessonStart}
+              />
+              <LessonModal
+                visible={comingSoonModalVisible}
+                onClose={() => setComingSoonModalVisible(false)}
+                selectedMainLesson={{
+                  id: COMING_SOON_NODE_ID,
+                  title: "עוד שיעורים בדרך",
+                }}
+                completedLessons={completedLessons}
+                lessonAttempts={lessonAttempts}
+                onStart={handleLessonStart}
+                comingSoon
               />
               {/* Spacer for scroll */}
               <View style={{ height: 200 }} />

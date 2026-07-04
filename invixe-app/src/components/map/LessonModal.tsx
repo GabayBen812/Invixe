@@ -27,9 +27,18 @@ type LessonModalProps = {
   completedLessons: number[];
   lessonAttempts: LessonAttempt[];
   onStart: (lessonId: number) => void;
+  comingSoon?: boolean;
 };
 
-export default function LessonModal({ visible, onClose, selectedMainLesson, completedLessons, lessonAttempts, onStart }: LessonModalProps) {
+export default function LessonModal({
+  visible,
+  onClose,
+  selectedMainLesson,
+  completedLessons,
+  lessonAttempts,
+  onStart,
+  comingSoon = false,
+}: LessonModalProps) {
   const progress = React.useMemo(() => {
     if (!selectedMainLesson) return 0;
     if (!selectedMainLesson.sublessons) {
@@ -40,7 +49,8 @@ export default function LessonModal({ visible, onClose, selectedMainLesson, comp
     return total > 0 ? done / total : 0;
   }, [selectedMainLesson, completedLessons]);
 
-  if (!selectedMainLesson) return null;
+  if (!visible) return null;
+  if (!comingSoon && !selectedMainLesson) return null;
 
   return (
     <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
@@ -49,7 +59,11 @@ export default function LessonModal({ visible, onClose, selectedMainLesson, comp
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
             <View style={styles.modalHeaderText}>
-              <Text style={styles.modalTitle}>{selectedMainLesson.title}</Text>
+              <Text style={styles.modalTitle}>
+                {comingSoon
+                  ? "עוד שיעורים בדרך"
+                  : selectedMainLesson!.title}
+              </Text>
             </View>
             <Pressable
               onPress={onClose}
@@ -62,7 +76,21 @@ export default function LessonModal({ visible, onClose, selectedMainLesson, comp
             </Pressable>
           </View>
 
-          {selectedMainLesson.sublessons ? (
+          {comingSoon ? (
+            <View style={styles.comingSoonBody}>
+              <Text style={styles.comingSoonLead}>
+                אנחנו עובדים על שיעורים חדשים לקורס הזה.
+              </Text>
+              <Text style={styles.comingSoonParagraph}>
+                המטרה שלנו היא להרחיב את הקורס באופן מתמיד עם תוכן חדש
+                ואיכותי — כדי שתמיד יהיה לכם מה ללמוד.
+              </Text>
+              <Text style={styles.comingSoonParagraph}>
+                תודה שלמדתם עם Invixe. נשמח לראות אתכם כשהתוכן החדש יגיע.
+              </Text>
+              <Text style={styles.comingSoonFooter}>הישארו איתנו!</Text>
+            </View>
+          ) : selectedMainLesson?.sublessons ? (
             <ScrollView
               style={styles.modalLessonsScrollContainer}
               contentContainerStyle={styles.modalLessonsScrollContent}
@@ -406,6 +434,33 @@ const styles = StyleSheet.create({
     fontSize: 15, 
     fontFamily: theme.font.bold, 
     color: "#475569",
+  },
+  comingSoonBody: {
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.sm,
+  },
+  comingSoonLead: {
+    fontSize: 17,
+    fontFamily: theme.font.bold,
+    color: theme.colors.text,
+    textAlign: "right",
+    lineHeight: 26,
+    marginBottom: theme.spacing.md,
+  },
+  comingSoonParagraph: {
+    fontSize: 15,
+    fontFamily: theme.font.family,
+    color: "#475569",
+    textAlign: "right",
+    lineHeight: 24,
+    marginBottom: theme.spacing.md,
+  },
+  comingSoonFooter: {
+    fontSize: 16,
+    fontFamily: theme.font.bold,
+    color: "#B45309",
+    textAlign: "center",
+    marginTop: theme.spacing.sm,
   },
 });
 
