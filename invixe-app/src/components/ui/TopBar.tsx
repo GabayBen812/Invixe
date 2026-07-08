@@ -1,5 +1,12 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Animated,
+  Easing,
+} from "react-native";
 import Svg, { Path } from "react-native-svg";
 import { useUser } from "../../context/UserContext";
 import { useDictionary } from "../../context/DictionaryContext";
@@ -21,8 +28,75 @@ const MoneyIcon = () => <MoneyIconSource width={27} height={27} />;
 const DictionaryIcon = () => <DictionaryBookIcon size={24} />;
 
 export default function TopBar() {
-  const { cash } = useUser();
+  const { cash, cashGain, clearCashGain } = useUser();
   const { openDictionary } = useDictionary();
+  const displayCash = useRef(cash);
+  const [shownCash, setShownCash] = useState(cash);
+  const [floatingLabel, setFloatingLabel] = useState<string | null>(null);
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    if (cashGain > 0) {
+      const from = displayCash.current;
+      const to = cash;
+      const delta = Math.max(0, cashGain);
+      setFloatingLabel(`+${formatMoney(delta)}`);
+      floatAnim.setValue(0);
+      pulseAnim.setValue(1);
+
+      const duration = Math.min(1400, 700 + delta * 12);
+      const start = Date.now();
+      let frame: number | null = null;
+
+      const tick = () => {
+        const t = Math.min(1, (Date.now() - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const value = from + (to - from) * eased;
+        displayCash.current = value;
+        setShownCash(value);
+        if (t < 1) {
+          frame = requestAnimationFrame(tick);
+        } else {
+          displayCash.current = to;
+          setShownCash(to);
+          clearCashGain();
+        }
+      };
+      frame = requestAnimationFrame(tick);
+
+      Animated.parallel([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 1100,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.08,
+            duration: 180,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start(() => setFloatingLabel(null));
+
+      return () => {
+        if (frame != null) cancelAnimationFrame(frame);
+      };
+    }
+
+    // Non-animated updates (buy/sell, hydrate) snap display to cash.
+    if (cashGain === 0 && Math.abs(displayCash.current - cash) > 0.001) {
+      displayCash.current = cash;
+      setShownCash(cash);
+    }
+  }, [cash, cashGain, clearCashGain, floatAnim, pulseAnim]);
 
   return (
     <View style={styles.container}>
@@ -30,9 +104,35 @@ export default function TopBar() {
       <View style={styles.rightSection}>
         <View style={styles.iconWithText}>
           <MoneyIcon />
-          <Text style={styles.count} numberOfLines={1}>
-            {formatMoney(cash)}
-          </Text>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <Text style={styles.count} numberOfLines={1}>
+              {formatMoney(shownCash)}
+            </Text>
+          </Animated.View>
+          {floatingLabel ? (
+            <Animated.Text
+              pointerEvents="none"
+              style={[
+                styles.floatGain,
+                {
+                  opacity: floatAnim.interpolate({
+                    inputRange: [0, 0.2, 0.75, 1],
+                    outputRange: [0, 1, 1, 0],
+                  }),
+                  transform: [
+                    {
+                      translateY: floatAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [8, -22],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              {floatingLabel}
+            </Animated.Text>
+          ) : null}
         </View>
         <Pressable
           onPress={() => openDictionary()}
@@ -57,6 +157,8 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     backgroundColor: "#FFFFFF",
     height: 90,
+    zIndex: 20,
+    elevation: 20,
   },
   rightSection: {
     flexDirection: "row",
@@ -79,11 +181,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginLeft: 10,
     flexShrink: 1,
+    position: "relative",
+    overflow: "visible",
   },
   count: {
     fontSize: 16,
     fontFamily: theme.font.bold,
     marginLeft: 4,
     color: "#222",
+  },
+  floatGain: {
+    position: "absolute",
+    right: 0,
+    top: -2,
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    color: theme.colors.success[600],
   },
 });

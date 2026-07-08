@@ -224,74 +224,46 @@ export default function QuestionWithSVG({
               return null;
             }
             const isSelected = selectedChoice === choice.id;
-            const isCorrectChoice = choice.correct;
-            const showFeedbackHighlight =
-              submitted &&
-              ((isSelected && isCorrectChoice) ||
-                (isSelected && !isCorrectChoice) ||
-                (!isSelected && isCorrectChoice));
-            const labelColor = showFeedbackHighlight
-              ? "#FFFFFF"
-              : submitted
-                ? isPractice
-                  ? theme.choiceDisabledText
-                  : "#9CA3AF"
-                : isSelected
-                  ? "#FFFFFF"
-                  : isPractice
-                    ? theme.choiceText
-                    : "#374151";
-            let buttonStyle: any[] = [
-              styles.choiceButton,
-              isPractice && {
-                backgroundColor: theme.choiceBg,
-                borderColor: theme.choiceBorder,
-              },
-            ];
+            const isCorrectChoice = choice.correct === true;
+
+            let backgroundColor = isPractice ? theme.choiceBg : "#FFFFFF";
+            let textColor = isPractice ? theme.choiceText : "#0D2033";
 
             if (submitted) {
               if (isSelected && isCorrectChoice) {
-                buttonStyle = isPractice
-                  ? [
-                      styles.choiceButton,
-                      { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
-                    ]
-                  : [styles.choiceButton, styles.choiceButtonCorrect];
+                backgroundColor = theme.choiceCorrectBg;
+                textColor = "#FFFFFF";
               } else if (isSelected && !isCorrectChoice) {
-                buttonStyle = isPractice
-                  ? [
-                      styles.choiceButton,
-                      { backgroundColor: theme.choiceWrongBg, borderColor: "transparent" },
-                    ]
-                  : [styles.choiceButton, styles.choiceButtonWrong];
+                backgroundColor = theme.choiceWrongBg;
+                textColor = "#FFFFFF";
               } else if (!isSelected && isCorrectChoice) {
-                buttonStyle = isPractice
-                  ? [
-                      styles.choiceButton,
-                      { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
-                    ]
-                  : [styles.choiceButton, styles.choiceButtonCorrect];
+                backgroundColor = theme.choiceCorrectBg;
+                textColor = "#FFFFFF";
+              } else {
+                backgroundColor = theme.choiceDisabledBg;
+                textColor = theme.choiceDisabledText;
               }
             } else if (isSelected) {
-              buttonStyle = [
-                styles.choiceButton,
-                isPractice
-                  ? { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" }
-                  : styles.choiceButtonSelected,
-              ];
+              backgroundColor = isPractice
+                ? theme.choiceSelectedBg
+                : "#3372D8";
+              textColor = "#FFFFFF";
             }
 
             return (
               <Pressable
                 key={choice.id}
-                style={[
-                  buttonStyle,
+                style={({ pressed }) => [
+                  styles.choiceButton,
                   useGridLayout && styles.choiceButtonGrid,
                   {
+                    backgroundColor,
                     paddingVertical: layout.choicePaddingVertical,
                     paddingHorizontal: layout.choicePaddingHorizontal,
                     marginBottom: 0,
                   },
+                  isSelected && !submitted && styles.choiceButtonSelectedShadow,
+                  pressed && !submitted && { transform: [{ scale: 0.985 }] },
                 ]}
                 onPress={() => {
                   if (!submitted) {
@@ -302,14 +274,15 @@ export default function QuestionWithSVG({
                 <View style={styles.choiceTextWrap}>
                   <DrillChoiceLabel
                     choice={choice}
-                    color={labelColor}
+                    color={textColor}
+                    preferPlain
                     style={[
                       styles.choiceText,
                       {
+                        color: textColor,
                         fontSize: layout.choiceFontSize,
                         lineHeight: layout.choiceLineHeight,
                       },
-                      (submitted || isSelected) && styles.choiceTextSelected,
                     ]}
                   />
                 </View>
@@ -394,39 +367,26 @@ const styles = StyleSheet.create({
     columnGap: 8,
   },
   choiceButton: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-    width: "100%",
+    width: "92%",
+    maxWidth: 420,
+    alignSelf: "center",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
   choiceButtonGrid: {
-    width: "48%",
+    width: "46%",
+    maxWidth: undefined,
   },
-  choiceButtonSelected: {
-    borderColor: "#3F9FFF",
-    backgroundColor: "#EBF4FF",
-  },
-  choiceButtonCorrect: {
-    borderColor: "#62D24C",
-    backgroundColor: "#EEF7EE",
-  },
-  choiceButtonWrong: {
-    borderColor: "#FF6B6B",
-    backgroundColor: "#FFEEEE",
+  choiceButtonSelectedShadow: {
+    shadowColor: "#3F9FFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
   choiceText: {
-    fontWeight: "bold",
-    color: "#374151",
+    fontWeight: "700",
     textAlign: "center",
-  },
-  choiceTextSelected: {
-    color: "#1E40AF",
-    fontWeight: "600",
   },
 });

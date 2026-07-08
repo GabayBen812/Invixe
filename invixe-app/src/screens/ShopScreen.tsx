@@ -15,8 +15,6 @@ import AdRewardCard from "../components/shop/AdRewardCard";
 import { getShopAdRewards } from "../data/shopCatalog";
 import { useUser } from "../context/UserContext";
 import { formatMoney } from "../utils/money";
-import { API_BASE_URL } from "../config/api";
-import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import theme from "../theme";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Shop">;
@@ -24,7 +22,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Shop">;
 const HORIZONTAL_PADDING = 16;
 
 export default function ShopScreen({ navigation }: Props) {
-  const { cash, setCash, currentUserEmail } = useUser();
+  const { addCash, currentUserEmail } = useUser();
   const adRewards = getShopAdRewards();
   const adAmount = adRewards[0]?.amount ?? 0;
 
@@ -48,21 +46,7 @@ export default function ShopScreen({ navigation }: Props) {
       return;
     }
     try {
-      const res = await fetchWithTimeout(`${API_BASE_URL}/user/add-coins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: currentUserEmail, coins: adAmount }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to add cash");
-      }
-      const data = await res.json();
-      if (typeof data.newCoins === "number") {
-        setCash(data.newCoins);
-      } else {
-        setCash(cash + adAmount);
-      }
+      await addCash(adAmount);
       Alert.alert("כל הכבוד!", `קיבלת ${formatMoney(adAmount)} מזומן`);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Network error";

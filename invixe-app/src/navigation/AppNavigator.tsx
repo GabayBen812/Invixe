@@ -81,6 +81,8 @@ export type RootStackParamList = {
     lessonId: number;
     unitId?: string;
     cashEarned?: number;
+    /** Cash already granted mid-lesson on correct answers. */
+    alreadyAwardedCash?: number;
     correctCount?: number;
     totalGraded?: number;
     durationMs?: number;

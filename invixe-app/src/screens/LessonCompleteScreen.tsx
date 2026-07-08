@@ -11,10 +11,8 @@ import {
   Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import {
-  CommonActions,
-  NativeStackScreenProps,
-} from "@react-navigation/native";
+import { CommonActions } from "@react-navigation/native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
@@ -37,11 +35,8 @@ import TrophyImage from "../assets/nodes/Trophy.png";
 //@ts-ignore
 import MoneyIconSource from "../assets/money.svg";
 import TopBar from "../components/ui/TopBar";
-import { API_BASE_URL } from "../config/api";
-import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { formatMoney } from "../utils/money";
 
-const API_URL = `${API_BASE_URL}/user/add-coins`;
 const TOP_BAR_HEIGHT = 90;
 const SCREEN_EDGE_PADDING = 20;
 
@@ -72,26 +67,30 @@ type LayoutMetrics = {
 };
 
 const CONFETTI_COLORS = [
-  "#3F9FFF",
-  "#12B76A",
-  "#F79009",
-  "#850AFF",
+  theme.colors.primary[400],
+  theme.colors.primary[500],
+  theme.colors.success[600],
+  theme.colors.warning[600],
+  theme.colors.accent.purple500,
   "#FF6B6B",
   "#76D761",
 ];
+
+const CONFETTI_ACTIVE_MS = 5200;
 
 function ConfettiBurst({ active }: { active: boolean }) {
   const { width, height } = useWindowDimensions();
   const pieces = useMemo(
     () =>
-      Array.from({ length: 22 }, (_, i) => ({
+      Array.from({ length: 36 }, (_, i) => ({
         id: i,
-        x: (i * 37 + 13) % Math.max(width, 1),
+        x: ((i * 47 + 19) % Math.max(Math.floor(width), 1)) + (i % 3) * 2,
         color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
-        size: 5 + (i % 4),
-        delay: (i % 8) * 45,
-        drift: ((i % 5) - 2) * 18,
+        size: 6 + (i % 5),
+        delay: (i % 12) * 70,
+        drift: ((i % 7) - 3) * 28,
         spin: i % 2 === 0 ? 1 : -1,
+        round: i % 4 === 0,
       })),
     [width],
   );
@@ -104,47 +103,47 @@ function ConfettiBurst({ active }: { active: boolean }) {
       anim.setValue(0);
       return Animated.timing(anim, {
         toValue: 1,
-        duration: 1800 + (i % 5) * 120,
+        duration: 3800 + (i % 6) * 220,
         delay: pieces[i].delay,
-        easing: Easing.out(Easing.cubic),
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       });
     });
-    Animated.stagger(28, runs).start();
+    Animated.stagger(40, runs).start();
   }, [active, anims, pieces]);
 
   if (!active) return null;
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+    <View pointerEvents="none" style={styles.confettiLayer}>
       {pieces.map((piece, i) => {
         const progress = anims[i];
         const translateY = progress.interpolate({
           inputRange: [0, 1],
-          outputRange: [-24, height * 0.72],
+          outputRange: [-40, height * 0.9],
         });
         const translateX = progress.interpolate({
-          inputRange: [0, 1],
-          outputRange: [0, piece.drift],
+          inputRange: [0, 0.45, 1],
+          outputRange: [0, piece.drift * 0.55, piece.drift],
         });
         const rotate = progress.interpolate({
           inputRange: [0, 1],
-          outputRange: ["0deg", `${piece.spin * 220}deg`],
+          outputRange: ["0deg", `${piece.spin * 380}deg`],
         });
         const opacity = progress.interpolate({
-          inputRange: [0, 0.15, 0.75, 1],
-          outputRange: [0, 1, 0.85, 0],
+          inputRange: [0, 0.08, 0.55, 0.85, 1],
+          outputRange: [0, 1, 1, 0.7, 0],
         });
         return (
           <Animated.View
             key={piece.id}
             style={{
               position: "absolute",
-              top: 8,
+              top: 12,
               left: piece.x,
               width: piece.size,
-              height: piece.size * 1.7,
-              borderRadius: 2,
+              height: piece.round ? piece.size : piece.size * 1.85,
+              borderRadius: piece.round ? piece.size / 2 : 2,
               backgroundColor: piece.color,
               opacity,
               transform: [{ translateY }, { translateX }, { rotate }],
@@ -166,25 +165,25 @@ function useCompactLayout(): LayoutMetrics & { bottomInset: number } {
   return {
     scale,
     bottomInset: insets.bottom,
-    sectionGap: Math.round(10 * scale),
-    trophySize: Math.round(88 * scale),
-    gradeBox: Math.round(52 * scale),
-    gradeLetterSize: Math.round(28 * scale),
-    ringSize: Math.round(58 * scale),
+    sectionGap: Math.round(12 * scale),
+    trophySize: Math.round(84 * scale),
+    gradeBox: Math.round(50 * scale),
+    gradeLetterSize: Math.round(26 * scale),
+    ringSize: Math.round(56 * scale),
     ringBorder: Math.max(3, Math.round(4 * scale)),
     statValueSize: Math.round(20 * scale),
-    rewardValueSize: Math.round(26 * scale),
-    rewardPadV: Math.round(14 * scale),
-    rewardIcon: Math.round(28 * scale),
-    btnPadV: Math.round(14 * scale),
+    rewardValueSize: Math.round(24 * scale),
+    rewardPadV: Math.round(12 * scale),
+    rewardIcon: Math.round(24 * scale),
+    btnPadV: Math.round(13 * scale),
     btnFont: Math.round(16 * scale),
-    titleSize: Math.round(28 * scale),
+    titleSize: Math.round(26 * scale),
     subtitleSize: Math.round(15 * scale),
     summarySize: Math.round(13 * scale),
     badgeFont: Math.round(12 * scale),
     hintFont: Math.round(13 * scale),
-    heroPadV: Math.round(18 * scale),
-    cardPad: Math.round(14 * scale),
+    heroPadV: Math.round(16 * scale),
+    cardPad: Math.round(12 * scale),
     retryPadV: Math.round(8 * scale),
   };
 }
@@ -267,17 +266,20 @@ function StatCell({
 
 export default function LessonCompleteScreen({ navigation, route }: Props) {
   const layout = useCompactLayout();
-  const { setCash, currentUserEmail } = useUser();
+  const { addCash } = useUser();
   const { lessonsRegistry, loadingRegistry } = useLessons();
   const { openDictionary } = useDictionary();
   const [cashLoading, setCashLoading] = useState(false);
   const [error, setError] = useState("");
   const [showConfetti, setShowConfetti] = useState(true);
   const navigatingRef = useRef(false);
+  const cashGrantedRef = useRef(false);
 
   const lessonId = route.params?.lessonId;
   const unitIdFromRoute = route.params?.unitId;
   const earnedCash = route.params?.cashEarned ?? 0;
+  const alreadyAwardedCash = route.params?.alreadyAwardedCash ?? 0;
+  const remainingCash = Math.max(0, earnedCash - alreadyAwardedCash);
   const correctCount = route.params?.correctCount ?? 0;
   const totalGraded = route.params?.totalGraded ?? 0;
   const durationMs = route.params?.durationMs ?? 0;
@@ -316,38 +318,31 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   }, [lessonsRegistry, lessonId]);
 
   useEffect(() => {
-    const addCash = async () => {
-      if (earnedCash <= 0 || !currentUserEmail) return;
+    const grantRemainingCash = async () => {
+      if (cashGrantedRef.current) return;
+      if (remainingCash <= 0) return;
+      cashGrantedRef.current = true;
       setCashLoading(true);
       try {
-        const res = await fetchWithTimeout(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: currentUserEmail, coins: earnedCash }),
-        });
-        if (!res.ok) {
-          const data = await res.json();
-          throw new Error(data.error || "Failed to add cash");
-        }
-        const data = await res.json();
-        setCash(data.newCoins);
+        await addCash(remainingCash);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Network error";
         console.error("Error adding cash:", e);
         setError(message);
+        cashGrantedRef.current = false;
       } finally {
         setCashLoading(false);
       }
     };
 
     const timer = setTimeout(() => {
-      void addCash();
-    }, 100);
+      void grantRemainingCash();
+    }, 250);
     return () => clearTimeout(timer);
-  }, [earnedCash, setCash, currentUserEmail]);
+  }, [remainingCash, addCash]);
 
   useEffect(() => {
-    const hide = setTimeout(() => setShowConfetti(false), 2600);
+    const hide = setTimeout(() => setShowConfetti(false), CONFETTI_ACTIVE_MS);
     return () => clearTimeout(hide);
   }, []);
 
@@ -487,7 +482,6 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
       ]}
     >
       <TopBar />
-      <ConfettiBurst active={showConfetti} />
       <View style={[styles.body, bodyPadding]}>
         <View style={[styles.contentStack, { gap: layout.sectionGap }]}>
           {showRetry ? (
@@ -545,7 +539,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
               style={{
                 width: layout.trophySize,
                 height: layout.trophySize,
-                marginBottom: 8,
+                marginBottom: 6,
               }}
               resizeMode="contain"
             />
@@ -566,7 +560,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
               adjustsFontSizeToFit
               minimumFontScale={0.85}
             >
-              סיימת את {currentLesson?.title || "השיעור"}
+              סיימת את שיעור {currentLesson?.title || "השיעור"}
             </Text>
             <Text
               style={[
@@ -643,7 +637,9 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
                   ringStyle={
                     isPractice
                       ? { backgroundColor: visualTheme.mediaSurfaceBg }
-                      : undefined
+                      : {
+                          backgroundColor: theme.colors.info[100],
+                        }
                   }
                   labelColor={mutedText}
                 />
@@ -673,10 +669,12 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             ]}
           >
             <View style={styles.rewardInner}>
-              <MoneyIconSource
-                width={layout.rewardIcon}
-                height={layout.rewardIcon}
-              />
+              <View style={styles.rewardIconWrap}>
+                <MoneyIconSource
+                  width={layout.rewardIcon}
+                  height={layout.rewardIcon}
+                />
+              </View>
               <View style={styles.rewardCopy}>
                 <Text
                   style={[
@@ -709,7 +707,10 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             <Text
               style={[
                 styles.dictionaryHintText,
-                { fontSize: layout.hintFont, color: bodyText },
+                {
+                  fontSize: layout.hintFont,
+                  color: isPractice ? bodyText : theme.colors.primary[600],
+                },
               ]}
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -720,7 +721,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           </Pressable>
         </View>
 
-        <View style={[styles.buttonsContainer, { gap: layout.sectionGap }]}>
+        <View style={[styles.buttonsContainer, { gap: Math.round(8 * layout.scale) }]}>
           <Pressable
             style={[
               styles.continueButton,
@@ -779,6 +780,9 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           ) : null}
         </View>
       </View>
+
+      {/* Above all content so pieces aren't clipped by opaque cards */}
+      <ConfettiBurst active={showConfetti} />
     </View>
   );
 }
@@ -787,6 +791,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.surface.bg,
+  },
+  confettiLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 50,
+    elevation: 50,
   },
   body: {
     flex: 1,
@@ -814,15 +823,15 @@ const styles = StyleSheet.create({
   heroCard: {
     width: "100%",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: 22,
+    borderRadius: theme.radius.lg,
     paddingHorizontal: theme.spacing.md,
     alignItems: "center",
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
-    shadowColor: theme.colors.neutral[900],
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.07,
-    shadowRadius: 14,
+    shadowColor: theme.colors.primary[500],
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
     elevation: 3,
     flexShrink: 1,
   },
@@ -830,7 +839,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: theme.radius.pill,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   heroBadgeText: {
     fontFamily: theme.font.bold,
@@ -854,21 +863,21 @@ const styles = StyleSheet.create({
   resultsCard: {
     width: "100%",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: 22,
+    borderRadius: theme.radius.lg,
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
     paddingHorizontal: 4,
     flexShrink: 0,
     shadowColor: theme.colors.neutral[900],
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 2,
   },
   statsGrid: {
     flexDirection: "row",
     alignItems: "stretch",
-    minHeight: 168,
+    minHeight: 160,
   },
   statsCol: {
     flex: 1,
@@ -921,13 +930,13 @@ const styles = StyleSheet.create({
   },
   rewardCard: {
     width: "100%",
-    borderRadius: 18,
+    borderRadius: theme.radius.md,
     paddingHorizontal: 16,
     borderWidth: 1.5,
   },
   rewardCardLight: {
     backgroundColor: theme.colors.success[100],
-    borderColor: "rgba(18, 183, 106, 0.3)",
+    borderColor: "rgba(18, 183, 106, 0.28)",
   },
   rewardCardPractice: {
     backgroundColor: "rgba(18, 183, 106, 0.14)",
@@ -939,8 +948,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
   },
-  rewardCopy: {
+  rewardIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(18, 183, 106, 0.16)",
     alignItems: "center",
+    justifyContent: "center",
+  },
+  rewardCopy: {
+    alignItems: "flex-start",
   },
   rewardValue: {
     fontFamily: theme.font.bold,
@@ -960,7 +977,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     width: "100%",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: 16,
+    borderRadius: theme.radius.md,
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
   },
@@ -972,15 +989,15 @@ const styles = StyleSheet.create({
   buttonsContainer: {
     width: "100%",
     flexShrink: 0,
-    paddingTop: 8,
+    paddingTop: 6,
   },
   continueButton: {
     backgroundColor: theme.colors.primary[500],
-    borderRadius: 16,
+    borderRadius: theme.radius.md,
     alignItems: "center",
     shadowColor: theme.colors.primary[500],
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.28,
     shadowRadius: 8,
     elevation: 4,
   },
@@ -990,10 +1007,10 @@ const styles = StyleSheet.create({
   },
   homeButton: {
     backgroundColor: theme.colors.surface.card,
-    borderRadius: 16,
+    borderRadius: theme.radius.md,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: theme.colors.primary[500],
+    borderColor: theme.colors.primary[400],
   },
   homeButtonText: {
     color: theme.colors.primary[500],

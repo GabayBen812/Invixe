@@ -69,3 +69,8 @@ export function computeLessonCashEarned(input: LessonCashAwardInput): number {
 export function getAdCashRewardAmount(): number {
   return AD_CASH_REWARD;
 }
+
+/** Convert content reward points shown on a correct-answer sheet into cash. */
+export function contentRewardsToCash(contentRewards: number): number {
+  return Math.max(0, Math.round(contentRewards * CONTENT_REWARD_TO_CASH));
+}

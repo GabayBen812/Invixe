@@ -144,7 +144,7 @@ export default function GraphQuestionDrill({
 
   const layout = useChoiceDrillLayout(
     visibleChoices.length || choices.length,
-    { hasMedia: true, gridCols: isYesNo ? 2 : undefined },
+    { hasMedia: true },
   );
   const stackGap = DRILL_MEDIA_STACK_GAP;
   const mediaHeight = useMemo(() => {
@@ -169,9 +169,11 @@ export default function GraphQuestionDrill({
     stackGap,
   ]);
   const blockMinHeight = mediaHeight + layout.choicesMinHeight + stackGap + 16;
-  const scrollChoices =
-    !isYesNo &&
-    needsScrollableChoiceList(layout, drillViewportHeight, mediaHeight);
+  const scrollChoices = needsScrollableChoiceList(
+    layout,
+    drillViewportHeight,
+    mediaHeight,
+  );
 
   // Active media - always use the main graph, don't change based on selected choice
   const activeSvgCode = useMemo(() => {
@@ -210,9 +212,16 @@ export default function GraphQuestionDrill({
     };
   }, [mediaType, activeSvgCode, activeSvgUrl]);
 
+  const getChoiceKey = (choice: GraphQuestionChoice, idx: number) =>
+    choice.id ? String(choice.id) : `choice-${idx}`;
+
   const handleSubmit = () => {
     if (!selectedChoice) return;
-    const selectedChoiceData = choices.find((c) => c.id === selectedChoice);
+    const selectedIndex = visibleChoices.findIndex(
+      (c, idx) => getChoiceKey(c, idx) === selectedChoice,
+    );
+    const selectedChoiceData =
+      selectedIndex >= 0 ? visibleChoices[selectedIndex] : undefined;
     const correct = selectedChoiceData?.correct || false;
 
     setSubmitted(true);
@@ -224,7 +233,7 @@ export default function GraphQuestionDrill({
       : wrongExplanation || "";
     onSubmit({
       correct,
-      selectedChoiceId: selectedChoice,
+      selectedChoiceId: selectedChoiceData?.id || selectedChoice,
       isCorrect: correct,
       explanation,
     });
@@ -368,108 +377,51 @@ export default function GraphQuestionDrill({
       </View>
 
       {(() => {
-        const choiceNodes = visibleChoices.map((choice) => {
-          const isSelected = selectedChoice === choice.id;
-          const choiceText = getDrillChoicePlainText(choice).trim();
-          const yesNoBaseColor =
-            isPractice && isYesNo && !submitted
-              ? choiceText === "כן"
-                ? theme.choiceYesBg
-                : choiceText === "לא"
-                  ? theme.choiceNoBg
-                  : theme.choiceBg
-              : null;
-          const isCorrectChoice = choice.correct;
-          const showFeedbackHighlight =
-            submitted &&
-            ((isSelected && isCorrectChoice) ||
-              (isSelected && !isCorrectChoice) ||
-              (!isSelected && isCorrectChoice));
-          const labelColor = showFeedbackHighlight
-            ? "#FFFFFF"
-            : submitted
-              ? isPractice
-                ? theme.choiceDisabledText
-                : "#9CA3AF"
-              : isSelected
-                ? theme.choiceSelectedText
-                : yesNoBaseColor
-                  ? "#FFFFFF"
-                  : theme.choiceText;
-          let buttonStyle: any = [styles.choiceButton];
+        const choiceNodes = visibleChoices.map((choice, idx) => {
+          const choiceKey = getChoiceKey(choice, idx);
+          const isSelected = selectedChoice === choiceKey;
+          const isCorrectChoice = choice.correct === true;
+
+          let backgroundColor = isPractice ? theme.choiceBg : "#FFFFFF";
+          let textColor = isPractice ? theme.choiceText : "#0D2033";
 
           if (submitted) {
             if (isSelected && isCorrectChoice) {
-              buttonStyle = [
-                styles.choiceButton,
-                { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
-              ];
+              backgroundColor = theme.choiceCorrectBg;
+              textColor = "#FFFFFF";
             } else if (isSelected && !isCorrectChoice) {
-              buttonStyle = [
-                styles.choiceButton,
-                { backgroundColor: theme.choiceWrongBg, borderColor: "transparent" },
-              ];
+              backgroundColor = theme.choiceWrongBg;
+              textColor = "#FFFFFF";
             } else if (!isSelected && isCorrectChoice) {
-              buttonStyle = [
-                styles.choiceButton,
-                { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
-              ];
+              backgroundColor = theme.choiceCorrectBg;
+              textColor = "#FFFFFF";
             } else {
-              buttonStyle = [
-                styles.choiceButton,
-                styles.choiceButtonDisabled,
-                isPractice && { backgroundColor: theme.choiceDisabledBg },
-              ];
+              backgroundColor = theme.choiceDisabledBg;
+              textColor = theme.choiceDisabledText;
             }
-          } else if (yesNoBaseColor) {
-            buttonStyle = [
-              styles.choiceButton,
-              {
-                backgroundColor: yesNoBaseColor,
-                borderColor: isSelected ? "rgba(255,255,255,0.9)" : "transparent",
-                borderWidth: isSelected ? 2 : 0,
-                flex: 1,
-                borderRadius: 8,
-              },
-            ];
-          } else if (isYesNo && !isPractice) {
-            buttonStyle = [
-              styles.choiceButton,
-              isSelected ? styles.choiceButtonSelected : styles.choiceButtonYesNoLight,
-              { flex: 1 },
-            ];
           } else if (isSelected) {
-            buttonStyle = [
-              styles.choiceButton,
-              isPractice
-                ? { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" }
-                : styles.choiceButtonSelected,
-            ];
-          } else if (isPractice) {
-            buttonStyle = [
-              styles.choiceButton,
-              {
-                backgroundColor: theme.choiceBg,
-                borderColor: theme.choiceBorder,
-              },
-            ];
+            backgroundColor = isPractice
+              ? theme.choiceSelectedBg
+              : "#3372D8";
+            textColor = "#FFFFFF";
           }
 
           return (
             <Pressable
-              key={choice.id}
-              style={[
-                buttonStyle,
+              key={choiceKey}
+              style={({ pressed }) => [
+                styles.choiceButton,
                 {
+                  backgroundColor,
                   paddingVertical: layout.choicePaddingVertical,
                   paddingHorizontal: layout.choicePaddingHorizontal,
-                  marginBottom: 0,
                 },
-                isYesNo && styles.choiceButtonYesNo,
+                isSelected && !submitted && styles.choiceButtonSelectedShadow,
+                pressed && !submitted && { transform: [{ scale: 0.985 }] },
               ]}
               onPress={() => {
                 if (!submitted) {
-                  setSelectedChoice(choice.id);
+                  setSelectedChoice(choiceKey);
                 }
               }}
             >
@@ -477,14 +429,15 @@ export default function GraphQuestionDrill({
                 {getDrillChoicePlainText(choice) ? (
                   <DrillChoiceLabel
                     choice={choice}
-                    color={labelColor}
+                    color={textColor}
+                    preferPlain
                     style={[
                       styles.choiceText,
                       {
+                        color: textColor,
                         fontSize: layout.choiceFontSize,
                         lineHeight: layout.choiceLineHeight,
                       },
-                      (submitted || isSelected) && styles.choiceTextSelected,
                     ]}
                   />
                 ) : (() => {
@@ -500,7 +453,10 @@ export default function GraphQuestionDrill({
                       <Text
                         style={[
                           styles.choiceText,
-                          { color: labelColor, fontSize: layout.choiceFontSize },
+                          {
+                            color: textColor,
+                            fontSize: layout.choiceFontSize,
+                          },
                         ]}
                       >
                         {fallback.replace(/<[^>]+>/g, " ").trim()}
@@ -536,9 +492,8 @@ export default function GraphQuestionDrill({
           styles.choicesContainer,
           {
             gap: layout.choiceGap,
-            minHeight: scrollChoices || isYesNo ? undefined : layout.choicesMinHeight,
+            minHeight: scrollChoices ? undefined : layout.choicesMinHeight,
           },
-          isYesNo && styles.choicesContainerYesNo,
         ];
 
         if (scrollChoices) {
@@ -655,75 +610,29 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     alignSelf: "center",
   },
-  choicesContainerYesNo: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    maxWidth: "100%",
-    paddingHorizontal: 8,
-    gap: 10,
-  },
-  choiceButtonYesNo: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: 46,
-    borderRadius: 8,
-  },
-  choiceButtonYesNoLight: {
-    backgroundColor: "#FFFFFF",
-    borderColor: "#CBD5E1",
-    borderWidth: 1.5,
-    borderRadius: 8,
-    shadowColor: "#0F2233",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
   choiceTextWrap: {
     width: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   choiceButton: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    width: "92%",
+    maxWidth: 420,
+    alignSelf: "center",
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  choiceButtonSelected: {
-    borderColor: "#3372D8",
-    backgroundColor: "#3372D8",
+  choiceButtonSelectedShadow: {
     shadowColor: "#3F9FFF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  choiceButtonCorrect: {
-    borderColor: "#12B76A",
-    backgroundColor: "#12B76A",
-  },
-  choiceButtonWrong: {
-    borderColor: "#D92D20",
-    backgroundColor: "#FEE4E2",
-  },
-  choiceButtonDisabled: {
-    opacity: 0.6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
   choiceText: {
-    fontWeight: "bold",
-    color: "#374151",
-    textAlign: "center",
-  },
-  choiceTextSelected: {
-    color: "#FFFFFF",
     fontWeight: "700",
+    textAlign: "center",
   },
   fullScreenIndicator: {
     position: "absolute",

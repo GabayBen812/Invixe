@@ -19,7 +19,7 @@ import {
 } from "../utils/supabaseUrl";
 import { countGradedFromDrillResult } from "../utils/lessonResults";
 import {
-  CONTENT_REWARD_TO_CASH,
+  contentRewardsToCash,
   computeLessonCashEarned,
 } from "../utils/cashRewards";
 import { formatMoney } from "../utils/money";
@@ -388,6 +388,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     completedLessons,
     markLessonCompleted,
     setCompletedLessons,
+    addCash,
   } = useUser();
   const { openDictionary } = useDictionary();
   const { getLessonSteps, lessonsRegistry } = useLessons();
@@ -516,6 +517,7 @@ export default function LessonScreen({ navigation, route }: Props) {
       progressAnim.setValue(0);
       lessonStartedAtRef.current = Date.now();
       sessionContentRewardsRef.current = 0;
+      sessionCashAwardedRef.current = 0;
       sessionGradedRef.current = { correctCount: 0, totalGraded: 0 };
     }
   }, [route.params?.lessonId]);
@@ -744,8 +746,19 @@ export default function LessonScreen({ navigation, route }: Props) {
   const shouldShowBubbleContainer = hasSpecificBubble || hasGenericBubble;
 
   const sessionContentRewardsRef = useRef(0);
+  const sessionCashAwardedRef = useRef(0);
   const sessionGradedRef = useRef({ correctCount: 0, totalGraded: 0 });
   const lessonStartedAtRef = useRef(Date.now());
+
+  const awardCorrectAnswerCash = useCallback(
+    (contentRewardPoints: number) => {
+      const cashAmount = contentRewardsToCash(contentRewardPoints);
+      if (cashAmount <= 0) return;
+      sessionCashAwardedRef.current += cashAmount;
+      void addCash(cashAmount);
+    },
+    [addCash],
+  );
 
   const handleDrillComplete = (result: {
     isCorrect: boolean;
@@ -775,9 +788,13 @@ export default function LessonScreen({ navigation, route }: Props) {
 
     // Graph drills already show a dedicated explanation screen — skip the
     // correct/wrong bottom sheet and continue straight to the next step.
+    // Still award cash now so TopBar rises with the correct-answer moment.
     if (isGraphQuestionActivity) {
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
+      if (isCorrect && rewards > 0) {
+        awardCorrectAnswerCash(rewards);
+      }
       setGraphQuestionViewingExplanation(false);
       setGraphQuestionSelectedChoiceId(null);
       setGraphQuestionPNGViewingExplanation(false);
@@ -811,10 +828,16 @@ export default function LessonScreen({ navigation, route }: Props) {
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
       setShowSimpleQuestionButtonSheet(true);
+      if (isCorrect && rewards > 0) {
+        awardCorrectAnswerCash(rewards);
+      }
     } else {
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
       setShowingDrillExplanation(true);
+      if (isCorrect && rewards > 0) {
+        awardCorrectAnswerCash(rewards);
+      }
     }
   };
 
@@ -1030,6 +1053,7 @@ export default function LessonScreen({ navigation, route }: Props) {
             lessonId,
             unitId: route.params?.unitId,
             cashEarned,
+            alreadyAwardedCash: sessionCashAwardedRef.current,
             correctCount: sessionGradedRef.current.correctCount,
             totalGraded: sessionGradedRef.current.totalGraded,
             durationMs: Date.now() - lessonStartedAtRef.current,
@@ -1048,6 +1072,8 @@ export default function LessonScreen({ navigation, route }: Props) {
       setPendingNextStep(nextStep);
       setAnswerMode("correct");
       setDrillRewards(nextStepData.points);
+      sessionContentRewardsRef.current += nextStepData.points;
+      awardCorrectAnswerCash(nextStepData.points);
       return;
     }
 
@@ -1058,6 +1084,8 @@ export default function LessonScreen({ navigation, route }: Props) {
       setPendingNextStep(nextStep);
       setAnswerMode("correct");
       setDrillRewards(2); // Default reward for this specific case
+      sessionContentRewardsRef.current += 2;
+      awardCorrectAnswerCash(2);
       return;
     }
 
@@ -2607,7 +2635,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     isPractice && { color: visualTheme.progressFill },
                   ]}
                 >
-                  {`הרווחת ${formatMoney(drillRewards * CONTENT_REWARD_TO_CASH)}`}
+                  {`הרווחת ${formatMoney(contentRewardsToCash(drillRewards))}`}
                 </Text>
               </View>
             )}
@@ -2736,7 +2764,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       isPractice && { color: visualTheme.progressFill },
                     ]}
                   >
-                    {`הרווחת ${formatMoney(drillRewards * CONTENT_REWARD_TO_CASH)}`}
+                    {`הרווחת ${formatMoney(contentRewardsToCash(drillRewards))}`}
                   </Text>
                 </View>
               )}
@@ -3112,7 +3140,7 @@ export default function LessonScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         )}
-      {/* Global button for pathSelect - after at least one question was explored */}
+      {/* Global button for pathSelect - questions list: continue to next step after exploring */}
       {step.activity === "pathSelect" &&
         step.activityConfig?.pathSelect &&
         pathSelectViewingOption === null &&
@@ -3133,31 +3161,13 @@ export default function LessonScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
         )}
-      {/* Global buttons for pathSelect explanation screens */}
+      {/* Single המשך for pathSelect explanation screens — advances slides, then returns to questions */}
       {step.activity === "pathSelect" &&
         pathSelectViewingOption !== null &&
         !showCorrectOverlay && (
-          <View style={styles.pathSelectExplanationButtons}>
-            {pathSelectCompletedOptions.size >= 1 && (
-              <Pressable
-                style={styles.pathSelectSkipButton}
-                onPress={() => {
-                  if (choices && choices.length > 0 && choices[0].nextStep) {
-                    handleChoice(choices[0].nextStep);
-                  }
-                }}
-              >
-                <Text style={styles.pathSelectSkipButtonText}>
-                  {step.activityConfig.pathSelect.submitText || "המשך לשלב הבא"}
-                </Text>
-              </Pressable>
-            )}
+          <View style={styles.absoluteContinueButton}>
             <Pressable
-              style={[
-                styles.continueButton,
-                pathSelectCompletedOptions.size >= 1 &&
-                  styles.pathSelectExplanationPrimaryButton,
-              ]}
+              style={styles.continueButton}
               onPress={() => {
                 const selectedOption =
                   step.activityConfig?.pathSelect?.choices?.find(
@@ -3197,11 +3207,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                 setPathSelectViewingOption(null);
               }}
             >
-              <Text style={styles.continueButtonText}>
-                {pathSelectCompletedOptions.size >= 1
-                  ? "חזרה לשאלות"
-                  : "המשך"}
-              </Text>
+              <Text style={styles.continueButtonText}>המשך</Text>
             </Pressable>
           </View>
         )}
@@ -3538,35 +3544,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     textAlign: "center",
-  },
-  pathSelectExplanationButtons: {
-    position: "absolute",
-    bottom: 70,
-    left: 0,
-    right: 0,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 10,
-    gap: 10,
-    paddingHorizontal: 24,
-  },
-  pathSelectSkipButton: {
-    backgroundColor: "#FFFFFF",
-    minWidth: 200,
-    borderRadius: 16.4,
-    paddingVertical: 14,
-    paddingHorizontal: 21,
-    borderWidth: 2,
-    borderColor: "#3372D8",
-  },
-  pathSelectSkipButtonText: {
-    color: "#3372D8",
-    fontSize: 18,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  pathSelectExplanationPrimaryButton: {
-    marginBottom: 0,
   },
   continueButton: {
     backgroundColor: "#3372D8",

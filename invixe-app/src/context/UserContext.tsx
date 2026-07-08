@@ -45,6 +45,11 @@ interface UserContextType {
   lessonAttempts: LessonAttempt[];
   /** Portfolio cash balance (persisted as `coins` on the server). */
   cash: number;
+  /**
+   * Positive delta just awarded (correct answer / lesson complete / ad).
+   * TopBar consumes this to run the count-up animation, then clearCashGain.
+   */
+  cashGain: number;
   firstName: string | null;
   lastName: string | null;
   currentUserEmail: string | null;
@@ -54,6 +59,9 @@ interface UserContextType {
   markLessonCompleted: (lessonId: number) => Promise<void>;
   markLessonAttempted: (lessonId: number) => void;
   setCash: (cash: number) => void;
+  /** Award cash (persists via /user/add-coins) and trigger TopBar rise animation. */
+  addCash: (amount: number) => Promise<number>;
+  clearCashGain: () => void;
   setCurrentUser: (
     email: string,
     profile?: { firstName?: string; lastName?: string },
@@ -77,6 +85,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
   const [cash, setCashState] = useState<number>(0);
+  const [cashGain, setCashGain] = useState(0);
   const [firstName, setFirstNameState] = useState<string | null>(null);
   const [lastName, setLastNameState] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(
@@ -89,6 +98,9 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const progressSaveInFlight = useRef(0);
   const completedLessonsRef = useRef<number[]>([]);
   const lessonAttemptsRef = useRef<LessonAttempt[]>([]);
+  const cashRef = useRef(0);
+  /** After first hydrate, ignore silent currency snaps from progress polling. */
+  const cashHydratedRef = useRef(false);
 
   useEffect(() => {
     currentUserEmailRef.current = currentUserEmail;
@@ -102,14 +114,21 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     lessonAttemptsRef.current = lessonAttempts;
   }, [lessonAttempts]);
 
+  useEffect(() => {
+    cashRef.current = cash;
+  }, [cash]);
+
   const resetUserState = useCallback(() => {
     setCompletedLessonsState([]);
     setLessonAttemptsState([]);
     setCashState(0);
+    setCashGain(0);
     setFirstNameState(null);
     setLastNameState(null);
     completedLessonsRef.current = [];
     lessonAttemptsRef.current = [];
+    cashRef.current = 0;
+    cashHydratedRef.current = false;
   }, []);
 
   const applyProgressPayload = useCallback(
@@ -137,7 +156,14 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return next;
       });
 
-      setCashState(data.coins || 0);
+      // Only sync cash on first hydrate / login — later progress fetches must not
+      // jump the TopBar without an intentional award animation.
+      if (!cashHydratedRef.current) {
+        const nextCash = data.coins || 0;
+        cashRef.current = nextCash;
+        setCashState(nextCash);
+        cashHydratedRef.current = true;
+      }
       if (data.firstName !== undefined) {
         setFirstNameState(data.firstName ?? null);
       }
@@ -443,6 +469,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const setCash = useCallback(async (nextCash: number) => {
+    cashRef.current = nextCash;
+    cashHydratedRef.current = true;
     setCashState(nextCash);
     const userEmail = currentUserEmailRef.current;
     if (!userEmail) return;
@@ -452,6 +480,44 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: userEmail, coins: nextCash }),
     }).catch((e) => console.error("Error saving cash:", e));
+  }, []);
+
+  const clearCashGain = useCallback(() => {
+    setCashGain(0);
+  }, []);
+
+  const addCash = useCallback(async (amount: number) => {
+    const safeAmount = Math.max(0, Math.round(amount));
+    if (safeAmount <= 0) return cashRef.current;
+
+    const userEmail = currentUserEmailRef.current;
+    const optimistic = cashRef.current + safeAmount;
+    cashRef.current = optimistic;
+    cashHydratedRef.current = true;
+    setCashState(optimistic);
+    setCashGain(safeAmount);
+
+    if (!userEmail) return optimistic;
+
+    try {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/user/add-coins`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail, coins: safeAmount }),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to add cash: ${res.status}`);
+      }
+      const data = (await res.json()) as { newCoins?: number };
+      if (typeof data.newCoins === "number") {
+        cashRef.current = data.newCoins;
+        setCashState(data.newCoins);
+        return data.newCoins;
+      }
+    } catch (e) {
+      console.error("Error adding cash:", e);
+    }
+    return optimistic;
   }, []);
 
   const refreshUserData = useCallback(
@@ -464,6 +530,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       completedLessons,
       lessonAttempts,
       cash,
+      cashGain,
       firstName,
       lastName,
       currentUserEmail,
@@ -473,6 +540,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       markLessonCompleted,
       markLessonAttempted,
       setCash,
+      addCash,
+      clearCashGain,
       setCurrentUser,
       logout,
       refreshUserData,
@@ -481,6 +550,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       completedLessons,
       lessonAttempts,
       cash,
+      cashGain,
       firstName,
       lastName,
       currentUserEmail,
@@ -490,6 +560,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       markLessonCompleted,
       markLessonAttempted,
       setCash,
+      addCash,
+      clearCashGain,
       setCurrentUser,
       logout,
       refreshUserData,
