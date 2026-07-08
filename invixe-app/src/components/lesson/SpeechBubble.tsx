@@ -231,8 +231,9 @@ export default function SpeechBubble({
   const hasCharacter = !!showCharacter;
 
   // Determine if character is actually being rendered (visible)
-  // Character is visible when: showCharacter is true and not a very long message
-  const isCharacterVisible = hasCharacter && !isVeryLongMessage;
+  // For beside positions (left/right) always show the character — the avatar doesn't
+  // affect bubble height there. Only suppress for center/inside layout on very long messages.
+  const isCharacterVisible = hasCharacter && (!isVeryLongMessage || isLeft || isRight);
 
   // Character BESIDE the bubble = left or right (avatar next to the bubble, with a tail).
   // Character INSIDE the bubble = center only (avatar in same row as message, no tail).

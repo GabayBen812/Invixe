@@ -44,6 +44,7 @@ import {
   formatMoney,
   type NormalizedHolding,
 } from "../utils/portfolioNormalize";
+import { getStockLogo } from "../assets/StockLogos";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
@@ -449,27 +450,39 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const renderHoldingRow = (
     holding: NormalizedHolding & { changePercent: number },
-  ) => (
-    <Pressable
-      key={holding.id}
-      style={styles.holdingRow}
-      onPress={() => openTrading(holding.symbol)}
-    >
-      <View style={styles.holdingAvatar}>
-        <Text style={styles.holdingAvatarText}>
-          {holding.symbol.slice(0, 2).toUpperCase()}
-        </Text>
-      </View>
-      <View style={styles.holdingMeta}>
-        <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
-        <Text style={styles.holdingShares}>
-          {holding.shares} מניות · קנייה {formatMoney(holding.avgPrice)}
-        </Text>
-      </View>
-      {renderChangeLabel(holding.changePercent)}
-      <Text style={styles.holdingChevron}>›</Text>
-    </Pressable>
-  );
+  ) => {
+    const Logo = getStockLogo(holding.symbol);
+    return (
+      <Pressable
+        key={holding.id}
+        style={styles.holdingRow}
+        onPress={() => openTrading(holding.symbol)}
+      >
+        <View
+          style={[
+            styles.holdingAvatar,
+            Logo ? styles.holdingAvatarLogoWrap : null,
+          ]}
+        >
+          {Logo ? (
+            <Logo width={26} height={26} />
+          ) : (
+            <Text style={styles.holdingAvatarText}>
+              {holding.symbol.slice(0, 2).toUpperCase()}
+            </Text>
+          )}
+        </View>
+        <View style={styles.holdingMeta}>
+          <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
+          <Text style={styles.holdingShares}>
+            {holding.shares} מניות · קנייה {formatMoney(holding.avgPrice)}
+          </Text>
+        </View>
+        {renderChangeLabel(holding.changePercent)}
+        <Text style={styles.holdingChevron}>›</Text>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -918,6 +931,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: 12,
+  },
+  holdingAvatarLogoWrap: {
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#EAF1F9",
   },
   holdingAvatarText: {
     fontSize: 14,

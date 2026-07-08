@@ -296,7 +296,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
       return;
     }
 
-    const totalCost = Math.round(shares * price);
+    const totalCost = Math.round(shares * price * 100) / 100;
 
     if (tradeType === 'buy' && cash < totalCost) {
       showToast('אין לך מספיק מזומן', 'error');
