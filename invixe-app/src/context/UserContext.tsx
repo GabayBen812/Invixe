@@ -12,8 +12,17 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getParentLessonForSublesson } from "../modules/lessons/registry";
 import { areAllSublessonsCompleted } from "../modules/lessons/lessonUtils";
 import { API_BASE_URL } from "../config/api";
-import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { fetchWithTimeout, FetchTimeoutError } from "../utils/fetchWithTimeout";
 import { STORAGE_KEYS } from "../utils/storage";
+
+async function withTransientRetry<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!(error instanceof FetchTimeoutError)) throw error;
+    return fn();
+  }
+}
 
 interface LessonAttempt {
   lessonId: number;
@@ -239,37 +248,46 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
 
   const persistCompletedLessons = useCallback(
     async (userEmail: string, lessons: number[]) => {
-      const res = await fetchWithTimeout(`${API_BASE_URL}/user/progress`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: userEmail,
-          completedLessons: lessons,
-        }),
+      await withTransientRetry(async () => {
+        const res = await fetchWithTimeout(
+          `${API_BASE_URL}/user/progress`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: userEmail,
+              completedLessons: lessons,
+            }),
+          },
+          20_000,
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to save progress: ${res.status}`);
+        }
       });
-      if (!res.ok) {
-        throw new Error(`Failed to save progress: ${res.status}`);
-      }
     },
     [],
   );
 
   const persistLessonAttempts = useCallback(
     async (userEmail: string, attempts: LessonAttempt[]) => {
-      const res = await fetchWithTimeout(
-        `${API_BASE_URL}/user/lesson-attempts`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: userEmail,
-            lessonAttempts: attempts,
-          }),
-        },
-      );
-      if (!res.ok) {
-        throw new Error(`Failed to save lesson attempts: ${res.status}`);
-      }
+      await withTransientRetry(async () => {
+        const res = await fetchWithTimeout(
+          `${API_BASE_URL}/user/lesson-attempts`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email: userEmail,
+              lessonAttempts: attempts,
+            }),
+          },
+          20_000,
+        );
+        if (!res.ok) {
+          throw new Error(`Failed to save lesson attempts: ${res.status}`);
+        }
+      });
     },
     [],
   );
@@ -325,26 +343,25 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       const existingAttempt = prevAttempts.find(
         (a) => a.lessonId === lessonId,
       );
-      const updatedAttempts = [...prevAttempts];
+      const changedAttempt: LessonAttempt = existingAttempt
+        ? {
+            ...existingAttempt,
+            completed: true,
+            lastAttempted: new Date(),
+            attempts: existingAttempt.attempts + 1,
+          }
+        : {
+            lessonId,
+            completed: true,
+            lastAttempted: new Date(),
+            attempts: 1,
+          };
 
-      if (existingAttempt) {
-        const index = updatedAttempts.findIndex(
-          (a) => a.lessonId === lessonId,
-        );
-        updatedAttempts[index] = {
-          ...existingAttempt,
-          completed: true,
-          lastAttempted: new Date(),
-          attempts: existingAttempt.attempts + 1,
-        };
-      } else {
-        updatedAttempts.push({
-          lessonId,
-          completed: true,
-          lastAttempted: new Date(),
-          attempts: 1,
-        });
-      }
+      const updatedAttempts = existingAttempt
+        ? prevAttempts.map((a) =>
+            a.lessonId === lessonId ? changedAttempt : a,
+          )
+        : [...prevAttempts, changedAttempt];
 
       let newCompletedLessons = [...prevCompleted];
       if (!newCompletedLessons.includes(lessonId)) {
@@ -359,6 +376,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
+      // Server merges — only send deltas so production stays under the timeout.
+      const newlyCompleted = newCompletedLessons.filter(
+        (id) => !prevCompleted.includes(id),
+      );
+
       setLessonAttemptsState(updatedAttempts);
       setCompletedLessonsState(newCompletedLessons);
       lessonAttemptsRef.current = updatedAttempts;
@@ -367,8 +389,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       progressSaveInFlight.current += 1;
       try {
         await Promise.all([
-          persistLessonAttempts(userEmail, updatedAttempts),
-          persistCompletedLessons(userEmail, newCompletedLessons),
+          persistLessonAttempts(userEmail, [changedAttempt]),
+          newlyCompleted.length > 0
+            ? persistCompletedLessons(userEmail, newlyCompleted)
+            : Promise.resolve(),
         ]);
       } catch (error) {
         console.error("Error persisting lesson completion:", error);
@@ -387,42 +411,35 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       const existingAttempt = prevAttempts.find(
         (a) => a.lessonId === lessonId,
       );
-      const updatedAttempts = [...prevAttempts];
+      const changedAttempt: LessonAttempt = existingAttempt
+        ? {
+            ...existingAttempt,
+            lastAttempted: new Date(),
+            attempts: existingAttempt.attempts + 1,
+          }
+        : {
+            lessonId,
+            completed: false,
+            lastAttempted: new Date(),
+            attempts: 1,
+          };
 
-      if (existingAttempt) {
-        const index = updatedAttempts.findIndex(
-          (a) => a.lessonId === lessonId,
-        );
-        updatedAttempts[index] = {
-          ...existingAttempt,
-          lastAttempted: new Date(),
-          attempts: existingAttempt.attempts + 1,
-        };
-      } else {
-        updatedAttempts.push({
-          lessonId,
-          completed: false,
-          lastAttempted: new Date(),
-          attempts: 1,
-        });
-      }
+      const updatedAttempts = existingAttempt
+        ? prevAttempts.map((a) =>
+            a.lessonId === lessonId ? changedAttempt : a,
+          )
+        : [...prevAttempts, changedAttempt];
 
       setLessonAttemptsState(updatedAttempts);
       lessonAttemptsRef.current = updatedAttempts;
       if (!userEmail) return;
 
-      fetchWithTimeout(`${API_BASE_URL}/user/lesson-attempts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: userEmail,
-          lessonAttempts: updatedAttempts,
-        }),
-      }).catch((error) => {
+      // Fire-and-forget: only the changed lesson — avoids rewriting full history.
+      void persistLessonAttempts(userEmail, [changedAttempt]).catch((error) => {
         console.error("Error saving lesson attempts:", error);
       });
     },
-    [],
+    [persistLessonAttempts],
   );
 
   const setCash = useCallback(async (nextCash: number) => {

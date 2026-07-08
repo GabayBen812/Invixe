@@ -288,35 +288,43 @@ export default function GraphQuestionDrill({
         ]}
       >
         {isBareChart ? (
-          <View style={[styles.mediaContainer, styles.mediaContainerBare, { height: "100%" }]}>
-            {mediaType === "svg" ? (
-              parsedSVG ? (
-                <View style={styles.svgContainer}>{parsedSVG}</View>
+          <PracticeMediaSurface style={{ height: "100%", width: "100%" }}>
+            <View
+              style={[
+                styles.mediaContainer,
+                styles.mediaContainerBare,
+                { height: "100%" },
+              ]}
+            >
+              {mediaType === "svg" ? (
+                parsedSVG ? (
+                  <View style={styles.svgContainer}>{parsedSVG}</View>
+                ) : (
+                  <View style={styles.mediaPlaceholder}>
+                    <Text style={styles.mediaPlaceholderText}>SVG</Text>
+                  </View>
+                )
+              ) : pngUri ? (
+                <Image
+                  source={{ uri: pngUri } as any}
+                  style={styles.pngImage}
+                  resizeMode="contain"
+                  onError={() => {
+                    if (!activePngUrl || triedAlternatePngRef.current) return;
+                    const alternate = getAlternateSupabaseUrl(activePngUrl);
+                    if (alternate) {
+                      triedAlternatePngRef.current = true;
+                      setPngUri(alternate);
+                    }
+                  }}
+                />
               ) : (
                 <View style={styles.mediaPlaceholder}>
-                  <Text style={styles.mediaPlaceholderText}>SVG</Text>
+                  <Text style={styles.mediaPlaceholderText}>No Image</Text>
                 </View>
-              )
-            ) : pngUri ? (
-              <Image
-                source={{ uri: pngUri } as any}
-                style={styles.pngImage}
-                resizeMode="contain"
-                onError={() => {
-                  if (!activePngUrl || triedAlternatePngRef.current) return;
-                  const alternate = getAlternateSupabaseUrl(activePngUrl);
-                  if (alternate) {
-                    triedAlternatePngRef.current = true;
-                    setPngUri(alternate);
-                  }
-                }}
-              />
-            ) : (
-              <View style={styles.mediaPlaceholder}>
-                <Text style={styles.mediaPlaceholderText}>No Image</Text>
-              </View>
-            )}
-          </View>
+              )}
+            </View>
+          </PracticeMediaSurface>
         ) : (
           <>
             <PracticeMediaSurface style={{ height: mediaHeight, width: "100%" }}>

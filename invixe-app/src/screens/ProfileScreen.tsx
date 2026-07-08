@@ -178,6 +178,7 @@ export default function ProfileScreen({ navigation }: Props) {
     portfolioStats,
     getHoldingChangePercent,
     portfolioHistory,
+    periodReturns: periodReturnsFromSeries,
   } = usePortfolio();
 
   useFocusEffect(
@@ -249,22 +250,7 @@ export default function ProfileScreen({ navigation }: Props) {
 
   const sparklineWidth = Math.min(screenWidth - 80, 320);
 
-  const periodReturns = useMemo(() => {
-    const h = portfolioHistory;
-    if (h.length < 2) return null;
-    const last = h[h.length - 1];
-    const calcChange = (fromIdx: number): number | null => {
-      if (fromIdx < 0 || fromIdx >= h.length - 1) return null;
-      const start = h[fromIdx];
-      if (!start) return null;
-      return ((last - start) / start) * 100;
-    };
-    return {
-      day: calcChange(h.length - 2),
-      week: h.length >= 6 ? calcChange(h.length - 6) : null,
-      month: calcChange(0),
-    };
-  }, [portfolioHistory]);
+  const periodReturns = periodReturnsFromSeries;
 
   const scrollViewRef = useRef<ScrollView>(null);
   const scrollViewportHeightRef = useRef(400);
@@ -567,7 +553,9 @@ export default function ProfileScreen({ navigation }: Props) {
                 width={sparklineWidth}
                 values={portfolioHistory}
               />
-              {periodReturns && (
+              {(periodReturns.day != null ||
+                periodReturns.week != null ||
+                periodReturns.month != null) && (
                 <View style={styles.periodRow}>
                   {[
                     { label: "יום", value: periodReturns.day },
@@ -901,7 +889,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   holdingsHeader: {
-    flexDirection: "row",
+    flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 10,

@@ -7,6 +7,8 @@ import {
   Pressable,
   Image,
   useWindowDimensions,
+  Animated,
+  Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -49,11 +51,11 @@ type LayoutMetrics = {
   scale: number;
   sectionGap: number;
   trophySize: number;
+  gradeBox: number;
   gradeLetterSize: number;
   ringSize: number;
   ringBorder: number;
   statValueSize: number;
-  statPillPadV: number;
   rewardValueSize: number;
   rewardPadV: number;
   rewardIcon: number;
@@ -66,81 +68,125 @@ type LayoutMetrics = {
   hintFont: number;
   heroPadV: number;
   cardPad: number;
+  retryPadV: number;
 };
+
+const CONFETTI_COLORS = [
+  "#3F9FFF",
+  "#12B76A",
+  "#F79009",
+  "#850AFF",
+  "#FF6B6B",
+  "#76D761",
+];
+
+function ConfettiBurst({ active }: { active: boolean }) {
+  const { width, height } = useWindowDimensions();
+  const pieces = useMemo(
+    () =>
+      Array.from({ length: 22 }, (_, i) => ({
+        id: i,
+        x: (i * 37 + 13) % Math.max(width, 1),
+        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        size: 5 + (i % 4),
+        delay: (i % 8) * 45,
+        drift: ((i % 5) - 2) * 18,
+        spin: i % 2 === 0 ? 1 : -1,
+      })),
+    [width],
+  );
+
+  const anims = useRef(pieces.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    if (!active) return;
+    const runs = anims.map((anim, i) => {
+      anim.setValue(0);
+      return Animated.timing(anim, {
+        toValue: 1,
+        duration: 1800 + (i % 5) * 120,
+        delay: pieces[i].delay,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      });
+    });
+    Animated.stagger(28, runs).start();
+  }, [active, anims, pieces]);
+
+  if (!active) return null;
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {pieces.map((piece, i) => {
+        const progress = anims[i];
+        const translateY = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-24, height * 0.72],
+        });
+        const translateX = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, piece.drift],
+        });
+        const rotate = progress.interpolate({
+          inputRange: [0, 1],
+          outputRange: ["0deg", `${piece.spin * 220}deg`],
+        });
+        const opacity = progress.interpolate({
+          inputRange: [0, 0.15, 0.75, 1],
+          outputRange: [0, 1, 0.85, 0],
+        });
+        return (
+          <Animated.View
+            key={piece.id}
+            style={{
+              position: "absolute",
+              top: 8,
+              left: piece.x,
+              width: piece.size,
+              height: piece.size * 1.7,
+              borderRadius: 2,
+              backgroundColor: piece.color,
+              opacity,
+              transform: [{ translateY }, { translateX }, { rotate }],
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+}
 
 function useCompactLayout(): LayoutMetrics & { bottomInset: number } {
   const { height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const availableHeight =
     height - TOP_BAR_HEIGHT - insets.bottom - SCREEN_EDGE_PADDING;
-  const scale = Math.min(1, Math.max(0.78, availableHeight / 620));
+  const scale = Math.min(1, Math.max(0.78, availableHeight / 680));
 
   return {
     scale,
     bottomInset: insets.bottom,
-    sectionGap: Math.round(5 * scale),
-    trophySize: Math.round(72 * scale),
-    gradeLetterSize: Math.round(36 * scale),
-    ringSize: Math.round(64 * scale),
-    ringBorder: Math.max(2, Math.round(3 * scale)),
-    statValueSize: Math.round(17 * scale),
-    statPillPadV: Math.round(7 * scale),
-    rewardValueSize: Math.round(18 * scale),
-    rewardPadV: Math.round(8 * scale),
-    rewardIcon: Math.round(22 * scale),
-    btnPadV: Math.round(11 * scale),
-    btnFont: Math.round(15 * scale),
-    titleSize: Math.round(22 * scale),
-    subtitleSize: Math.round(14 * scale),
-    summarySize: Math.round(12 * scale),
-    badgeFont: Math.round(11 * scale),
-    hintFont: Math.round(12 * scale),
-    heroPadV: Math.round(10 * scale),
-    cardPad: Math.round(10 * scale),
+    sectionGap: Math.round(10 * scale),
+    trophySize: Math.round(88 * scale),
+    gradeBox: Math.round(52 * scale),
+    gradeLetterSize: Math.round(28 * scale),
+    ringSize: Math.round(58 * scale),
+    ringBorder: Math.max(3, Math.round(4 * scale)),
+    statValueSize: Math.round(20 * scale),
+    rewardValueSize: Math.round(26 * scale),
+    rewardPadV: Math.round(14 * scale),
+    rewardIcon: Math.round(28 * scale),
+    btnPadV: Math.round(14 * scale),
+    btnFont: Math.round(16 * scale),
+    titleSize: Math.round(28 * scale),
+    subtitleSize: Math.round(15 * scale),
+    summarySize: Math.round(13 * scale),
+    badgeFont: Math.round(12 * scale),
+    hintFont: Math.round(13 * scale),
+    heroPadV: Math.round(18 * scale),
+    cardPad: Math.round(14 * scale),
+    retryPadV: Math.round(8 * scale),
   };
-}
-
-function StatPill({
-  label,
-  value,
-  accent,
-  metrics,
-  labelColor,
-  pillStyle,
-}: {
-  label: string;
-  value: string;
-  accent: string;
-  metrics: LayoutMetrics;
-  labelColor?: string;
-  pillStyle?: object;
-}) {
-  return (
-    <View
-      style={[
-        styles.statPill,
-        { paddingVertical: metrics.statPillPadV },
-        pillStyle,
-      ]}
-    >
-      <Text
-        style={[
-          styles.statPillValue,
-          { color: accent, fontSize: metrics.statValueSize },
-        ]}
-      >
-        {value}
-      </Text>
-      <Text
-        style={[
-          styles.statPillLabel,
-          labelColor ? { color: labelColor } : null,
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
 }
 
 function AccuracyRing({
@@ -157,31 +203,63 @@ function AccuracyRing({
   labelColor?: string;
 }) {
   const display = percent === null ? "—" : `${percent}%`;
-  const ringFont = Math.round(16 * metrics.scale);
+  const ringFont = Math.round(15 * metrics.scale);
   return (
-    <View
-      style={[
-        styles.gradeRingInner,
-        {
-          width: metrics.ringSize,
-          height: metrics.ringSize,
-          borderRadius: metrics.ringSize / 2,
-          borderWidth: metrics.ringBorder,
-          borderColor: color,
-        },
-        ringStyle,
-      ]}
-    >
-      <Text style={[styles.gradeRingPercent, { color, fontSize: ringFont }]}>
-        {display}
-      </Text>
+    <View style={styles.statCell}>
+      <View
+        style={[
+          styles.gradeRingInner,
+          {
+            width: metrics.ringSize,
+            height: metrics.ringSize,
+            borderRadius: metrics.ringSize / 2,
+            borderWidth: metrics.ringBorder,
+            borderColor: color,
+          },
+          ringStyle,
+        ]}
+      >
+        <Text style={[styles.gradeRingPercent, { color, fontSize: ringFont }]}>
+          {display}
+        </Text>
+      </View>
       <Text
         style={[
-          styles.gradeRingSub,
+          styles.statCaption,
           labelColor ? { color: labelColor } : null,
         ]}
       >
         דיוק
+      </Text>
+    </View>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  accent,
+  labelColor,
+  valueSize,
+}: {
+  label: string;
+  value: string;
+  accent: string;
+  labelColor?: string;
+  valueSize: number;
+}) {
+  return (
+    <View style={styles.statCell}>
+      <Text style={[styles.statCellValue, { color: accent, fontSize: valueSize }]}>
+        {value}
+      </Text>
+      <Text
+        style={[
+          styles.statCaption,
+          labelColor ? { color: labelColor } : null,
+        ]}
+      >
+        {label}
       </Text>
     </View>
   );
@@ -194,6 +272,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   const { openDictionary } = useDictionary();
   const [cashLoading, setCashLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showConfetti, setShowConfetti] = useState(true);
   const navigatingRef = useRef(false);
 
   const lessonId = route.params?.lessonId;
@@ -212,6 +291,7 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
     () => formatLessonDuration(durationMs),
     [durationMs],
   );
+  const showRetry = accuracy !== null && accuracy < 75;
 
   const currentLesson = useMemo(() => {
     if (!lessonId || !lessonsRegistry.length) return null;
@@ -265,6 +345,11 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
     }, 100);
     return () => clearTimeout(timer);
   }, [earnedCash, setCash, currentUserEmail]);
+
+  useEffect(() => {
+    const hide = setTimeout(() => setShowConfetti(false), 2600);
+    return () => clearTimeout(hide);
+  }, []);
 
   const resetToMap = useCallback(
     (selectedUnitIdx?: number) => {
@@ -347,6 +432,12 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
     resetToMap(mapUnitIndex);
   }, [resetToMap, mapUnitIndex]);
 
+  const handleRetry = useCallback(() => {
+    if (navigatingRef.current || !lessonId) return;
+    navigatingRef.current = true;
+    resetToLesson(lessonId, unitIdFromRoute, mapUnitIndex);
+  }, [lessonId, unitIdFromRoute, mapUnitIndex, resetToLesson]);
+
   const canNavigate = !loadingRegistry || lessonsRegistry.length > 0;
   const hasNextLesson = !!nextLesson;
   const continueLabel = hasNextLesson ? "המשך ללמוד" : "חזרה למפה";
@@ -364,7 +455,6 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
     [layout.bottomInset],
   );
 
-  const stackGap = layout.sectionGap;
   const mutedText = isPractice
     ? visualTheme.choiceDisabledText
     : theme.colors.neutral[500];
@@ -376,12 +466,18 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
         elevation: 0,
       }
     : null;
-  const pillStyle = isPractice
-    ? {
-        backgroundColor: visualTheme.mediaSurfaceBg,
-        borderColor: visualTheme.mediaSurfaceBorder,
-      }
-    : null;
+  const dividerColor = isPractice
+    ? "rgba(255,255,255,0.1)"
+    : theme.colors.border.subtle;
+  const primaryAccent = isPractice
+    ? visualTheme.progressFill
+    : theme.colors.primary[500];
+  const titleColor = isPractice
+    ? visualTheme.progressFill
+    : theme.colors.primary[600];
+  const bodyText = isPractice
+    ? visualTheme.instructionText
+    : theme.colors.neutral[900];
 
   return (
     <View
@@ -391,158 +487,211 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
       ]}
     >
       <TopBar />
+      <ConfettiBurst active={showConfetti} />
       <View style={[styles.body, bodyPadding]}>
-        <View style={[styles.contentStack, { gap: stackGap }]}>
-        <View style={[styles.heroCard, { paddingVertical: layout.heroPadV }, cardStyle]}>
+        <View style={[styles.contentStack, { gap: layout.sectionGap }]}>
+          {showRetry ? (
+            <Pressable
+              style={[
+                styles.retryChip,
+                { paddingVertical: layout.retryPadV },
+                isPractice
+                  ? {
+                      backgroundColor: "rgba(118, 215, 97, 0.14)",
+                      borderColor: visualTheme.mediaSurfaceBorder,
+                    }
+                  : null,
+              ]}
+              onPress={handleRetry}
+              disabled={!canNavigate}
+            >
+              <Text
+                style={[
+                  styles.retryChipText,
+                  { fontSize: layout.hintFont },
+                  isPractice && { color: visualTheme.progressFill },
+                ]}
+              >
+                ↻  נסה שוב
+              </Text>
+            </Pressable>
+          ) : null}
+
           <View
             style={[
-              styles.heroBadge,
-              isPractice && {
-                backgroundColor: "rgba(118, 215, 97, 0.16)",
-              },
+              styles.heroCard,
+              { paddingVertical: layout.heroPadV },
+              cardStyle,
             ]}
           >
-            <Text
-              style={[
-                styles.heroBadgeText,
-                { fontSize: layout.badgeFont },
-                isPractice && { color: visualTheme.progressFill },
-              ]}
-            >
-              {grade.label}
-            </Text>
-          </View>
-          <Image
-            source={TrophyImage}
-            style={{
-              width: layout.trophySize,
-              height: layout.trophySize,
-              marginBottom: 4,
-            }}
-            resizeMode="contain"
-          />
-          <Text
-            style={[
-              styles.title,
-              { fontSize: layout.titleSize },
-              isPractice && { color: visualTheme.progressFill },
-            ]}
-          >
-            כל הכבוד!
-          </Text>
-          <Text
-            style={[
-              styles.subtitle,
-              { fontSize: layout.subtitleSize },
-              isPractice && { color: visualTheme.instructionText },
-            ]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.85}
-          >
-            סיימת את {currentLesson?.title || "השיעור"}
-          </Text>
-          <Text
-            style={[
-              styles.summaryLine,
-              { fontSize: layout.summarySize },
-              isPractice && { color: mutedText },
-            ]}
-            numberOfLines={1}
-          >
-            {summaryLine}
-          </Text>
-        </View>
-
-        <View style={[styles.resultsCard, { padding: layout.cardPad }, cardStyle]}>
-          <View style={styles.gradeRow}>
-            <View style={styles.gradeLetterBlock}>
-              <Text
-                style={[
-                  styles.gradeLetter,
-                  {
-                    color: grade.color,
-                    fontSize: layout.gradeLetterSize,
-                    lineHeight: layout.gradeLetterSize + 4,
-                  },
-                ]}
-              >
-                {grade.letter}
-              </Text>
-              <Text
-                style={[
-                  styles.gradeLetterCaption,
-                  isPractice && { color: mutedText },
-                ]}
-              >
-                ציון
-              </Text>
-            </View>
-            <AccuracyRing
-              percent={accuracy}
-              color={isPractice ? visualTheme.progressFill : grade.color}
-              metrics={layout}
-              ringStyle={
-                isPractice
-                  ? { backgroundColor: visualTheme.mediaSurfaceBg }
-                  : undefined
-              }
-              labelColor={isPractice ? mutedText : undefined}
-            />
-          </View>
-
-          <View style={styles.statsRow}>
-            <StatPill
-              label="זמן"
-              value={timeSpent}
-              accent={
-                isPractice ? visualTheme.progressFill : theme.colors.primary[500]
-              }
-              metrics={layout}
-              labelColor={isPractice ? mutedText : undefined}
-              pillStyle={pillStyle ?? undefined}
-            />
-            <StatPill
-              label="שאלות"
-              value={totalGraded > 0 ? String(totalGraded) : "—"}
-              accent={
-                isPractice ? visualTheme.instructionText : theme.colors.neutral[700]
-              }
-              metrics={layout}
-              labelColor={isPractice ? mutedText : undefined}
-              pillStyle={pillStyle ?? undefined}
-            />
-          </View>
-        </View>
-
-        <View style={[styles.midSection, { gap: stackGap }]}>
-          <View style={styles.rewardsRow}>
             <View
               style={[
-                styles.rewardCard,
-                styles.rewardCardCoins,
-                { paddingVertical: layout.rewardPadV },
-                isPractice && styles.rewardCardCoinsPractice,
+                styles.heroBadge,
+                { backgroundColor: `${grade.color}22` },
               ]}
             >
+              <Text
+                style={[
+                  styles.heroBadgeText,
+                  { fontSize: layout.badgeFont, color: grade.color },
+                ]}
+              >
+                {grade.label}
+              </Text>
+            </View>
+
+            <Image
+              source={TrophyImage}
+              style={{
+                width: layout.trophySize,
+                height: layout.trophySize,
+                marginBottom: 8,
+              }}
+              resizeMode="contain"
+            />
+            <Text
+              style={[
+                styles.title,
+                { fontSize: layout.titleSize, color: titleColor },
+              ]}
+            >
+              כל הכבוד!
+            </Text>
+            <Text
+              style={[
+                styles.subtitle,
+                { fontSize: layout.subtitleSize, color: bodyText },
+              ]}
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.85}
+            >
+              סיימת את {currentLesson?.title || "השיעור"}
+            </Text>
+            <Text
+              style={[
+                styles.summaryLine,
+                { fontSize: layout.summarySize, color: mutedText },
+              ]}
+              numberOfLines={1}
+            >
+              {summaryLine}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.resultsCard,
+              { paddingVertical: layout.cardPad },
+              cardStyle,
+            ]}
+          >
+            <View style={styles.statsGrid}>
+              <View style={[styles.statsCol, styles.statsColLeft]}>
+                <View style={styles.statCell}>
+                  <View
+                    style={[
+                      styles.gradeBox,
+                      {
+                        width: layout.gradeBox,
+                        height: layout.gradeBox,
+                        borderRadius: Math.round(layout.gradeBox * 0.28),
+                        backgroundColor: `${grade.color}18`,
+                        borderColor: `${grade.color}55`,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.gradeLetter,
+                        {
+                          color: grade.color,
+                          fontSize: layout.gradeLetterSize,
+                        },
+                      ]}
+                    >
+                      {grade.letter}
+                    </Text>
+                  </View>
+                  <Text style={[styles.statCaption, { color: mutedText }]}>
+                    ציון
+                  </Text>
+                </View>
+
+                <View
+                  style={[styles.gridHRule, { backgroundColor: dividerColor }]}
+                />
+
+                <StatCell
+                  label="זמן"
+                  value={timeSpent}
+                  accent={primaryAccent}
+                  labelColor={mutedText}
+                  valueSize={layout.statValueSize}
+                />
+              </View>
+
+              <View
+                style={[styles.gridVRule, { backgroundColor: dividerColor }]}
+              />
+
+              <View style={[styles.statsCol, styles.statsColRight]}>
+                <AccuracyRing
+                  percent={accuracy}
+                  color={grade.color}
+                  metrics={layout}
+                  ringStyle={
+                    isPractice
+                      ? { backgroundColor: visualTheme.mediaSurfaceBg }
+                      : undefined
+                  }
+                  labelColor={mutedText}
+                />
+
+                <View
+                  style={[styles.gridHRule, { backgroundColor: dividerColor }]}
+                />
+
+                <StatCell
+                  label="שאלות"
+                  value={totalGraded > 0 ? String(totalGraded) : "—"}
+                  accent={bodyText}
+                  labelColor={mutedText}
+                  valueSize={layout.statValueSize}
+                />
+              </View>
+            </View>
+          </View>
+
+          <View
+            style={[
+              styles.rewardCard,
+              { paddingVertical: layout.rewardPadV },
+              isPractice
+                ? styles.rewardCardPractice
+                : styles.rewardCardLight,
+            ]}
+          >
+            <View style={styles.rewardInner}>
               <MoneyIconSource
                 width={layout.rewardIcon}
                 height={layout.rewardIcon}
               />
-              <Text
-                style={[
-                  styles.rewardValue,
-                  { fontSize: layout.rewardValueSize },
-                ]}
-              >
-                +{formatMoney(earnedCash)}
-              </Text>
-              <Text style={styles.rewardLabel}>מזומן</Text>
+              <View style={styles.rewardCopy}>
+                <Text
+                  style={[
+                    styles.rewardValue,
+                    { fontSize: layout.rewardValueSize },
+                  ]}
+                >
+                  +{formatMoney(earnedCash)}
+                </Text>
+                <Text style={styles.rewardLabel}>מזומן</Text>
+              </View>
               {cashLoading ? (
                 <ActivityIndicator
                   size="small"
                   color={theme.colors.success[600]}
-                  style={styles.rewardLoader}
                 />
               ) : null}
             </View>
@@ -551,22 +700,16 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
           <Pressable
             style={[
               styles.dictionaryHint,
-              { paddingVertical: layout.statPillPadV },
+              { paddingVertical: Math.round(12 * layout.scale) },
               cardStyle,
             ]}
             onPress={() => openDictionary()}
           >
-            <DictionaryBookIcon
-              size={18}
-              color={
-                isPractice ? visualTheme.progressFill : theme.colors.primary[400]
-              }
-            />
+            <DictionaryBookIcon size={18} color={primaryAccent} />
             <Text
               style={[
                 styles.dictionaryHintText,
-                { fontSize: layout.hintFont },
-                isPractice && { color: visualTheme.instructionText },
+                { fontSize: layout.hintFont, color: bodyText },
               ]}
               numberOfLines={1}
               adjustsFontSizeToFit
@@ -576,9 +719,8 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
             </Text>
           </Pressable>
         </View>
-        </View>
 
-        <View style={[styles.buttonsContainer, { gap: stackGap }]}>
+        <View style={[styles.buttonsContainer, { gap: layout.sectionGap }]}>
           <Pressable
             style={[
               styles.continueButton,
@@ -596,7 +738,10 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
               <ActivityIndicator color="#fff" />
             ) : (
               <Text
-                style={[styles.continueButtonText, { fontSize: layout.btnFont }]}
+                style={[
+                  styles.continueButtonText,
+                  { fontSize: layout.btnFont },
+                ]}
               >
                 {continueLabel}
               </Text>
@@ -653,73 +798,114 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  retryChip: {
+    alignSelf: "center",
+    backgroundColor: theme.colors.info[100],
+    borderRadius: theme.radius.pill,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "rgba(63, 159, 255, 0.35)",
+  },
+  retryChipText: {
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[500],
+    textAlign: "center",
+  },
   heroCard: {
     width: "100%",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: theme.radius.lg,
-    paddingHorizontal: theme.spacing.sm,
+    borderRadius: 22,
+    paddingHorizontal: theme.spacing.md,
     alignItems: "center",
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
     shadowColor: theme.colors.neutral[900],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    elevation: 3,
     flexShrink: 1,
   },
   heroBadge: {
-    backgroundColor: theme.colors.info[100],
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: theme.radius.pill,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   heroBadgeText: {
     fontFamily: theme.font.bold,
-    color: theme.colors.primary[600],
   },
   title: {
     fontFamily: theme.font.bold,
-    color: theme.colors.primary[600],
     textAlign: "center",
   },
   subtitle: {
     fontFamily: theme.font.bold,
-    color: theme.colors.neutral[900],
     textAlign: "center",
-    marginTop: 2,
+    marginTop: 4,
     paddingHorizontal: 4,
     width: "100%",
   },
   summaryLine: {
     fontFamily: theme.font.family,
-    color: theme.colors.neutral[500],
     textAlign: "center",
-    marginTop: 2,
+    marginTop: 4,
   },
   resultsCard: {
     width: "100%",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: theme.radius.lg,
+    borderRadius: 22,
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
-    gap: 6,
+    paddingHorizontal: 4,
     flexShrink: 0,
+    shadowColor: theme.colors.neutral[900],
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
   },
-  gradeRow: {
+  statsGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    paddingHorizontal: 8,
+    alignItems: "stretch",
+    minHeight: 168,
   },
-  gradeLetterBlock: {
+  statsCol: {
+    flex: 1,
+    justifyContent: "space-evenly",
+  },
+  statsColLeft: {
+    paddingRight: 4,
+  },
+  statsColRight: {
+    paddingLeft: 4,
+  },
+  gridVRule: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: "stretch",
+  },
+  gridHRule: {
+    height: StyleSheet.hairlineWidth,
+    marginHorizontal: 18,
+  },
+  statCell: {
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    gap: 4,
+  },
+  gradeBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
   },
   gradeLetter: {
     fontFamily: theme.font.bold,
   },
-  gradeLetterCaption: {
+  statCellValue: {
+    fontFamily: theme.font.bold,
+  },
+  statCaption: {
     fontSize: 12,
     fontFamily: theme.font.family,
     color: theme.colors.neutral[500],
@@ -733,102 +919,70 @@ const styles = StyleSheet.create({
   gradeRingPercent: {
     fontFamily: theme.font.bold,
   },
-  gradeRingSub: {
-    fontSize: 11,
-    fontFamily: theme.font.family,
-    color: theme.colors.neutral[500],
-  },
-  statsRow: {
-    flexDirection: "row",
-    gap: 8,
-  },
-  statPill: {
-    flex: 1,
-    borderRadius: theme.radius.md,
-    borderWidth: 1.5,
-    borderColor: theme.colors.border.subtle,
-    backgroundColor: theme.colors.neutral[100],
-    alignItems: "center",
-  },
-  statPillValue: {
-    fontFamily: theme.font.bold,
-  },
-  statPillLabel: {
-    fontSize: 11,
-    fontFamily: theme.font.family,
-    color: theme.colors.neutral[500],
-    marginTop: 1,
-  },
-  midSection: {
-    width: "100%",
-    flexShrink: 0,
-  },
-  rewardsRow: {
-    flexDirection: "row",
-    gap: 6,
-    justifyContent: "center",
-    width: "100%",
-  },
   rewardCard: {
-    flex: 1,
-    borderRadius: theme.radius.md,
-    paddingHorizontal: 8,
-    alignItems: "center",
-    gap: 2,
+    width: "100%",
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
   },
-  rewardCardCoins: {
+  rewardCardLight: {
     backgroundColor: theme.colors.success[100],
-    borderWidth: 1,
-    borderColor: "rgba(18, 183, 106, 0.25)",
+    borderColor: "rgba(18, 183, 106, 0.3)",
   },
-  rewardCardCoinsPractice: {
+  rewardCardPractice: {
     backgroundColor: "rgba(18, 183, 106, 0.14)",
-    borderColor: "rgba(118, 215, 97, 0.35)",
+    borderColor: "rgba(118, 215, 97, 0.4)",
+  },
+  rewardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  rewardCopy: {
+    alignItems: "center",
   },
   rewardValue: {
     fontFamily: theme.font.bold,
     color: theme.colors.success[600],
   },
   rewardLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontFamily: theme.font.family,
     color: theme.colors.success[600],
-  },
-  rewardLoader: {
-    marginTop: 2,
+    marginTop: 1,
   },
   dictionaryHint: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingHorizontal: 12,
+    gap: 8,
+    paddingHorizontal: 14,
     width: "100%",
     backgroundColor: theme.colors.surface.card,
-    borderRadius: theme.radius.md,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: theme.colors.border.subtle,
   },
   dictionaryHintText: {
     fontFamily: theme.font.family,
-    color: theme.colors.primary[600],
     textAlign: "center",
     flex: 1,
   },
   buttonsContainer: {
     width: "100%",
     flexShrink: 0,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   continueButton: {
     backgroundColor: theme.colors.primary[500],
-    borderRadius: theme.radius.md,
+    borderRadius: 16,
     alignItems: "center",
     shadowColor: theme.colors.primary[500],
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   continueButtonText: {
     color: theme.colors.white,
@@ -836,7 +990,7 @@ const styles = StyleSheet.create({
   },
   homeButton: {
     backgroundColor: theme.colors.surface.card,
-    borderRadius: theme.radius.md,
+    borderRadius: 16,
     alignItems: "center",
     borderWidth: 2,
     borderColor: theme.colors.primary[500],

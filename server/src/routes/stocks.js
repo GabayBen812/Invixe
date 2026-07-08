@@ -7,14 +7,15 @@ const YAHOO_UA =
 const quoteCache = new Map();
 
 const mockStockData = {
-  AAPL: { price: 290.44, change: -0.85, changePercent: -0.29 },
-  GOOGL: { price: 178.2, change: 1.1, changePercent: 0.62 },
-  MSFT: { price: 402.87, change: -0.54, changePercent: -0.13 },
-  AMZN: { price: 214.8, change: -1.4, changePercent: -0.65 },
-  TSLA: { price: 318.6, change: 5.8, changePercent: 1.85 },
-  META: { price: 698.3, change: 4.5, changePercent: 0.65 },
-  NVDA: { price: 142.8, change: 2.1, changePercent: 1.49 },
-  NFLX: { price: 1245.0, change: -12.3, changePercent: -0.98 },
+  // Last-resort only when Yahoo is unreachable. Keep near recent market levels.
+  AAPL: { price: 214.0, change: 0, changePercent: 0 },
+  GOOGL: { price: 363.0, change: 0, changePercent: 0 },
+  MSFT: { price: 460.0, change: 0, changePercent: 0 },
+  AMZN: { price: 225.0, change: 0, changePercent: 0 },
+  TSLA: { price: 320.0, change: 0, changePercent: 0 },
+  META: { price: 720.0, change: 0, changePercent: 0 },
+  NVDA: { price: 145.0, change: 0, changePercent: 0 },
+  NFLX: { price: 980.0, change: 0, changePercent: 0 },
 };
 
 async function fetchYahooQuote(symbol) {

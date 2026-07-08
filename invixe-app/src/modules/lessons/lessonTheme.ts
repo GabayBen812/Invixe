@@ -92,11 +92,11 @@ export const practiceTheme: LessonVisualTheme = {
   speechBubbleBg: "#1A2338",
   speechBubbleText: "#F4F7FC",
   speechBubbleTail: "#1A2338",
-  mediaSurfaceBg: "#1A2744",
-  mediaSurfaceBorder: "rgba(255, 255, 255, 0.12)",
-  assetCardBg: "#1A2744",
-  assetCardBorder: "rgba(255, 255, 255, 0.12)",
-  contentPanelBg: "#141C2E",
+  mediaSurfaceBg: "#152038",
+  mediaSurfaceBorder: "rgba(255, 255, 255, 0.1)",
+  assetCardBg: "#152038",
+  assetCardBorder: "rgba(255, 255, 255, 0.1)",
+  contentPanelBg: "#121A2C",
 };
 
 export function normalizeLessonType(

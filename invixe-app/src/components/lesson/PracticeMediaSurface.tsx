@@ -7,17 +7,20 @@ type Props = {
   style?: StyleProp<ViewStyle>;
   /** Tighter padding for small inline assets (e.g. yes/no cards). */
   compact?: boolean;
+  /** No inner padding — use for full-bleed chart explanation media. */
+  flush?: boolean;
 };
 
 /**
- * In practice lessons, wraps chart/SVG assets on a light surface so
- * dark labels and artwork remain readable against the dark screen.
+ * In practice lessons, wraps chart/SVG assets on a dark panel so they
+ * sit cleanly on the tirgul background without a bright white card.
  * In light mode, renders children unchanged.
  */
 export default function PracticeMediaSurface({
   children,
   style,
   compact = false,
+  flush = false,
 }: Props) {
   const { theme, isPractice } = useLessonTheme();
 
@@ -33,6 +36,7 @@ export default function PracticeMediaSurface({
       style={[
         styles.surface,
         compact && styles.surfaceCompact,
+        flush && styles.surfaceFlush,
         {
           backgroundColor: theme.mediaSurfaceBg,
           borderColor: theme.mediaSurfaceBorder,
@@ -56,5 +60,8 @@ const styles = StyleSheet.create({
   surfaceCompact: {
     padding: 8,
     borderRadius: 12,
+  },
+  surfaceFlush: {
+    padding: 0,
   },
 });

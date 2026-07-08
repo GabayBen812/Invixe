@@ -27,6 +27,7 @@ import TradingActionDock from '../components/trading/TradingActionDock';
 import TradingSmaToggle, {
   SMA_150_COLOR,
 } from '../components/trading/TradingSmaToggle';
+import TradingTickerOverlay from '../components/trading/TradingTickerOverlay';
 import { WebView } from 'react-native-webview';
 
 const STOCKS = [
@@ -595,6 +596,16 @@ export default function SandboxScreen({ navigation, route }: Props) {
             onToggle={toggleSma150}
           />
         </Animated.View>
+        <TradingTickerOverlay
+          symbol={selectedStock.symbol}
+          stockName={selectedStock.name}
+          livePrice={livePrice}
+          liveChangePercent={liveChangePercent}
+          sharesHeld={currentHolding?.shares ?? 0}
+          avgPrice={currentHolding?.avgPrice ?? 0}
+          cash={cash}
+          visible={chartReady || livePrice != null}
+        />
       </View>
 
       <TradingActionDock

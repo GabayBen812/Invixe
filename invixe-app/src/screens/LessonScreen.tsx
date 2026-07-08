@@ -18,7 +18,11 @@ import {
   normalizeSupabaseUrl,
 } from "../utils/supabaseUrl";
 import { countGradedFromDrillResult } from "../utils/lessonResults";
-import { computeLessonCashEarned } from "../utils/cashRewards";
+import {
+  CONTENT_REWARD_TO_CASH,
+  computeLessonCashEarned,
+} from "../utils/cashRewards";
+import { formatMoney } from "../utils/money";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep, Choice } from "../modules/lessons/types";
@@ -769,10 +773,35 @@ export default function LessonScreen({ navigation, route }: Props) {
       sessionContentRewardsRef.current += rewards;
     }
 
-    // For simple_question, questionWithSVG, questionWithImage, graphQuestion, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
+    // Graph drills already show a dedicated explanation screen — skip the
+    // correct/wrong bottom sheet and continue straight to the next step.
+    if (isGraphQuestionActivity) {
+      setDrillRewards(rewards);
+      setDrillExplanation(result.explanation);
+      setGraphQuestionViewingExplanation(false);
+      setGraphQuestionSelectedChoiceId(null);
+      setGraphQuestionPNGViewingExplanation(false);
+      setGraphQuestionPNGSelectedChoiceId(null);
+      setPendingGraphQuestionPNGResult(null);
+
+      if (
+        selectedChoiceIdx !== null &&
+        step.choices &&
+        step.choices[selectedChoiceIdx]
+      ) {
+        const next = step.choices[selectedChoiceIdx].nextStep;
+        setSelectedChoiceIdx(null);
+        handleChoice(next);
+      } else if (step.choices && step.choices.length > 0 && step.choices[0]) {
+        handleChoice(step.choices[0].nextStep);
+      }
+      return;
+    }
+
+    // For simple_question, questionWithSVG, questionWithImage, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
     if (
       isSimpleQuestion ||
-      isQuestionWithSVGActivity ||
+      activityType === "questionWithSVG" ||
       step.activity === "questionWithImage" ||
       step.activity === "sequenceBuild" ||
       (step.activity as any) === "dragMatch" ||
@@ -2578,9 +2607,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     isPractice && { color: visualTheme.progressFill },
                   ]}
                 >
-                  {isPractice
-                    ? `זכית ב- ${drillRewards} ⚡`
-                    : `הרווחת ${drillRewards}$`}
+                  {`הרווחת ${formatMoney(drillRewards * CONTENT_REWARD_TO_CASH)}`}
                 </Text>
               </View>
             )}
@@ -2658,8 +2685,9 @@ export default function LessonScreen({ navigation, route }: Props) {
         )}
       {/* Button sheet for simple_question, questionWithSVG, questionWithImage, sequenceBuild, dragMatch, and svgMultiSelect */}
       {showSimpleQuestionButtonSheet &&
+        !isGraphQuestionActivity &&
         (isSimpleQuestion ||
-          isQuestionWithSVGActivity ||
+          activityType === "questionWithSVG" ||
           step.activity === "questionWithImage" ||
           step.activity === "sequenceBuild" ||
           (step.activity as any) === "dragMatch" ||
@@ -2708,9 +2736,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       isPractice && { color: visualTheme.progressFill },
                     ]}
                   >
-                    {isPractice
-                      ? `זכית ב- ${drillRewards} ⚡`
-                      : `הרווחת ${drillRewards}$`}
+                    {`הרווחת ${formatMoney(drillRewards * CONTENT_REWARD_TO_CASH)}`}
                   </Text>
                 </View>
               )}

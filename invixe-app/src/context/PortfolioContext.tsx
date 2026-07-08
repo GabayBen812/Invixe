@@ -13,11 +13,18 @@ import {
   NormalizedStockPrice,
   computePortfolioStats,
   getHoldingGainPercent,
-  getHoldingMarketPrice,
   normalizePortfolioHolding,
   normalizeStockPrice,
 } from "../utils/portfolioNormalize";
-import { buildPortfolioHistory } from "../utils/portfolioHistory";
+import {
+  buildPortfolioHistorySeries,
+  computePeriodReturns,
+  historyMarketValues,
+  type PortfolioHistoryPoint,
+  type PortfolioPeriodReturns,
+  type TradeLike,
+} from "../utils/portfolioHistory";
+import { fetchLiveStockQuote } from "../utils/stockQuote";
 import { useUser } from "./UserContext";
 
 type PortfolioContextValue = {
@@ -31,32 +38,71 @@ type PortfolioContextValue = {
   getCurrentPrice: (symbol: string, fallback?: number) => number;
   getHoldingChangePercent: (holding: NormalizedHolding) => number;
   portfolioStats: ReturnType<typeof computePortfolioStats>;
+  /** Market-value series for sparkline (oldest → newest). */
   portfolioHistory: number[];
+  /** Full PnL-aware history points. */
+  portfolioHistorySeries: PortfolioHistoryPoint[];
+  /** Day / week / month portfolio performance %. */
+  periodReturns: PortfolioPeriodReturns;
+};
+
+const EMPTY_PERIOD: PortfolioPeriodReturns = {
+  day: null,
+  week: null,
+  month: null,
 };
 
 const PortfolioContext = createContext<PortfolioContextValue | undefined>(
   undefined,
 );
 
+async function fetchTradeHistory(email: string): Promise<TradeLike[]> {
+  try {
+    const url = `${API_BASE_URL}/user/portfolio/history?email=${encodeURIComponent(
+      email,
+    )}&limit=200`;
+    const res = await fetchWithTimeout(url);
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => ({}));
+    const rows = Array.isArray(data?.trades) ? data.trades : [];
+    return rows
+      .map((t: Record<string, unknown>) => ({
+        type: t.type === "sell" ? ("sell" as const) : ("buy" as const),
+        symbol: String(t.symbol || "").toUpperCase(),
+        shares: Number(t.shares) || 0,
+        price: Number(t.price) || 0,
+        createdAt: String(t.createdAt || t.created_at || ""),
+      }))
+      .filter((t: TradeLike) => t.symbol && t.shares > 0 && t.price > 0 && t.createdAt);
+  } catch {
+    return [];
+  }
+}
+
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const { currentUserEmail } = useUser();
   const [holdings, setHoldings] = useState<NormalizedHolding[]>([]);
   const [stockPrices, setStockPrices] = useState<NormalizedStockPrice[]>([]);
-  const [portfolioHistory, setPortfolioHistory] = useState<number[]>([]);
+  const [portfolioHistorySeries, setPortfolioHistorySeries] = useState<
+    PortfolioHistoryPoint[]
+  >([]);
   const [loading, setLoading] = useState(false);
 
   const refreshPortfolio = useCallback(async () => {
     if (!currentUserEmail) {
       setHoldings([]);
       setStockPrices([]);
-      setPortfolioHistory([]);
+      setPortfolioHistorySeries([]);
       return;
     }
 
     setLoading(true);
     try {
       const portfolioUrl = `${API_BASE_URL}/user/portfolio?email=${encodeURIComponent(currentUserEmail)}`;
-      const portfolioRes = await fetchWithTimeout(portfolioUrl);
+      const [portfolioRes, trades] = await Promise.all([
+        fetchWithTimeout(portfolioUrl),
+        fetchTradeHistory(currentUserEmail),
+      ]);
       if (!portfolioRes.ok) throw new Error("Failed to fetch portfolio");
       const portfolioData = await portfolioRes.json();
       const normalized = (portfolioData.portfolio || []).map(
@@ -66,23 +112,50 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
       if (normalized.length === 0) {
         setStockPrices([]);
-        setPortfolioHistory([]);
+        setPortfolioHistorySeries([]);
         return;
       }
 
-      const symbols = normalized.map((h) => h.symbol).join(",");
-      const [pricesRes, history] = await Promise.all([
-        fetchWithTimeout(`${API_BASE_URL}/stocks/prices?symbols=${symbols}`),
-        buildPortfolioHistory(normalized),
+      const symbols = normalized.map((h) => h.symbol);
+      const [pricesRes, liveQuotes] = await Promise.all([
+        fetchWithTimeout(
+          `${API_BASE_URL}/stocks/prices?symbols=${symbols.join(",")}`,
+        ),
+        Promise.all(symbols.map((symbol) => fetchLiveStockQuote(symbol))),
       ]);
 
-      if (!pricesRes.ok) throw new Error("Failed to fetch stock prices");
-      const pricesData = await pricesRes.json();
-      const prices = (pricesData.prices || [])
-        .map((row: Record<string, unknown>) => normalizeStockPrice(row))
-        .filter(Boolean) as NormalizedStockPrice[];
-      setStockPrices(prices);
-      setPortfolioHistory(history);
+      const apiPrices = pricesRes.ok
+        ? ((await pricesRes.json()).prices || [])
+            .map((row: Record<string, unknown>) => normalizeStockPrice(row))
+            .filter(Boolean)
+        : [];
+
+      const bySymbol = new Map<string, NormalizedStockPrice>();
+      for (const p of apiPrices as NormalizedStockPrice[]) {
+        bySymbol.set(p.symbol.toUpperCase(), p);
+      }
+      for (const quote of liveQuotes) {
+        if (!quote || !(quote.price > 0)) continue;
+        bySymbol.set(quote.symbol.toUpperCase(), {
+          symbol: quote.symbol.toUpperCase(),
+          price: quote.price,
+          changePercent: quote.changePercent,
+        });
+      }
+
+      const livePrices = new Map<string, number>();
+      for (const [symbol, quote] of bySymbol) {
+        if (quote.price > 0) livePrices.set(symbol, quote.price);
+      }
+
+      const series = await buildPortfolioHistorySeries(normalized, {
+        range: "1mo",
+        trades,
+        livePrices,
+      });
+
+      setStockPrices([...bySymbol.values()]);
+      setPortfolioHistorySeries(series);
     } catch (error) {
       console.error("Error loading portfolio:", error);
     } finally {
@@ -132,6 +205,19 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     [holdings, priceBySymbol],
   );
 
+  const portfolioHistory = useMemo(
+    () => historyMarketValues(portfolioHistorySeries),
+    [portfolioHistorySeries],
+  );
+
+  const periodReturns = useMemo(
+    () =>
+      portfolioHistorySeries.length >= 2
+        ? computePeriodReturns(portfolioHistorySeries)
+        : EMPTY_PERIOD,
+    [portfolioHistorySeries],
+  );
+
   const value = useMemo(
     () => ({
       holdings,
@@ -145,6 +231,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       getHoldingChangePercent,
       portfolioStats,
       portfolioHistory,
+      portfolioHistorySeries,
+      periodReturns,
     }),
     [
       holdings,
@@ -158,6 +246,8 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
       getHoldingChangePercent,
       portfolioStats,
       portfolioHistory,
+      portfolioHistorySeries,
+      periodReturns,
     ],
   );
 

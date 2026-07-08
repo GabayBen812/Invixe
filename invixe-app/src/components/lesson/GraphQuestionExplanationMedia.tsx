@@ -14,7 +14,12 @@ import {
   isBareChartAsset,
 } from "../../utils/graphQuestionMedia";
 import { normalizeSupabaseUrl } from "../../utils/supabaseUrl";
+import { useLessonTheme } from "../../context/LessonThemeContext";
 import { useDrillViewportHeight } from "./DrillViewport";
+import PracticeMediaSurface from "./PracticeMediaSurface";
+
+/** Leave room for absolute המשך without eating the chart. */
+const CONTINUE_BUTTON_CLEARANCE = 118;
 
 type Props = {
   isCorrect: boolean;
@@ -24,7 +29,13 @@ type Props = {
   svgPublicUrl?: string | null;
 };
 
-function ResultBadge({ isCorrect }: { isCorrect: boolean }) {
+function ResultBadge({
+  isCorrect,
+  wrongHintColor,
+}: {
+  isCorrect: boolean;
+  wrongHintColor: string;
+}) {
   if (isCorrect) {
     return (
       <View style={styles.correctBadge}>
@@ -35,7 +46,7 @@ function ResultBadge({ isCorrect }: { isCorrect: boolean }) {
 
   return (
     <View style={styles.wrongRow}>
-      <Text style={styles.wrongHint}>לא בדיוק</Text>
+      <Text style={[styles.wrongHint, { color: wrongHintColor }]}>לא בדיוק</Text>
       <View style={styles.wrongBadge}>
         <Text style={styles.badgeText}>✗ שגוי</Text>
       </View>
@@ -50,6 +61,7 @@ export default function GraphQuestionExplanationMedia({
   svgUrl,
   svgPublicUrl,
 }: Props) {
+  const { theme, isPractice } = useLessonTheme();
   const drillViewportHeight = useDrillViewportHeight();
   const { height: screenHeight } = useWindowDimensions();
   const [pngDimensions, setPngDimensions] = useState<{
@@ -112,10 +124,19 @@ export default function GraphQuestionExplanationMedia({
   if (!mediaType) return null;
 
   const isBareChart = isBareChartAsset(mediaType, pngDimensions);
-  const bareHeight = computeBareChartHeight(drillViewportHeight, screenHeight, {
-    reservedSpace: 110,
-    fraction: 0.75,
-  });
+
+  // Fill most of the space above המשך so the full chart is visible (not cropped).
+  const viewport =
+    drillViewportHeight > 0
+      ? drillViewportHeight
+      : Math.min(screenHeight * 0.48, 420);
+  const available = Math.max(220, viewport - CONTINUE_BUTTON_CLEARANCE);
+  const bareHeight = isPractice
+    ? Math.round(Math.min(available * 0.94, available))
+    : computeBareChartHeight(drillViewportHeight, screenHeight, {
+        reservedSpace: 100,
+        fraction: 0.72,
+      });
 
   const mediaContent =
     mediaType === "png" && resolvedImageUrl ? (
@@ -137,22 +158,46 @@ export default function GraphQuestionExplanationMedia({
 
   if (!mediaContent) return null;
 
+  const badge = (
+    <ResultBadge
+      isCorrect={isCorrect}
+      wrongHintColor={isPractice ? theme.instructionText : "#0D2033"}
+    />
+  );
+
   if (isBareChart) {
     return (
-      <View style={styles.bareRoot}>
-        <View style={styles.bareBadge}>
-          <ResultBadge isCorrect={isCorrect} />
-        </View>
-        <View style={[styles.bareMedia, { height: bareHeight }]}>{mediaContent}</View>
+      <View
+        style={[
+          styles.bareRoot,
+          isPractice && styles.bareRootPractice,
+        ]}
+      >
+        <View style={styles.bareBadge}>{badge}</View>
+        <PracticeMediaSurface
+          flush
+          style={[styles.bareMediaShell, { height: bareHeight }]}
+        >
+          <View style={styles.bareMediaInner}>{mediaContent}</View>
+        </PracticeMediaSurface>
       </View>
     );
   }
 
   return (
-    <View style={styles.boxedRoot}>
-      <View style={styles.boxedBadge}>
-        <ResultBadge isCorrect={isCorrect} />
-      </View>
+    <View
+      style={[
+        styles.boxedRoot,
+        {
+          backgroundColor: isPractice ? theme.contentPanelBg : "#f5f5f5",
+          borderColor: isPractice ? theme.mediaSurfaceBorder : "transparent",
+          borderWidth: isPractice ? 1 : 0,
+          height: isPractice ? bareHeight : undefined,
+        },
+        isPractice && styles.boxedRootPractice,
+      ]}
+    >
+      <View style={styles.boxedBadge}>{badge}</View>
       <View style={styles.boxedMedia}>{mediaContent}</View>
     </View>
   );
@@ -166,30 +211,47 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingBottom: 100,
   },
+  bareRootPractice: {
+    // Center in the band above המשך — don't starve the chart height.
+    justifyContent: "center",
+    paddingTop: 4,
+    paddingBottom: CONTINUE_BUTTON_CLEARANCE,
+  },
   bareBadge: {
     position: "absolute",
-    top: 4,
-    right: 12,
+    top: 8,
+    right: 16,
     zIndex: 10,
   },
-  bareMedia: {
+  bareMediaShell: {
+    width: "92%",
+    maxWidth: 520,
+    alignSelf: "center",
+  },
+  bareMediaInner: {
     width: "100%",
+    height: "100%",
     alignItems: "center",
     justifyContent: "center",
   },
   boxedRoot: {
-    width: "100%",
-    flex: 1,
-    maxHeight: "75%",
+    width: "92%",
+    maxWidth: 520,
+    alignSelf: "center",
     position: "relative",
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#f5f5f5",
   },
+  boxedRootPractice: {
+    flexGrow: 0,
+    flexShrink: 0,
+    marginBottom: CONTINUE_BUTTON_CLEARANCE,
+  },
   boxedBadge: {
     position: "absolute",
-    top: 16,
-    right: 16,
+    top: 12,
+    right: 12,
     zIndex: 10,
   },
   boxedMedia: {

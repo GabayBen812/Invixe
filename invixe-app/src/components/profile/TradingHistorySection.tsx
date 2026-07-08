@@ -104,7 +104,6 @@ export default function TradingHistorySection({
   const [trades, setTrades] = useState<TradeHistoryItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const loadHistory = useCallback(async () => {
     if (!currentUserEmail) {
@@ -112,15 +111,13 @@ export default function TradingHistorySection({
       return;
     }
     setLoading(true);
-    setError(null);
     try {
       const url = `${API_BASE_URL}/user/portfolio/history?email=${encodeURIComponent(
         currentUserEmail,
       )}&limit=100`;
       const res = await fetchWithTimeout(url);
-      if (!res.ok) throw new Error("Failed to load trade history");
-      const data = await res.json();
-      const next = Array.isArray(data.trades) ? data.trades : [];
+      const data = res.ok ? await res.json().catch(() => ({})) : {};
+      const next = Array.isArray(data?.trades) ? data.trades : [];
       setTrades(
         next.map((t: TradeHistoryItem) => ({
           ...t,
@@ -130,9 +127,9 @@ export default function TradingHistorySection({
           total: Number(t.total) || 0,
         })),
       );
-    } catch (e) {
-      console.error("Error loading trade history:", e);
-      setError("לא הצלחנו לטעון את היסטוריית המסחר");
+    } catch {
+      // No trades / offline / table missing — empty history is a valid state.
+      setTrades([]);
     } finally {
       setLoading(false);
     }
@@ -165,13 +162,6 @@ export default function TradingHistorySection({
           color={theme.colors.primary[400]}
           style={styles.loader}
         />
-      ) : error ? (
-        <View style={styles.emptyBox}>
-          <Text style={styles.emptyText}>{error}</Text>
-          <Pressable onPress={() => void loadHistory()} hitSlop={8}>
-            <Text style={styles.link}>נסה שוב</Text>
-          </Pressable>
-        </View>
       ) : trades.length === 0 ? (
         <View style={styles.emptyBox}>
           <Text style={styles.emptyText}>עדיין אין פעולות מסחר</Text>
@@ -185,9 +175,7 @@ export default function TradingHistorySection({
         <View style={styles.list}>
           {visibleTrades.map((trade, index) => {
             const isBuy = trade.type === "buy";
-            const accent = isBuy
-              ? theme.colors.growthGreen
-              : theme.colors.error[600];
+            const accent = isBuy ? theme.colors.growthGreen : "#D92D20";
             const tint = isBuy ? "#ECFDF3" : "#FEF3F2";
             const border = isBuy
               ? "rgba(18, 183, 106, 0.18)"

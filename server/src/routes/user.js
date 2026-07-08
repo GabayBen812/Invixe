@@ -43,20 +43,32 @@ async function recordTrade(supabase, {
   }
 }
 
-// Helper: get user by email
-async function getUserByEmail(email, supabaseIn) {
-  const supabase =
+function resolveSupabase(supabaseIn) {
+  return (
     supabaseIn ||
     (globalThis.__supabase_for_router && globalThis.__supabase_only
       ? globalThis.__supabase_for_router
-      : null);
+      : null)
+  );
+}
+
+async function getUserRowByEmail(email, supabaseIn) {
+  const supabase = resolveSupabase(supabaseIn);
+  if (!supabase) throw new Error('Supabase not configured');
+  const { data: user, error } = await supabase
+    .from('User')
+    .select('id, email, coins')
+    .eq('email', email)
+    .maybeSingle();
+  if (error) throw error;
+  return user || null;
+}
+
+// Helper: get user by email (includes progress + attempts for GET)
+async function getUserByEmail(email, supabaseIn) {
+  const supabase = resolveSupabase(supabaseIn);
   if (supabase) {
-    const { data: user, error } = await supabase
-      .from('User')
-      .select('id, email, coins')
-      .eq('email', email)
-      .maybeSingle();
-    if (error) throw error;
+    const user = await getUserRowByEmail(email, supabase);
     if (!user) return null;
     const { data: progress } = await supabase
       .from('Progress')
@@ -117,53 +129,56 @@ router.post('/progress', async (req, res) => {
 
     globalThis.__supabase_for_router = req.app.get('supabase') || null;
     globalThis.__supabase_only = !!req.app.get('SUPABASE_ONLY');
-    const user = await getUserByEmail(email);
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    
     const supabase = req.app.get('supabase');
-    if (supabase) {
-      const incoming = [...new Set((completedLessons || []).map((id) => String(id)))];
-      if (incoming.length === 0) {
-        return res.json({ success: true });
-      }
+    if (!supabase) throw new Error('Supabase not configured');
 
-      const { data: existing, error: fetchError } = await supabase
-        .from('Progress')
-        .select('id, lessonid')
-        .eq('userid', user.id);
-      if (fetchError) throw fetchError;
+    const user = await getUserRowByEmail(email, supabase);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-      const existingByLesson = new Map(
-        (existing || []).map((row) => [row.lessonid, row.id]),
-      );
-      const toInsert = [];
-
-      for (const lessonId of incoming) {
-        const rowId = existingByLesson.get(lessonId);
-        if (rowId) {
-          const { error } = await supabase
-            .from('Progress')
-            .update({ completed: true })
-            .eq('id', rowId);
-          if (error) throw error;
-        } else {
-          toInsert.push({
-            userid: user.id,
-            lessonid: lessonId,
-            completed: true,
-          });
-        }
-      }
-
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from('Progress').insert(toInsert);
-        if (error) throw error;
-      }
-
+    const incoming = [...new Set((completedLessons || []).map((id) => String(id)))];
+    if (incoming.length === 0) {
       return res.json({ success: true });
     }
-    throw new Error('Supabase not configured');
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('Progress')
+      .select('id, lessonid, completed')
+      .eq('userid', user.id);
+    if (fetchError) throw fetchError;
+
+    const existingByLesson = new Map(
+      (existing || []).map((row) => [String(row.lessonid), row]),
+    );
+    const toInsert = [];
+    const toMarkCompleteIds = [];
+
+    for (const lessonId of incoming) {
+      const row = existingByLesson.get(lessonId);
+      if (row) {
+        if (!row.completed) toMarkCompleteIds.push(row.id);
+      } else {
+        toInsert.push({
+          userid: user.id,
+          lessonid: lessonId,
+          completed: true,
+        });
+      }
+    }
+
+    if (toMarkCompleteIds.length > 0) {
+      const { error } = await supabase
+        .from('Progress')
+        .update({ completed: true })
+        .in('id', toMarkCompleteIds);
+      if (error) throw error;
+    }
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from('Progress').insert(toInsert);
+      if (error) throw error;
+    }
+
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error updating progress:', error);
     res.status(500).json({ error: 'Server error' });
@@ -180,60 +195,63 @@ router.post('/lesson-attempts', async (req, res) => {
 
     globalThis.__supabase_for_router = req.app.get('supabase') || null;
     globalThis.__supabase_only = !!req.app.get('SUPABASE_ONLY');
-    const user = await getUserByEmail(email);
-    
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    
     const supabase = req.app.get('supabase');
-    if (supabase) {
-      const incoming = lessonAttempts || [];
-      if (incoming.length === 0) {
-        return res.json({ success: true });
-      }
+    if (!supabase) throw new Error('Supabase not configured');
 
-      const { data: existing, error: fetchError } = await supabase
-        .from('LessonAttempt')
-        .select('id, lessonid, completed, lastattempted, attempts')
-        .eq('userid', user.id);
-      if (fetchError) throw fetchError;
+    const user = await getUserRowByEmail(email, supabase);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
-      const existingByLesson = new Map(
-        (existing || []).map((row) => [row.lessonid, row]),
-      );
-      const toInsert = [];
-
-      for (const attempt of incoming) {
-        const lessonId = String(attempt.lessonId);
-        const row = existingByLesson.get(lessonId);
-        const payload = {
-          completed: !!attempt.completed,
-          lastattempted: new Date(attempt.lastAttempted),
-          attempts: attempt.attempts,
-        };
-
-        if (row) {
-          const { error } = await supabase
-            .from('LessonAttempt')
-            .update(payload)
-            .eq('id', row.id);
-          if (error) throw error;
-        } else {
-          toInsert.push({
-            userid: user.id,
-            lessonid: lessonId,
-            ...payload,
-          });
-        }
-      }
-
-      if (toInsert.length > 0) {
-        const { error } = await supabase.from('LessonAttempt').insert(toInsert);
-        if (error) throw error;
-      }
-
+    const incoming = lessonAttempts || [];
+    if (incoming.length === 0) {
       return res.json({ success: true });
     }
-    throw new Error('Supabase not configured');
+
+    const { data: existing, error: fetchError } = await supabase
+      .from('LessonAttempt')
+      .select('id, lessonid')
+      .eq('userid', user.id);
+    if (fetchError) throw fetchError;
+
+    const existingByLesson = new Map(
+      (existing || []).map((row) => [String(row.lessonid), row]),
+    );
+    const toInsert = [];
+    const updateJobs = [];
+
+    for (const attempt of incoming) {
+      const lessonId = String(attempt.lessonId);
+      const row = existingByLesson.get(lessonId);
+      const payload = {
+        completed: !!attempt.completed,
+        lastattempted: new Date(attempt.lastAttempted),
+        attempts: attempt.attempts,
+      };
+
+      if (row) {
+        updateJobs.push(
+          supabase.from('LessonAttempt').update(payload).eq('id', row.id),
+        );
+      } else {
+        toInsert.push({
+          userid: user.id,
+          lessonid: lessonId,
+          ...payload,
+        });
+      }
+    }
+
+    if (updateJobs.length > 0) {
+      const results = await Promise.all(updateJobs);
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+    }
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase.from('LessonAttempt').insert(toInsert);
+      if (error) throw error;
+    }
+
+    return res.json({ success: true });
   } catch (error) {
     console.error('Error updating lesson attempts:', error);
     res.status(500).json({ error: 'Server error' });
@@ -537,11 +555,12 @@ router.get('/portfolio/history', async (req, res) => {
       .limit(limit);
 
     if (error) {
-      // Missing table / schema — return empty history instead of breaking profile.
-      if (error.code === '42P01' || error.code === '42703') {
-        return res.json({ trades: [] });
-      }
-      throw error;
+      // Missing table / schema / RLS — treat as no trades yet.
+      console.warn(
+        'Trade history unavailable, returning empty list:',
+        error.message || error,
+      );
+      return res.json({ trades: [] });
     }
 
     const trades = (data || []).map((row) => ({
