@@ -4,30 +4,34 @@
     "slug": "invixe-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/icon.png",
+    "icon": "./assets/InvixeLogo.png",
     "userInterfaceStyle": "light",
 
     "splash": {
-      "image": "./src/assets/splash-icon.png",
+      "image": "./assets/InvixeLogo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gabayben812.invixeapp"
     },
+
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/adaptive-icon.png",
+        "foregroundImage": "./assets/InvixeLogo.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.gabayben812.invixeapp",
       "supportsRtl": false
     },
+
     "web": {
-      "favicon": "./src/assets/favicon.png"
+      "favicon": "./assets/InvixeLogo.png"
     },
+
     "plugins": [
       "expo-font",
       "expo-asset",
@@ -39,6 +43,7 @@
         }
       ]
     ],
+
     "extra": {
       "eas": {
         "projectId": "c380a02c-446d-4cfc-9f03-b468227a3406"
