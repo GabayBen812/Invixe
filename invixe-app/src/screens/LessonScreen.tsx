@@ -18,6 +18,7 @@ import {
   normalizeSupabaseUrl,
 } from "../utils/supabaseUrl";
 import { countGradedFromDrillResult } from "../utils/lessonResults";
+import { computeLessonCashEarned } from "../utils/cashRewards";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
 import { LessonStep, Choice } from "../modules/lessons/types";
@@ -383,8 +384,6 @@ export default function LessonScreen({ navigation, route }: Props) {
     completedLessons,
     markLessonCompleted,
     setCompletedLessons,
-    lightnings,
-    setLightnings,
   } = useUser();
   const { openDictionary } = useDictionary();
   const { getLessonSteps, lessonsRegistry } = useLessons();
@@ -512,9 +511,7 @@ export default function LessonScreen({ navigation, route }: Props) {
       slideAnim.setValue(0);
       progressAnim.setValue(0);
       lessonStartedAtRef.current = Date.now();
-      setSessionCoins(0);
-      sessionCoinsRef.current = 0;
-      sessionLightningsRef.current = 0;
+      sessionContentRewardsRef.current = 0;
       sessionGradedRef.current = { correctCount: 0, totalGraded: 0 };
     }
   }, [route.params?.lessonId]);
@@ -742,9 +739,7 @@ export default function LessonScreen({ navigation, route }: Props) {
   const hasGenericBubble = !isGenericBubbleExcluded && !!step.message?.trim();
   const shouldShowBubbleContainer = hasSpecificBubble || hasGenericBubble;
 
-  const [sessionCoins, setSessionCoins] = useState(0);
-  const sessionCoinsRef = useRef(0);
-  const sessionLightningsRef = useRef(0);
+  const sessionContentRewardsRef = useRef(0);
   const sessionGradedRef = useRef({ correctCount: 0, totalGraded: 0 });
   const lessonStartedAtRef = useRef(Date.now());
 
@@ -771,9 +766,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     };
 
     if (rewards > 0) {
-      sessionCoinsRef.current += rewards;
-      sessionLightningsRef.current += rewards;
-      setSessionCoins(sessionCoinsRef.current);
+      sessionContentRewardsRef.current += rewards;
     }
 
     // For simple_question, questionWithSVG, questionWithImage, graphQuestion, sequenceBuild, dragMatch, and svgMultiSelect, show bottom sheet instead of generic explanation
@@ -789,18 +782,10 @@ export default function LessonScreen({ navigation, route }: Props) {
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
       setShowSimpleQuestionButtonSheet(true);
-      // Award lightnings
-      if (rewards > 0) {
-        setLightnings(lightnings + rewards);
-      }
     } else {
       setDrillRewards(rewards);
       setDrillExplanation(result.explanation);
       setShowingDrillExplanation(true);
-      // Award lightnings
-      if (rewards > 0) {
-        setLightnings(lightnings + rewards);
-      }
     }
   };
 
@@ -1007,14 +992,18 @@ export default function LessonScreen({ navigation, route }: Props) {
         if (shouldFail) {
           navigation.navigate("LessonFail");
         } else {
+          const cashEarned = computeLessonCashEarned({
+            contentRewardsTotal: sessionContentRewardsRef.current,
+            correctDrillCount: sessionGradedRef.current.correctCount,
+            completedLessonsBefore: completedLessons.length,
+          });
           navigation.navigate("LessonComplete", {
             lessonId,
             unitId: route.params?.unitId,
-            coinsEarned: sessionCoinsRef.current,
+            cashEarned,
             correctCount: sessionGradedRef.current.correctCount,
             totalGraded: sessionGradedRef.current.totalGraded,
             durationMs: Date.now() - lessonStartedAtRef.current,
-            lightningsEarned: sessionLightningsRef.current,
           });
         }
       });

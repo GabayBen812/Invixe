@@ -34,10 +34,10 @@ import DictionaryBookIcon from "../components/ui/DictionaryBookIcon";
 import TrophyImage from "../assets/nodes/Trophy.png";
 //@ts-ignore
 import MoneyIconSource from "../assets/money.svg";
-import Svg, { Path } from "react-native-svg";
 import TopBar from "../components/ui/TopBar";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { formatMoney } from "../utils/money";
 
 const API_URL = `${API_BASE_URL}/user/add-coins`;
 const TOP_BAR_HEIGHT = 90;
@@ -189,20 +189,19 @@ function AccuracyRing({
 
 export default function LessonCompleteScreen({ navigation, route }: Props) {
   const layout = useCompactLayout();
-  const { setCoins, currentUserEmail } = useUser();
+  const { setCash, currentUserEmail } = useUser();
   const { lessonsRegistry, loadingRegistry } = useLessons();
   const { openDictionary } = useDictionary();
-  const [coinsLoading, setCoinsLoading] = useState(false);
+  const [cashLoading, setCashLoading] = useState(false);
   const [error, setError] = useState("");
   const navigatingRef = useRef(false);
 
   const lessonId = route.params?.lessonId;
   const unitIdFromRoute = route.params?.unitId;
-  const earnedCoins = route.params?.coinsEarned ?? 0;
+  const earnedCash = route.params?.cashEarned ?? 0;
   const correctCount = route.params?.correctCount ?? 0;
   const totalGraded = route.params?.totalGraded ?? 0;
   const durationMs = route.params?.durationMs ?? 0;
-  const lightningsEarned = route.params?.lightningsEarned ?? 0;
 
   const accuracy = useMemo(
     () => computeAccuracyPercent(correctCount, totalGraded),
@@ -237,35 +236,35 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
   }, [lessonsRegistry, lessonId]);
 
   useEffect(() => {
-    const addCoins = async () => {
-      if (earnedCoins <= 0 || !currentUserEmail) return;
-      setCoinsLoading(true);
+    const addCash = async () => {
+      if (earnedCash <= 0 || !currentUserEmail) return;
+      setCashLoading(true);
       try {
         const res = await fetchWithTimeout(API_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: currentUserEmail, coins: earnedCoins }),
+          body: JSON.stringify({ email: currentUserEmail, coins: earnedCash }),
         });
         if (!res.ok) {
           const data = await res.json();
-          throw new Error(data.error || "Failed to add coins");
+          throw new Error(data.error || "Failed to add cash");
         }
         const data = await res.json();
-        setCoins(data.newCoins);
+        setCash(data.newCoins);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : "Network error";
-        console.error("Error adding coins:", e);
+        console.error("Error adding cash:", e);
         setError(message);
       } finally {
-        setCoinsLoading(false);
+        setCashLoading(false);
       }
     };
 
     const timer = setTimeout(() => {
-      void addCoins();
+      void addCash();
     }, 100);
     return () => clearTimeout(timer);
-  }, [earnedCoins, setCoins, currentUserEmail]);
+  }, [earnedCash, setCash, currentUserEmail]);
 
   const resetToMap = useCallback(
     (selectedUnitIdx?: number) => {
@@ -536,10 +535,10 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
                   { fontSize: layout.rewardValueSize },
                 ]}
               >
-                +{earnedCoins}
+                +{formatMoney(earnedCash)}
               </Text>
-              <Text style={styles.rewardLabel}>מטבעות</Text>
-              {coinsLoading ? (
+              <Text style={styles.rewardLabel}>מזומן</Text>
+              {cashLoading ? (
                 <ActivityIndicator
                   size="small"
                   color={theme.colors.success[600]}
@@ -547,38 +546,6 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
                 />
               ) : null}
             </View>
-            {lightningsEarned > 0 ? (
-              <View
-                style={[
-                  styles.rewardCard,
-                  styles.rewardCardLightning,
-                  { paddingVertical: layout.rewardPadV },
-                  isPractice && styles.rewardCardLightningPractice,
-                ]}
-              >
-                <Svg
-                  width={layout.rewardIcon}
-                  height={layout.rewardIcon}
-                  viewBox="0 0 28 27"
-                  fill="none"
-                >
-                  <Path
-                    d="M17.6562 1.99915L9.71582 3.07922L6.21582 15.0792L10.957 16.9991H19.6562L12.9043 24.3312L20.9043 12.3312L16.8203 9.99915H19.6562L17.6562 1.99915Z"
-                    fill="#62D24C"
-                    stroke="#368642"
-                  />
-                </Svg>
-                <Text
-                  style={[
-                    styles.rewardValueLightning,
-                    { fontSize: layout.rewardValueSize },
-                  ]}
-                >
-                  +{lightningsEarned}
-                </Text>
-                <Text style={styles.rewardLabelLightning}>ברקים</Text>
-              </View>
-            ) : null}
           </View>
 
           <Pressable
@@ -814,16 +781,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(18, 183, 106, 0.25)",
   },
-  rewardCardLightning: {
-    backgroundColor: "#E8F8E0",
-    borderWidth: 1,
-    borderColor: "rgba(54, 134, 66, 0.25)",
-  },
   rewardCardCoinsPractice: {
-    backgroundColor: "rgba(18, 183, 106, 0.14)",
-    borderColor: "rgba(118, 215, 97, 0.35)",
-  },
-  rewardCardLightningPractice: {
     backgroundColor: "rgba(18, 183, 106, 0.14)",
     borderColor: "rgba(118, 215, 97, 0.35)",
   },
@@ -831,19 +789,10 @@ const styles = StyleSheet.create({
     fontFamily: theme.font.bold,
     color: theme.colors.success[600],
   },
-  rewardValueLightning: {
-    fontFamily: theme.font.bold,
-    color: "#368642",
-  },
   rewardLabel: {
     fontSize: 11,
     fontFamily: theme.font.family,
     color: theme.colors.success[600],
-  },
-  rewardLabelLightning: {
-    fontSize: 11,
-    fontFamily: theme.font.family,
-    color: "#368642",
   },
   rewardLoader: {
     marginTop: 2,

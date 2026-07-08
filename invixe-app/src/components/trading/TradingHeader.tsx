@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import theme from "../../theme";
 import { usePortfolio } from "../../context/PortfolioContext";
-import { formatPercent, formatUsd } from "../../utils/portfolioNormalize";
+import { formatPercent, formatMoney } from "../../utils/portfolioNormalize";
 
 type Props = {
   symbol: string;
@@ -41,7 +41,7 @@ export default function TradingHeader({
         </View>
         <View style={styles.priceBlock}>
           <Text style={styles.price}>
-            {livePrice ? formatUsd(livePrice) : "—"}
+            {livePrice ? formatMoney(livePrice) : "—"}
           </Text>
           <Text style={[styles.priceChange, { color: changeColor }]}>
             {formatPercent(dayChange)}
@@ -66,30 +66,33 @@ const styles = StyleSheet.create({
   },
   symbolBlock: {
     flex: 1,
-    alignItems: "flex-end",
+    alignItems: "flex-start",
   },
   symbol: {
     fontSize: 17,
     fontFamily: theme.font.bold,
     color: "#0F2233",
+    textAlign: "left",
   },
   meta: {
     fontSize: 11,
     color: "#94A3B8",
     marginTop: 1,
-    textAlign: "right",
+    textAlign: "left",
   },
   priceBlock: {
-    alignItems: "flex-start",
+    alignItems: "flex-end",
   },
   price: {
     fontSize: 17,
     fontFamily: theme.font.bold,
     color: "#0F2233",
+    textAlign: "right",
   },
   priceChange: {
     fontSize: 11,
     fontFamily: theme.font.bold,
     marginTop: 1,
+    textAlign: "right",
   },
 });

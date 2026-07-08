@@ -524,7 +524,6 @@ export default function MapScreen({ navigation, route }: Props) {
   const {
     completedLessons,
     lessonAttempts,
-    coins,
     markLessonAttempted,
     refreshUserData,
   } = useUser();
@@ -1245,31 +1244,34 @@ export default function MapScreen({ navigation, route }: Props) {
                 );
               })()}
 
-              <LessonModal
-                visible={modalVisible}
-                onClose={() => setModalVisible(false)}
-                selectedMainLesson={selectedMainLesson}
-                completedLessons={completedLessons}
-                lessonAttempts={lessonAttempts}
-                onStart={handleLessonStart}
-              />
-              <LessonModal
-                visible={comingSoonModalVisible}
-                onClose={() => setComingSoonModalVisible(false)}
-                selectedMainLesson={{
-                  id: COMING_SOON_NODE_ID,
-                  title: "עוד שיעורים בדרך",
-                }}
-                completedLessons={completedLessons}
-                lessonAttempts={lessonAttempts}
-                onStart={handleLessonStart}
-                comingSoon
-              />
               {/* Spacer for scroll */}
               <View style={{ height: 200 }} />
             </View>
           </ScrollView>
       )}
+
+      {/* Keep modals outside the map ScrollView so Android nested scroll doesn't steal gestures */}
+      <LessonModal
+        visible={modalVisible}
+        onClose={() => setModalVisible(false)}
+        selectedMainLesson={selectedMainLesson}
+        completedLessons={completedLessons}
+        lessonAttempts={lessonAttempts}
+        onStart={handleLessonStart}
+      />
+      <LessonModal
+        visible={comingSoonModalVisible}
+        onClose={() => setComingSoonModalVisible(false)}
+        selectedMainLesson={{
+          id: COMING_SOON_NODE_ID,
+          title: "עוד שיעורים בדרך",
+        }}
+        completedLessons={completedLessons}
+        lessonAttempts={lessonAttempts}
+        onStart={handleLessonStart}
+        comingSoon
+      />
+
       <BottomNavbar activeTab="map" onTabPress={handleTabPress} />
     </View>
   );

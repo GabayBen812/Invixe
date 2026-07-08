@@ -80,11 +80,10 @@ export type RootStackParamList = {
   LessonComplete: {
     lessonId: number;
     unitId?: string;
-    coinsEarned?: number;
+    cashEarned?: number;
     correctCount?: number;
     totalGraded?: number;
     durationMs?: number;
-    lightningsEarned?: number;
   };
   Sandbox: { symbol?: string } | undefined;
   LessonFail: undefined;

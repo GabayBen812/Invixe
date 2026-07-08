@@ -19,11 +19,14 @@ import { useUser } from '../context/UserContext';
 import { usePortfolio } from '../context/PortfolioContext';
 import { API_BASE_URL } from '../config/api';
 import { fetchWithTimeout } from '../utils/fetchWithTimeout';
-import { formatUsd } from '../utils/portfolioNormalize';
+import { formatMoney } from '../utils/money';
 import { fetchLiveStockQuote } from '../utils/stockQuote';
 import TradingHeader from '../components/trading/TradingHeader';
 import TradingControlsBar from '../components/trading/TradingControlsBar';
 import TradingActionDock from '../components/trading/TradingActionDock';
+import TradingSmaToggle, {
+  SMA_150_COLOR,
+} from '../components/trading/TradingSmaToggle';
 import { WebView } from 'react-native-webview';
 
 const STOCKS = [
@@ -55,7 +58,7 @@ async function readApiError(
 ): Promise<string> {
   try {
     const data = await response.json();
-    if (data?.error === 'Insufficient coins') return 'אין לך מספיק מטבעות';
+    if (data?.error === 'Insufficient coins') return 'אין לך מספיק מזומן';
     if (data?.error === 'Insufficient shares') return 'אין לך מספיק מניות למכירה';
     if (typeof data?.error === 'string' && data.error.length > 0) {
       return data.error;
@@ -77,14 +80,17 @@ function mapRangeToTv(range: string) {
 }
 
 export default function SandboxScreen({ navigation, route }: Props) {
-  const { coins, setCoins, currentUserEmail } = useUser();
+  const { cash, setCash, currentUserEmail } = useUser();
   const { getHolding, getQuote, getCurrentPrice, refreshPortfolio } = usePortfolio();
   const initialSymbol = route.params?.symbol;
   const [selectedStock, setSelectedStock] = useState(() =>
     initialSymbol ? resolveStock(initialSymbol) : STOCKS[0],
   );
   const [selectedRange, setSelectedRange] = useState('1d');
-  const webViewRef = useRef<WebView>(null);
+  const [sma150Enabled, setSma150Enabled] = useState(false);
+  const [chartReady, setChartReady] = useState(false);
+  const webViewBaseRef = useRef<WebView>(null);
+  const webViewSmaRef = useRef<WebView>(null);
   const [livePrice, setLivePrice] = useState<number | null>(null);
   const [liveChangePercent, setLiveChangePercent] = useState<number | null>(null);
   const [showTradeModal, setShowTradeModal] = useState(false);
@@ -95,6 +101,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTranslateY = useRef(new Animated.Value(16)).current;
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const smaReveal = useRef(new Animated.Value(0)).current;
+  const smaChipReveal = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
     useCallback(() => {
@@ -139,32 +147,60 @@ export default function SandboxScreen({ navigation, route }: Props) {
     return () => clearInterval(interval);
   }, [selectedStock.symbol, loadQuote]);
 
-  useEffect(() => {
+  const postToChart = useCallback((payload: Record<string, unknown>) => {
+    const msg = JSON.stringify(payload);
     try {
-      webViewRef.current?.postMessage(
-        JSON.stringify({
-          type: 'setSymbol',
-          symbol: selectedStock.symbol,
-          interval: mapRangeToTv(selectedRange),
-        }),
-      );
+      webViewBaseRef.current?.postMessage(msg);
+      webViewSmaRef.current?.postMessage(msg);
     } catch {
       // webview not ready
     }
-  }, [selectedStock.symbol]);
+  }, []);
+
+  const toggleSma150 = useCallback(() => {
+    setSma150Enabled((prev) => {
+      const next = !prev;
+      Animated.timing(smaReveal, {
+        toValue: next ? 1 : 0,
+        duration: 240,
+        useNativeDriver: true,
+      }).start();
+      return next;
+    });
+  }, [smaReveal]);
 
   useEffect(() => {
-    try {
-      webViewRef.current?.postMessage(
-        JSON.stringify({
-          type: 'setInterval',
-          interval: mapRangeToTv(selectedRange),
-        }),
-      );
-    } catch {
-      // webview not ready
-    }
-  }, [selectedRange]);
+    setChartReady(false);
+    smaChipReveal.setValue(0);
+    // TradingView free widget sometimes never posts `ready` — still reveal the chip
+    const fallback = setTimeout(() => setChartReady(true), 1600);
+    return () => clearTimeout(fallback);
+  }, [selectedStock.symbol, selectedRange, smaChipReveal]);
+
+  useEffect(() => {
+    if (!chartReady) return;
+    Animated.spring(smaChipReveal, {
+      toValue: 1,
+      friction: 7,
+      tension: 80,
+      useNativeDriver: true,
+    }).start();
+  }, [chartReady, smaChipReveal]);
+
+  useEffect(() => {
+    postToChart({
+      type: 'setSymbol',
+      symbol: selectedStock.symbol,
+      interval: mapRangeToTv(selectedRange),
+    });
+  }, [selectedStock.symbol, postToChart]);
+
+  useEffect(() => {
+    postToChart({
+      type: 'setInterval',
+      interval: mapRangeToTv(selectedRange),
+    });
+  }, [selectedRange, postToChart]);
 
   const currentHolding = useMemo(
     () => getHolding(selectedStock.symbol),
@@ -173,8 +209,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
   const maxBuyShares = useMemo(() => {
     if (!livePrice || livePrice <= 0) return 0;
-    return Math.floor(coins / livePrice);
-  }, [coins, livePrice]);
+    return Math.floor(cash / livePrice);
+  }, [cash, livePrice]);
 
   const maxSellShares = currentHolding?.shares ?? 0;
 
@@ -215,7 +251,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const handleTabPress = (tab: 'map' | 'profile' | 'graph') => {
     switch (tab) {
       case 'map':
-        navigation.navigate('Map');
+        navigation.navigate('Map', {});
         break;
       case 'profile':
         navigation.navigate('Profile');
@@ -261,8 +297,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
     const totalCost = Math.round(shares * price);
 
-    if (tradeType === 'buy' && coins < totalCost) {
-      showToast('אין לך מספיק מטבעות', 'error');
+    if (tradeType === 'buy' && cash < totalCost) {
+      showToast('אין לך מספיק מזומן', 'error');
       return;
     }
     if (tradeType === 'sell') {
@@ -300,7 +336,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
       const data = await response.json();
       if (typeof data.newCoins === 'number') {
-        setCoins(data.newCoins);
+        setCash(data.newCoins);
       }
 
       setShowTradeModal(false);
@@ -328,120 +364,155 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const gridColor = 'rgba(63, 159, 255, 0.12)';
   const tvInterval = mapRangeToTv(selectedRange);
 
-  const tvHtml = `
-    <!DOCTYPE html>
-    <html lang="he">
-    <head>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-      <style>html,body,#container{margin:0;padding:0;height:100%;width:100%;background:${chartBgColor};overflow:hidden;}</style>
-      <script src="https://s3.tradingview.com/tv.js"></script>
-    </head>
-    <body>
-      <div id="container"></div>
-      <script>
-        let chartApi;
-        const widget = new TradingView.widget({
-          autosize: true,
-          symbol: '${selectedStock.symbol}',
-          interval: '${tvInterval}',
-          container_id: 'container',
-          locale: 'he',
-          theme: 'dark',
-          timezone: 'Etc/UTC',
-          hide_top_toolbar: true,
-          hide_side_toolbar: true,
-          hide_legend: true,
-          allow_symbol_change: false,
-          enable_publishing: false,
-          studies: [],
-          disabled_features: [
-            'header_widget',
-            'left_toolbar',
-            'control_bar',
-            'timeframes_toolbar',
-            'symbol_search_hot_key',
-            'header_symbol_search',
-            'header_compare',
-            'header_undo_redo',
-            'header_screenshot',
-            'header_chart_type',
-            'header_settings',
-            'header_indicators',
-            'header_saveload',
-            'display_market_status',
-            'create_volume_indicator_by_default'
-          ],
-          overrides: {
-            'paneProperties.background': '${chartBgColor}',
-            'paneProperties.backgroundType': 'solid',
-            'paneProperties.vertGridProperties.color': '${gridColor}',
-            'paneProperties.horzGridProperties.color': '${gridColor}',
-            'scalesProperties.textColor': '#8CA0AE',
-            'mainSeriesProperties.candleStyle.upColor': '${candleUpColor}',
-            'mainSeriesProperties.candleStyle.downColor': '${candleDownColor}',
-            'mainSeriesProperties.candleStyle.borderUpColor': '${candleUpColor}',
-            'mainSeriesProperties.candleStyle.borderDownColor': '${candleDownColor}',
-            'mainSeriesProperties.candleStyle.wickUpColor': '${candleUpColor}',
-            'mainSeriesProperties.candleStyle.wickDownColor': '${candleDownColor}'
-          },
-        });
-        async function publishQuote(sym) {
-          try {
-            const res = await fetch(
-              'https://query1.finance.yahoo.com/v8/finance/chart/' +
-                encodeURIComponent(sym) +
-                '?interval=1d&range=1d'
-            );
-            const json = await res.json();
-            const meta = json && json.chart && json.chart.result && json.chart.result[0] && json.chart.result[0].meta;
-            if (!meta || !meta.regularMarketPrice) return;
-            const price = meta.regularMarketPrice;
-            const prev = meta.chartPreviousClose || meta.previousClose || price;
-            const changePercent = prev ? ((price - prev) / prev) * 100 : 0;
-            window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'quote',
-              symbol: sym,
-              price: price,
-              changePercent: changePercent,
-            }));
-          } catch (e) {}
-        }
+  const buildTvHtml = useCallback(
+    (withSma: boolean) => {
+      const studiesJson = withSma
+        ? '[{ "id": "MASimple@tv-basicstudies", "inputs": { "length": 150 } }]'
+        : '[]';
+      return (
+        '<!DOCTYPE html>' +
+        '<html lang="he"><head>' +
+        '<meta charset="UTF-8" />' +
+        '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />' +
+        '<style>' +
+        'html,body,#container{margin:0;padding:0;height:100%;width:100%;background:' +
+        chartBgColor +
+        ';overflow:hidden;}' +
+        '#container, #container iframe{touch-action:none;-webkit-user-select:none;user-select:none;}' +
+        '</style>' +
+        '<script src="https://s3.tradingview.com/tv.js"></script>' +
+        '</head><body><div id="container"></div><script>' +
+        'let chartApi;' +
+        'const widget = new TradingView.widget({' +
+        'autosize:true,' +
+        "symbol:'" +
+        selectedStock.symbol +
+        "'," +
+        "interval:'" +
+        tvInterval +
+        "'," +
+        "container_id:'container'," +
+        "locale:'he'," +
+        "theme:'dark'," +
+        "timezone:'Etc/UTC'," +
+        'hide_top_toolbar:true,' +
+        'hide_side_toolbar:true,' +
+        'hide_legend:true,' +
+        'allow_symbol_change:false,' +
+        'enable_publishing:false,' +
+        'studies:' +
+        studiesJson +
+        ',' +
+        'studies_overrides:{' +
+        "\"moving average.ma.color\":'" +
+        SMA_150_COLOR +
+        "'," +
+        '"moving average.ma.linewidth":2,' +
+        '"moving average.ma.transparency":0' +
+        '},' +
+        "enabled_features:['chart_scroll','chart_zoom','horz_touch_drag_scroll','vert_touch_drag_scroll','pinch_scale']," +
+        "disabled_features:['header_widget','left_toolbar','control_bar','timeframes_toolbar','symbol_search_hot_key','header_symbol_search','header_compare','header_undo_redo','header_screenshot','header_chart_type','header_settings','header_indicators','header_saveload','display_market_status','create_volume_indicator_by_default','adaptive_logo']," +
+        'overrides:{' +
+        "\"paneProperties.background\":'" +
+        chartBgColor +
+        "'," +
+        "\"paneProperties.backgroundType\":'solid'," +
+        "\"paneProperties.vertGridProperties.color\":'" +
+        gridColor +
+        "'," +
+        "\"paneProperties.horzGridProperties.color\":'" +
+        gridColor +
+        "'," +
+        "\"scalesProperties.textColor\":'#8CA0AE'," +
+        "\"mainSeriesProperties.candleStyle.upColor\":'" +
+        candleUpColor +
+        "'," +
+        "\"mainSeriesProperties.candleStyle.downColor\":'" +
+        candleDownColor +
+        "'," +
+        "\"mainSeriesProperties.candleStyle.borderUpColor\":'" +
+        candleUpColor +
+        "'," +
+        "\"mainSeriesProperties.candleStyle.borderDownColor\":'" +
+        candleDownColor +
+        "'," +
+        "\"mainSeriesProperties.candleStyle.wickUpColor\":'" +
+        candleUpColor +
+        "'," +
+        "\"mainSeriesProperties.candleStyle.wickDownColor\":'" +
+        candleDownColor +
+        "'" +
+        '}' +
+        '});' +
+        'async function publishQuote(sym){try{' +
+        "const res=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=1d');" +
+        'const json=await res.json();' +
+        'const meta=json&&json.chart&&json.chart.result&&json.chart.result[0]&&json.chart.result[0].meta;' +
+        'if(!meta||!meta.regularMarketPrice)return;' +
+        'const price=meta.regularMarketPrice;' +
+        'const prev=meta.chartPreviousClose||meta.previousClose||price;' +
+        'const changePercent=prev?((price-prev)/prev)*100:0;' +
+        'window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:"quote",symbol:sym,price:price,changePercent:changePercent}));' +
+        '}catch(e){}}' +
+        'function handleMessage(raw){try{' +
+        "const data=JSON.parse(raw||'{}');" +
+        'if(!chartApi)return;' +
+        "if(data.type==='setSymbol'&&data.symbol){chartApi.setSymbol(data.symbol,data.interval||'" +
+        tvInterval +
+        "');publishQuote(data.symbol);}" +
+        "else if(data.type==='setInterval'&&data.interval){chartApi.setResolution(String(data.interval));}" +
+        '}catch(e){}}' +
+        "function notifyReady(){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'ready'}));}catch(e){}}" +
+        'widget.onChartReady(function(){try{chartApi=widget.chart();}catch(e){chartApi=null;}' +
+        "const sym='" +
+        selectedStock.symbol +
+        "';" +
+        'publishQuote(sym);setInterval(function(){publishQuote(sym);},15000);notifyReady();setTimeout(notifyReady,400);});' +
+        "document.addEventListener('message',function(event){handleMessage(event.data);});" +
+        "window.addEventListener('message',function(event){handleMessage(event.data);});" +
+        '</script></body></html>'
+      );
+    },
+    [
+      candleDownColor,
+      candleUpColor,
+      chartBgColor,
+      gridColor,
+      selectedStock.symbol,
+      tvInterval,
+    ],
+  );
 
-        widget.onChartReady(() => {
-          chartApi = widget.chart();
-          const sym = '${selectedStock.symbol}';
-          publishQuote(sym);
-          setInterval(function () { publishQuote(sym); }, 15000);
-          try { window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'ready' })); } catch(e){}
-        });
-        document.addEventListener('message', (event) => {
-          try {
-            const data = JSON.parse(event.data || '{}');
-            if (!chartApi) return;
-            if (data.type === 'setSymbol' && data.symbol) {
-              chartApi.setSymbol(data.symbol, data.interval || '${tvInterval}');
-              publishQuote(data.symbol);
-            } else if (data.type === 'setInterval' && data.interval) {
-              chartApi.setResolution(String(data.interval));
-            }
-          } catch (e) {}
-        });
-        window.addEventListener('message', (event) => {
-          try {
-            const data = JSON.parse(event.data || '{}');
-            if (!chartApi) return;
-            if (data.type === 'setSymbol' && data.symbol) {
-              chartApi.setSymbol(data.symbol, data.interval || '${tvInterval}');
-              publishQuote(data.symbol);
-            } else if (data.type === 'setInterval' && data.interval) {
-              chartApi.setResolution(String(data.interval));
-            }
-          } catch (e) {}
-        });
-      </script>
-    </body>
-    </html>`;
+  const tvHtmlBase = useMemo(() => buildTvHtml(false), [buildTvHtml]);
+  const tvHtmlSma = useMemo(() => buildTvHtml(true), [buildTvHtml]);
+
+  const handleChartMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data || '{}');
+        if (data.type === 'ready') {
+          setChartReady(true);
+          return;
+        }
+        if (
+          data.type === 'quote' &&
+          data.symbol &&
+          data.price &&
+          String(data.symbol).toUpperCase() === selectedStock.symbol.toUpperCase()
+        ) {
+          // First quote from the chart also means it's usable
+          setChartReady(true);
+          setLivePrice(Number(data.price));
+          if (data.changePercent != null) {
+            setLiveChangePercent(Number(data.changePercent));
+          }
+        }
+      } catch {
+        // ignore malformed messages
+      }
+    },
+    [selectedStock.symbol],
+  );
 
   return (
     <View style={styles.container}>
@@ -461,35 +532,69 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
       <View style={styles.chartArea}>
         <WebView
-          key={`${selectedStock.symbol}-${selectedRange}`}
-          ref={webViewRef}
+          key={`base-${selectedStock.symbol}-${selectedRange}`}
+          ref={webViewBaseRef}
           originWhitelist={['*']}
-          source={{ html: tvHtml }}
+          source={{ html: tvHtmlBase }}
           javaScriptEnabled
           domStorageEnabled
           scrollEnabled={false}
           bounces={false}
+          nestedScrollEnabled
+          overScrollMode="never"
           style={styles.chart}
           allowsInlineMediaPlayback
-          onMessage={(event) => {
-            try {
-              const data = JSON.parse(event.nativeEvent.data || '{}');
-              if (
-                data.type === 'quote' &&
-                data.symbol &&
-                data.price &&
-                String(data.symbol).toUpperCase() === selectedStock.symbol.toUpperCase()
-              ) {
-                setLivePrice(Number(data.price));
-                if (data.changePercent != null) {
-                  setLiveChangePercent(Number(data.changePercent));
-                }
-              }
-            } catch {
-              // ignore malformed messages
-            }
-          }}
+          onMessage={handleChartMessage}
         />
+        <Animated.View
+          // Receive drags on the SMA chart when it's visible; pass through when hidden
+          pointerEvents={sma150Enabled ? 'auto' : 'none'}
+          style={[styles.chartOverlay, { opacity: smaReveal }]}
+        >
+          <WebView
+            key={`sma-${selectedStock.symbol}-${selectedRange}`}
+            ref={webViewSmaRef}
+            originWhitelist={['*']}
+            source={{ html: tvHtmlSma }}
+            javaScriptEnabled
+            domStorageEnabled
+            scrollEnabled={false}
+            bounces={false}
+            nestedScrollEnabled
+            overScrollMode="never"
+            style={styles.chart}
+            allowsInlineMediaPlayback
+            onMessage={handleChartMessage}
+          />
+        </Animated.View>
+        <Animated.View
+          pointerEvents={chartReady ? 'box-none' : 'none'}
+          style={[
+            styles.smaToggle,
+            {
+              opacity: smaChipReveal,
+              transform: [
+                {
+                  translateY: smaChipReveal.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+                {
+                  scale: smaChipReveal.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.86, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TradingSmaToggle
+            enabled={sma150Enabled}
+            onToggle={toggleSma150}
+          />
+        </Animated.View>
       </View>
 
       <TradingActionDock
@@ -516,12 +621,12 @@ export default function SandboxScreen({ navigation, route }: Props) {
               {selectedStock.symbol} · {selectedStock.name}
             </Text>
             <Text style={styles.modalPrice}>
-              מחיר: {livePrice ? formatUsd(livePrice) : '—'}
+              מחיר: {livePrice ? formatMoney(livePrice) : '—'}
             </Text>
 
             <View style={styles.modalBalanceRow}>
               <Text style={styles.modalBalanceLabel}>מזומן זמין</Text>
-              <Text style={styles.modalBalanceValue}>{formatUsd(coins)}</Text>
+              <Text style={styles.modalBalanceValue}>{formatMoney(cash)}</Text>
             </View>
             {tradeType === 'sell' && currentHolding && (
               <View style={styles.modalBalanceRow}>
@@ -587,7 +692,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
                 <Text style={styles.costLabel}>
                   {tradeType === 'buy' ? 'עלות משוערת' : 'תקבל בערך'}
                 </Text>
-                <Text style={styles.costValue}>{formatUsd(tradeTotal)}</Text>
+                <Text style={styles.costValue}>{formatMoney(tradeTotal)}</Text>
               </View>
             )}
 
@@ -653,10 +758,23 @@ const styles = StyleSheet.create({
     flex: 1,
     marginHorizontal: 0,
     backgroundColor: theme.colors.surface.darkBg,
+    position: 'relative',
+  },
+  chartOverlay: {
+    ...StyleSheet.absoluteFillObject,
   },
   chart: {
     flex: 1,
     backgroundColor: theme.colors.surface.darkBg,
+  },
+  smaToggle: {
+    position: 'absolute',
+    // Mirror TradingView watermark height (bottom-left logo sits ~40–44px up)
+    // and clear the right price scale.
+    right: 72,
+    bottom: 42,
+    zIndex: 5,
+    elevation: 8,
   },
   modalOverlay: {
     flex: 1,

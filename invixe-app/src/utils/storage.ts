@@ -4,7 +4,13 @@ export const STORAGE_KEYS = {
   sessionEmail: "@invixe/sessionEmail",
   lessonsRegistry: "@invixe/lessonsRegistry",
   lessonsRegistryAt: "@invixe/lessonsRegistryAt",
+  profileAvatar: "@invixe/profileAvatar",
 } as const;
+
+export function profileAvatarKey(email: string | null | undefined): string {
+  const safe = (email || "guest").trim().toLowerCase() || "guest";
+  return `${STORAGE_KEYS.profileAvatar}:${safe}`;
+}
 
 const REGISTRY_TTL_MS = 1000 * 60 * 60 * 24; // 24h
 

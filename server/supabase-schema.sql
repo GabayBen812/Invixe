@@ -90,6 +90,21 @@ CREATE INDEX IF NOT EXISTS idx_lesson_attempt_userid ON "LessonAttempt"(userid);
 CREATE INDEX IF NOT EXISTS idx_portfolio_userid ON "Portfolio"(userid);
 CREATE INDEX IF NOT EXISTS idx_unit_index ON "Unit"(index);
 
+-- Trade history
+CREATE TABLE IF NOT EXISTS "TradeHistory" (
+  id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+  userid UUID REFERENCES "User"(id) NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('buy', 'sell')),
+  symbol TEXT NOT NULL,
+  shares INTEGER NOT NULL CHECK (shares > 0),
+  price DECIMAL NOT NULL CHECK (price > 0),
+  total DECIMAL NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_trade_history_userid_created
+  ON "TradeHistory"(userid, created_at DESC);
+
 -- Enable Row Level Security (RLS)
 ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Unit" ENABLE ROW LEVEL SECURITY;
@@ -98,6 +113,7 @@ ALTER TABLE "LessonStepsV2" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Progress" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "LessonAttempt" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "Portfolio" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "TradeHistory" ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for public access (adjust as needed for your security requirements)
 CREATE POLICY "Enable read access for all users" ON "User" FOR SELECT USING (true);
@@ -107,6 +123,8 @@ CREATE POLICY "Enable read access for all users" ON "LessonStepsV2" FOR SELECT U
 CREATE POLICY "Enable read access for all users" ON "Progress" FOR SELECT USING (true);
 CREATE POLICY "Enable read access for all users" ON "LessonAttempt" FOR SELECT USING (true);
 CREATE POLICY "Enable read access for all users" ON "Portfolio" FOR SELECT USING (true);
+CREATE POLICY "Enable read access for all users" ON "TradeHistory" FOR SELECT USING (true);
+CREATE POLICY "Enable insert for all users" ON "TradeHistory" FOR INSERT WITH CHECK (true);
 
 -- Insert some sample data for testing
 INSERT INTO "Unit" (index, title, description) VALUES 

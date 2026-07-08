@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useRef } from "react";
+import { useMemo, useCallback, useRef, useState, useEffect } from "react";
 import { useFocusEffect } from "@react-navigation/native";
 import {
   View,
@@ -9,7 +9,12 @@ import {
   ActivityIndicator,
   Pressable,
   useWindowDimensions,
+  Image,
+  Alert,
+  ActionSheetIOS,
+  Platform,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../navigation/AppNavigator";
 import TopBar from "../components/ui/TopBar";
@@ -17,12 +22,15 @@ import BottomNavbar from "../components/ui/BottomNavbar";
 import PortfolioSparkline from "../components/profile/PortfolioSparkline";
 import ProfileStatTile from "../components/profile/ProfileStatTile";
 import ProfileStreakCard from "../components/profile/ProfileStreakCard";
+import TradingHistorySection from "../components/profile/TradingHistorySection";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
 import { useDictionary } from "../context/DictionaryContext";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useLessons } from "../context/LessonsContext";
-import Svg, { Path } from "react-native-svg";
+import { profileAvatarKey } from "../utils/storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import Svg, { Path, Circle } from "react-native-svg";
 import {
   DICTIONARY_ENTRIES,
   isEntryUnlocked,
@@ -33,7 +41,7 @@ import {
 } from "../modules/lessons/lessonNavigation";
 import {
   formatPercent,
-  formatUsd,
+  formatMoney,
   type NormalizedHolding,
 } from "../utils/portfolioNormalize";
 
@@ -42,10 +50,40 @@ type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 const ICON_STROKE = "#475569";
 
 function getInvestorBadge(completedLessonsCount: number): string {
-  if (completedLessonsCount >= 30) return "משקיע מנוסה 🏆";
-  if (completedLessonsCount >= 10) return "משקיע מתקדם 📈";
-  return "משקיע מתחיל 🥇";
+  if (completedLessonsCount >= 30) return "משקיע מנוסה";
+  if (completedLessonsCount >= 10) return "משקיע מתקדם";
+  return "משקיע מתחיל";
 }
+
+const CameraBadgeIcon = () => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M4 8h3l1.5-2h7L17 8h3a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2v-8a2 2 0 012-2z"
+      stroke="#FFFFFF"
+      strokeWidth={2}
+      strokeLinejoin="round"
+    />
+    <Circle cx={12} cy={14} r={3.2} stroke="#FFFFFF" strokeWidth={2} />
+  </Svg>
+);
+
+const TrophyMiniIcon = () => (
+  <Svg width={14} height={14} viewBox="0 0 24 24" fill="none">
+    <Path
+      d="M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0V4z"
+      stroke="#B45309"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <Path
+      d="M7 6H5a2 2 0 000 4h2M17 6h2a2 2 0 010 4h-2"
+      stroke="#B45309"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+    />
+  </Svg>
+);
 
 const StatBookIcon = () => (
   <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
@@ -123,7 +161,7 @@ function estimateLessonDuration(stepIndex: number): string {
 export default function ProfileScreen({ navigation }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const {
-    coins,
+    cash,
     completedLessons,
     lessonAttempts,
     logout,
@@ -145,6 +183,7 @@ export default function ProfileScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       void refreshPortfolio();
+      setHistoryRefreshKey((k) => k + 1);
     }, [refreshPortfolio]),
   );
 
@@ -231,6 +270,134 @@ export default function ProfileScreen({ navigation }: Props) {
   const scrollViewportHeightRef = useRef(400);
   const holdingsSectionYRef = useRef(0);
   const holdingsSectionHeightRef = useRef(0);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const stored = await AsyncStorage.getItem(
+          profileAvatarKey(currentUserEmail),
+        );
+        if (!cancelled) setAvatarUri(stored);
+      } catch {
+        if (!cancelled) setAvatarUri(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUserEmail]);
+
+  const persistAvatar = useCallback(
+    async (uri: string | null) => {
+      setAvatarUri(uri);
+      const key = profileAvatarKey(currentUserEmail);
+      try {
+        if (uri) await AsyncStorage.setItem(key, uri);
+        else await AsyncStorage.removeItem(key);
+      } catch {
+        // ignore persistence failures
+      }
+    },
+    [currentUserEmail],
+  );
+
+  const pickFromLibrary = useCallback(async () => {
+    const permission =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "אין גישה לתמונות",
+        "אשר גישה לגלריה בהגדרות המכשיר כדי להוסיף תמונת פרופיל.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      await persistAvatar(result.assets[0].uri);
+    }
+  }, [persistAvatar]);
+
+  const takePhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert(
+        "אין גישה למצלמה",
+        "אשר גישה למצלמה בהגדרות המכשיר כדי לצלם תמונת פרופיל.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (!result.canceled && result.assets[0]?.uri) {
+      await persistAvatar(result.assets[0].uri);
+    }
+  }, [persistAvatar]);
+
+  const openAvatarOptions = useCallback(() => {
+    const buttons: {
+      text: string;
+      style?: "cancel" | "destructive" | "default";
+      onPress?: () => void;
+    }[] = [
+      {
+        text: "בחירה מהגלריה",
+        onPress: () => {
+          void pickFromLibrary();
+        },
+      },
+      {
+        text: "צילום תמונה",
+        onPress: () => {
+          void takePhoto();
+        },
+      },
+    ];
+    if (avatarUri) {
+      buttons.push({
+        text: "הסרת תמונה",
+        style: "destructive",
+        onPress: () => {
+          void persistAvatar(null);
+        },
+      });
+    }
+    buttons.push({ text: "ביטול", style: "cancel" });
+
+    if (Platform.OS === "ios") {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: buttons.map((b) => b.text),
+          cancelButtonIndex: buttons.length - 1,
+          destructiveButtonIndex: avatarUri
+            ? buttons.findIndex((b) => b.style === "destructive")
+            : undefined,
+          title: "תמונת פרופיל",
+        },
+        (index) => {
+          const action = buttons[index];
+          action?.onPress?.();
+        },
+      );
+      return;
+    }
+
+    Alert.alert(
+      "תמונת פרופיל",
+      "בחר איך לעדכן את התמונה",
+      buttons.map(({ text, style, onPress }) => ({ text, style, onPress })),
+    );
+  }, [avatarUri, persistAvatar, pickFromLibrary, takePhoto]);
 
   const scrollToHoldings = useCallback(() => {
     const viewportH = scrollViewportHeightRef.current;
@@ -310,7 +477,7 @@ export default function ProfileScreen({ navigation }: Props) {
       <View style={styles.holdingMeta}>
         <Text style={styles.holdingSymbol}>{holding.symbol}</Text>
         <Text style={styles.holdingShares}>
-          {holding.shares} מניות · קנייה {formatUsd(holding.avgPrice)}
+          {holding.shares} מניות · קנייה {formatMoney(holding.avgPrice)}
         </Text>
       </View>
       {renderChangeLabel(holding.changePercent)}
@@ -330,19 +497,36 @@ export default function ProfileScreen({ navigation }: Props) {
         }}
       >
         <View style={styles.profileHeader}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{userInitials}</Text>
-          </View>
+          <Pressable
+            onPress={openAvatarOptions}
+            style={styles.avatarPressable}
+            accessibilityRole="button"
+            accessibilityLabel="עדכון תמונת פרופיל"
+          >
+            <View style={styles.avatarRing}>
+              {avatarUri ? (
+                <Image source={{ uri: avatarUri }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarFallback}>
+                  <Text style={styles.avatarText}>{userInitials}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.avatarCameraBadge}>
+              <CameraBadgeIcon />
+            </View>
+          </Pressable>
           <View style={styles.profileTextCol}>
-            <Text style={styles.userName}>{userName}</Text>
-            <View style={styles.profileMetaRow}>
+            <Text style={styles.userName} numberOfLines={1}>
+              {userName}
+            </Text>
+            <View style={styles.badgeChip}>
+              <TrophyMiniIcon />
               <Text style={styles.badgeText}>
                 {getInvestorBadge(completedLessons.length)}
               </Text>
-              <Text style={styles.xpText}>
-                {coins.toLocaleString("he-IL")} XP
-              </Text>
             </View>
+            <Text style={styles.avatarHint}>הקש על התמונה לעדכון</Text>
           </View>
         </View>
 
@@ -356,7 +540,7 @@ export default function ProfileScreen({ navigation }: Props) {
           ) : (
             <>
               <Text style={styles.portfolioValue}>
-                {formatUsd(portfolioStats.totalValue)}
+                {formatMoney(portfolioStats.totalValue)}
               </Text>
               <View style={styles.gainRow}>
                 <Text style={styles.gainLabel}>סה״כ</Text>
@@ -446,8 +630,8 @@ export default function ProfileScreen({ navigation }: Props) {
           <ProfileStatTile
             icon={<StatXpIcon />}
             iconBackground="#FEF0C7"
-            label="XP"
-            value={coins.toLocaleString("he-IL")}
+            label="סה״כ הון"
+            value={formatMoney(cash + portfolioStats.totalValue)}
             style={styles.statCellDividerTop}
           />
           <ProfileStatTile
@@ -488,6 +672,11 @@ export default function ProfileScreen({ navigation }: Props) {
           )}
         </View>
 
+        <TradingHistorySection
+          refreshKey={historyRefreshKey}
+          onOpenTrading={() => openTrading()}
+        />
+
         <ProfileStreakCard
           streakDays={streakDays}
           nextLessonTitle={nextLesson?.title}
@@ -520,53 +709,96 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     alignItems: "center",
     justifyContent: "flex-start",
-    marginTop: 4,
-    marginBottom: 18,
-    gap: 14,
+    marginTop: 8,
+    marginBottom: 20,
+    gap: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: "#F7FAFD",
+    borderWidth: 1,
+    borderColor: "#E8EEF5",
   },
   profileTextCol: {
     flex: 1,
     alignItems: "flex-end",
-    marginEnd: 4,
+    gap: 8,
   },
   userName: {
     fontSize: 24,
     fontFamily: theme.font.bold,
     color: theme.colors.text,
     textAlign: "right",
+    writingDirection: "rtl",
   },
-  profileMetaRow: {
-    flexDirection: "row",
+  badgeChip: {
+    flexDirection: "row-reverse",
     alignItems: "center",
-    justifyContent: "flex-end",
-    gap: 10,
-    marginTop: 6,
-  },
-  xpText: {
-    fontSize: 16,
-    fontFamily: theme.font.bold,
-    color: theme.colors.growthGreen,
-    textAlign: "right",
+    gap: 6,
+    backgroundColor: "#FFF7ED",
+    borderWidth: 1,
+    borderColor: "#FED7AA",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
   badgeText: {
-    fontSize: 15,
-    fontFamily: theme.font.family,
-    color: theme.colors.warning[600],
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    color: "#B45309",
     textAlign: "right",
   },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: "#4F46E5",
+  avatarHint: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[400],
+    textAlign: "right",
+  },
+  avatarPressable: {
+    position: "relative",
+    flexShrink: 0,
+  },
+  avatarRing: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    padding: 3,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 2,
+    borderColor: "#BFDBFE",
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 39,
+  },
+  avatarFallback: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 39,
+    backgroundColor: theme.colors.primary[400],
+    alignItems: "center",
+    justifyContent: "center",
   },
   avatarText: {
     color: "#FFFFFF",
-    fontSize: 26,
+    fontSize: 28,
     fontFamily: theme.font.bold,
+  },
+  avatarCameraBadge: {
+    position: "absolute",
+    left: 0,
+    bottom: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colors.primary[400],
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
   },
   portfolioCard: {
     backgroundColor: "#FFFFFF",

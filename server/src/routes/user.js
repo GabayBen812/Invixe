@@ -17,6 +17,32 @@ async function resolveUser(req, email) {
   return getUserByEmail(email, supabase);
 }
 
+async function recordTrade(supabase, {
+  userid,
+  type,
+  symbol,
+  shares,
+  price,
+  total,
+}) {
+  try {
+    const { error } = await supabase.from('TradeHistory').insert({
+      userid,
+      type,
+      symbol,
+      shares,
+      price,
+      total,
+    });
+    if (error) {
+      // Table may not exist yet in some environments — don't fail the trade.
+      console.error('Error recording trade history:', error.message || error);
+    }
+  } catch (error) {
+    console.error('Error recording trade history:', error);
+  }
+}
+
 // Helper: get user by email
 async function getUserByEmail(email, supabaseIn) {
   const supabase =
@@ -27,7 +53,7 @@ async function getUserByEmail(email, supabaseIn) {
   if (supabase) {
     const { data: user, error } = await supabase
       .from('User')
-      .select('id, email, coins, lightnings')
+      .select('id, email, coins')
       .eq('email', email)
       .maybeSingle();
     if (error) throw error;
@@ -45,7 +71,7 @@ async function getUserByEmail(email, supabaseIn) {
   throw new Error('Supabase not configured');
 }
 
-// GET user progress, coins, and lightnings
+// GET user progress and cash (persisted as coins)
 router.get('/progress', async (req, res) => {
   try {
     const email = req.query.email;
@@ -74,7 +100,6 @@ router.get('/progress', async (req, res) => {
       completedLessons,
       lessonAttempts,
       coins: user.coins || 0,
-      lightnings: user.lightnings || 0,
     });
   } catch (error) {
     console.error('Error fetching user progress:', error);
@@ -215,10 +240,10 @@ router.post('/lesson-attempts', async (req, res) => {
   }
 });
 
-// POST update coins and lightnings
+// POST update cash (persisted as coins)
 router.post('/currency', async (req, res) => {
   try {
-    const { email, coins, lightnings } = req.body;
+    const { email, coins } = req.body;
     if (!email) {
       return res.status(400).json({ error: 'email is required' });
     }
@@ -231,11 +256,10 @@ router.post('/currency', async (req, res) => {
     
     const supabase = req.app.get('supabase');
     if (supabase) {
-      const payload = {
-        ...(typeof coins === 'number' ? { coins } : {}),
-        ...(typeof lightnings === 'number' ? { lightnings } : {}),
-      };
-      const { error } = await supabase.from('User').update(payload).eq('id', user.id);
+      if (typeof coins !== 'number') {
+        return res.status(400).json({ error: 'coins is required' });
+      }
+      const { error } = await supabase.from('User').update({ coins }).eq('id', user.id);
       if (error) throw error;
       return res.json({ success: true });
     }
@@ -388,6 +412,15 @@ router.post('/portfolio/buy', async (req, res) => {
       .eq('id', user.id);
     if (coinsError) throw coinsError;
 
+    await recordTrade(supabase, {
+      userid: user.id,
+      type: 'buy',
+      symbol: symbolUpper,
+      shares: sharesNum,
+      price: priceNum,
+      total: totalCost,
+    });
+
     res.json({
       success: true,
       newCoins,
@@ -454,6 +487,15 @@ router.post('/portfolio/sell', async (req, res) => {
       .eq('id', user.id);
     if (coinsError) throw coinsError;
 
+    await recordTrade(supabase, {
+      userid: user.id,
+      type: 'sell',
+      symbol: symbolUpper,
+      shares: sharesNum,
+      price: priceNum,
+      total: totalValue,
+    });
+
     res.json({
       success: true,
       newCoins,
@@ -462,6 +504,60 @@ router.post('/portfolio/sell', async (req, res) => {
   } catch (error) {
     console.error('Error selling stock:', error);
     res.status(500).json({ error: error.message || 'Server error' });
+  }
+});
+
+// GET trade history
+router.get('/portfolio/history', async (req, res) => {
+  try {
+    const email = req.query.email;
+    if (!email) {
+      return res.status(400).json({ error: 'email is required' });
+    }
+
+    globalThis.__supabase_for_router = req.app.get('supabase') || null;
+    globalThis.__supabase_only = !!req.app.get('SUPABASE_ONLY');
+
+    const user = await getUserByEmail(email);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const supabase = req.app.get('supabase');
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const limit = Math.min(
+      Math.max(parseInt(String(req.query.limit || '50'), 10) || 50, 1),
+      200,
+    );
+
+    const { data, error } = await supabase
+      .from('TradeHistory')
+      .select('id, type, symbol, shares, price, total, created_at')
+      .eq('userid', user.id)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      // Missing table / schema — return empty history instead of breaking profile.
+      if (error.code === '42P01' || error.code === '42703') {
+        return res.json({ trades: [] });
+      }
+      throw error;
+    }
+
+    const trades = (data || []).map((row) => ({
+      id: row.id,
+      type: row.type,
+      symbol: row.symbol,
+      shares: Number(row.shares) || 0,
+      price: Number(row.price) || 0,
+      total: Number(row.total) || 0,
+      createdAt: row.created_at,
+    }));
+
+    return res.json({ trades });
+  } catch (error) {
+    console.error('Error fetching trade history:', error);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 

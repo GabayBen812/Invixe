@@ -1,3 +1,7 @@
+import { formatMoney } from "./money";
+
+export { formatMoney, APP_CURRENCY } from "./money";
+
 export type NormalizedHolding = {
   id: string;
   symbol: string;
@@ -51,12 +55,9 @@ export function formatPercent(value: number): string {
   return `${sign}${value.toFixed(1)}%`;
 }
 
+/** @deprecated Prefer formatMoney — kept as alias during migration. */
 export function formatUsd(value: number): string {
-  const safe = Number.isFinite(value) ? value : 0;
-  return `$${safe.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatMoney(value);
 }
 
 export function computePortfolioStats(

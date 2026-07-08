@@ -25,8 +25,8 @@ interface LessonAttempt {
 interface ProgressPayload {
   completedLessons: number[];
   lessonAttempts: LessonAttempt[];
+  /** Persistence field — maps to cash in the app layer. */
   coins: number;
-  lightnings: number;
   firstName?: string | null;
   lastName?: string | null;
 }
@@ -34,8 +34,8 @@ interface ProgressPayload {
 interface UserContextType {
   completedLessons: number[];
   lessonAttempts: LessonAttempt[];
-  coins: number;
-  lightnings: number;
+  /** Portfolio cash balance (persisted as `coins` on the server). */
+  cash: number;
   firstName: string | null;
   lastName: string | null;
   currentUserEmail: string | null;
@@ -44,8 +44,7 @@ interface UserContextType {
   setLessonAttempts: (attempts: LessonAttempt[]) => Promise<void>;
   markLessonCompleted: (lessonId: number) => Promise<void>;
   markLessonAttempted: (lessonId: number) => void;
-  setCoins: (coins: number) => void;
-  setLightnings: (lightnings: number) => void;
+  setCash: (cash: number) => void;
   setCurrentUser: (
     email: string,
     profile?: { firstName?: string; lastName?: string },
@@ -68,8 +67,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [lessonAttempts, setLessonAttemptsState] = useState<LessonAttempt[]>(
     [],
   );
-  const [coins, setCoinsState] = useState<number>(0);
-  const [lightnings, setLightningsState] = useState<number>(0);
+  const [cash, setCashState] = useState<number>(0);
   const [firstName, setFirstNameState] = useState<string | null>(null);
   const [lastName, setLastNameState] = useState<string | null>(null);
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(
@@ -98,8 +96,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const resetUserState = useCallback(() => {
     setCompletedLessonsState([]);
     setLessonAttemptsState([]);
-    setCoinsState(0);
-    setLightningsState(0);
+    setCashState(0);
     setFirstNameState(null);
     setLastNameState(null);
     completedLessonsRef.current = [];
@@ -131,8 +128,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
         return next;
       });
 
-      setCoinsState(data.coins || 0);
-      setLightningsState(data.lightnings || 0);
+      setCashState(data.coins || 0);
       if (data.firstName !== undefined) {
         setFirstNameState(data.firstName ?? null);
       }
@@ -429,31 +425,16 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
-  const setCoins = useCallback(async (nextCoins: number) => {
-    setCoinsState(nextCoins);
+  const setCash = useCallback(async (nextCash: number) => {
+    setCashState(nextCash);
     const userEmail = currentUserEmailRef.current;
     if (!userEmail) return;
 
     fetchWithTimeout(`${API_BASE_URL}/user/currency`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: userEmail, coins: nextCoins }),
-    }).catch((e) => console.error("Error saving coins:", e));
-  }, []);
-
-  const setLightnings = useCallback(async (nextLightnings: number) => {
-    setLightningsState(nextLightnings);
-    const userEmail = currentUserEmailRef.current;
-    if (!userEmail) return;
-
-    fetchWithTimeout(`${API_BASE_URL}/user/currency`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: userEmail,
-        lightnings: nextLightnings,
-      }),
-    }).catch((e) => console.error("Error saving lightnings:", e));
+      body: JSON.stringify({ email: userEmail, coins: nextCash }),
+    }).catch((e) => console.error("Error saving cash:", e));
   }, []);
 
   const refreshUserData = useCallback(
@@ -465,8 +446,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     () => ({
       completedLessons,
       lessonAttempts,
-      coins,
-      lightnings,
+      cash,
       firstName,
       lastName,
       currentUserEmail,
@@ -475,8 +455,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLessonAttempts,
       markLessonCompleted,
       markLessonAttempted,
-      setCoins,
-      setLightnings,
+      setCash,
       setCurrentUser,
       logout,
       refreshUserData,
@@ -484,8 +463,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     [
       completedLessons,
       lessonAttempts,
-      coins,
-      lightnings,
+      cash,
       firstName,
       lastName,
       currentUserEmail,
@@ -494,8 +472,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setLessonAttempts,
       markLessonCompleted,
       markLessonAttempted,
-      setCoins,
-      setLightnings,
+      setCash,
       setCurrentUser,
       logout,
       refreshUserData,

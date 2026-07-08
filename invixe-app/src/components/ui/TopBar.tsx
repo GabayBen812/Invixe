@@ -1,22 +1,13 @@
 import React from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
-import Svg, {
-  Path,
-  G,
-  Circle,
-  Rect,
-  Mask,
-  Defs,
-  Stop,
-  LinearGradient,
-} from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { useUser } from "../../context/UserContext";
 import { useDictionary } from "../../context/DictionaryContext";
+import { formatMoney } from "../../utils/money";
 import theme from "../../theme";
 import MoneyIconSource from "../../assets/money.svg";
 import DictionaryBookIcon from "./DictionaryBookIcon";
 
-// Invixe logo SVG (converted)
 const InvixeLogo = () => (
   <Svg width={106} height={38} viewBox="0 0 106 38" fill="none">
     <Path
@@ -26,30 +17,11 @@ const InvixeLogo = () => (
   </Svg>
 );
 
-// Money SVG (new asset rendered via SvgXml)
-
 const MoneyIcon = () => <MoneyIconSource width={27} height={27} />;
-
-// Lightning SVG (converted, simple)
-const LightningIcon = () => (
-  // <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
-  //   <Path d="M7 2L17 11H10L13 22L3 13H10L7 2Z" fill="#3F9FFF"/>
-  // </Svg>
-
-  <Svg width="28" height="27" viewBox="0 0 28 27" fill="none">
-    <Path
-      d="M17.6562 1.99915L17.8369 2.00989C18.0164 2.03171 18.1915 2.08566 18.3525 2.17004C18.567 2.28245 18.7507 2.44566 18.8887 2.64465C19.0267 2.84383 19.1147 3.07411 19.1445 3.31458C19.1743 3.55485 19.1455 3.79879 19.0605 4.02551L16.8203 9.99915H19.6562L19.8584 10.0128C20.0587 10.04 20.2521 10.1075 20.4268 10.212C20.6596 10.3515 20.8504 10.5519 20.9785 10.7911C21.1066 11.0306 21.1675 11.3011 21.1543 11.5724C21.1411 11.8433 21.0548 12.1055 20.9043 12.3312L12.9043 24.3312C12.7171 24.6127 12.4406 24.8234 12.1191 24.9279C11.7974 25.0324 11.4489 25.0243 11.1318 24.9064C10.815 24.7884 10.5472 24.5667 10.3721 24.2775C10.197 23.9882 10.1246 23.6481 10.167 23.3126L10.957 16.9991H7.65625C7.42338 16.9991 7.19363 16.9451 6.98535 16.8409C6.77713 16.7368 6.59576 16.5858 6.45605 16.3995C6.31639 16.2133 6.22234 15.9967 6.18066 15.7677C6.13902 15.5387 6.15067 15.3027 6.21582 15.0792L9.71582 3.07922C9.80668 2.76771 9.99629 2.49368 10.2559 2.29895C10.5155 2.10422 10.8317 1.99915 11.1562 1.99915H17.6562Z"
-      fill="#62D24C"
-      stroke="#368642"
-    />
-  </Svg>
-);
-
-// Dictionary/Book Icon SVG
 const DictionaryIcon = () => <DictionaryBookIcon size={24} />;
 
 export default function TopBar() {
-  const { coins, lightnings } = useUser();
+  const { cash } = useUser();
   const { openDictionary } = useDictionary();
 
   return (
@@ -59,13 +31,7 @@ export default function TopBar() {
         <View style={styles.iconWithText}>
           <MoneyIcon />
           <Text style={styles.count} numberOfLines={1}>
-            {coins}
-          </Text>
-        </View>
-        <View style={styles.iconWithText}>
-          <LightningIcon />
-          <Text style={styles.count} numberOfLines={1}>
-            {lightnings}
+            {formatMoney(cash)}
           </Text>
         </View>
         <Pressable
@@ -115,8 +81,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   count: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontFamily: theme.font.bold,
     marginLeft: 4,
     color: "#222",
   },

@@ -2,7 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import theme from "../../theme";
 import { usePortfolio } from "../../context/PortfolioContext";
-import { formatPercent, formatUsd } from "../../utils/portfolioNormalize";
+import { formatPercent, formatMoney } from "../../utils/portfolioNormalize";
 
 type Props = {
   symbol: string;
@@ -51,7 +51,7 @@ export default function TradingPositionCard({
         </View>
         <View style={styles.priceBlock}>
           <Text style={styles.livePrice}>
-            {price > 0 ? formatUsd(price) : "—"}
+            {price > 0 ? formatMoney(price) : "—"}
           </Text>
           {livePrice != null && (
             <Text
@@ -85,12 +85,12 @@ export default function TradingPositionCard({
           </View>
           <View style={styles.holdingStat}>
             <Text style={styles.holdingLabel}>מחיר ממוצע</Text>
-            <Text style={styles.holdingValue}>{formatUsd(holding.avgPrice)}</Text>
+            <Text style={styles.holdingValue}>{formatMoney(holding.avgPrice)}</Text>
           </View>
           <View style={styles.holdingStat}>
             <Text style={styles.holdingLabel}>רווח/הפסד</Text>
             <Text style={[styles.holdingValue, { color: pnlColor }]}>
-              {formatUsd(unrealized)}
+              {formatMoney(unrealized)}
             </Text>
           </View>
         </View>
