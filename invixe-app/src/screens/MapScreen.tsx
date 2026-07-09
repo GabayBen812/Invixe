@@ -575,7 +575,7 @@ export default function MapScreen({ navigation, route }: Props) {
   }, []);
 
   // Determine active step based on selected unit
-  const { lessonsRegistry } = useLessons();
+  const { lessonsRegistry, loadingRegistry, refreshRegistry } = useLessons();
   const activeStep =
     selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
 
@@ -593,7 +593,15 @@ export default function MapScreen({ navigation, route }: Props) {
   useFocusEffect(
     React.useCallback(() => {
       void refreshUserData();
-    }, [refreshUserData]),
+      if (!loadingRegistry && lessonsRegistry.length === 0) {
+        void refreshRegistry();
+      }
+    }, [
+      refreshUserData,
+      loadingRegistry,
+      lessonsRegistry.length,
+      refreshRegistry,
+    ]),
   );
 
   // Simplified scroll handler - no animations to prevent blocking

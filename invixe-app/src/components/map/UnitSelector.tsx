@@ -1,5 +1,13 @@
 import React from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import theme from "../../theme";
 import ProgressBar from "./ProgressBar";
 import CourseCard from "./CourseCard";
@@ -14,6 +22,9 @@ import { useLessons } from "../../context/LessonsContext";
 import { useUser } from "../../context/UserContext";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
+const HORIZONTAL_PADDING = 16;
+const CARD_GAP = 12;
+const CARD_WIDTH = (SCREEN_WIDTH - HORIZONTAL_PADDING * 2 - CARD_GAP) / 2;
 
 type UnitSelectorProps = {
   completedLessons: number[];
@@ -24,10 +35,17 @@ export default function UnitSelector({
   completedLessons,
   onSelectUnit,
 }: UnitSelectorProps) {
-  const { lessonsRegistry } = useLessons();
+  const {
+    lessonsRegistry,
+    loadingRegistry,
+    registryError,
+    refreshRegistry,
+  } = useLessons();
   const { firstName, currentUserEmail } = useUser();
   const greetingName =
     firstName && firstName.trim().length > 0 ? firstName.trim() : (currentUserEmail ? currentUserEmail.split("@")[0] : "חבר\ה");
+  const showEmptyState =
+    !loadingRegistry && lessonsRegistry.length === 0;
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
@@ -57,6 +75,30 @@ export default function UnitSelector({
         </View>
 
         <View style={styles.unitCardsContainer}>
+          {loadingRegistry && lessonsRegistry.length === 0 ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color="#3B82F6" />
+              <Text style={styles.loadingText}>טוען קורסים...</Text>
+            </View>
+          ) : null}
+
+          {showEmptyState ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyTitle}>לא הצלחנו לטעון את הקורסים</Text>
+              <Text style={styles.emptySubtitle}>
+                {registryError
+                  ? "בדוק את החיבור לאינטרנט ונסה שוב"
+                  : "אין קורסים זמינים כרגע"}
+              </Text>
+              <Pressable
+                style={styles.retryButton}
+                onPress={() => void refreshRegistry()}
+              >
+                <Text style={styles.retryButtonText}>נסה שוב</Text>
+              </Pressable>
+            </View>
+          ) : null}
+
           {lessonsRegistry.map((step, idx) => {
             const title =
               step.step === 1
@@ -102,6 +144,7 @@ export default function UnitSelector({
                 levelChip={level}
                 durationChip={duration}
                 levelEmphasis={"filled"}
+                cardWidth={CARD_WIDTH}
                 onPress={() => onSelectUnit(idx)}
               />
             );
@@ -193,9 +236,57 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    paddingHorizontal: 2,
+    width: "100%",
+    alignItems: "flex-start",
+  },
+  loadingState: {
+    width: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 48,
     gap: 12,
-    alignItems: "stretch",
+  },
+  loadingText: {
+    fontSize: 14,
+    fontFamily: theme.font.family,
+    color: "#64748B",
+  },
+  emptyState: {
+    width: "100%",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 28,
+    paddingHorizontal: 20,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#E9EEF7",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontFamily: theme.font.bold,
+    color: "#1E293B",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    fontFamily: theme.font.family,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  retryButton: {
+    backgroundColor: "#3B82F6",
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontFamily: theme.font.bold,
+    fontSize: 14,
   },
   bottomInfo: {
     flexDirection: "row-reverse",

@@ -39,6 +39,11 @@ export async function getCachedRegistry<T>(): Promise<T | null> {
   return getJson<T>(STORAGE_KEYS.lessonsRegistry);
 }
 
+/** Last-known registry — used when the network fetch fails (e.g. cold start on Android). */
+export async function getStaleRegistry<T>(): Promise<T | null> {
+  return getJson<T>(STORAGE_KEYS.lessonsRegistry);
+}
+
 export async function setCachedRegistry<T>(registry: T): Promise<void> {
   await setJson(STORAGE_KEYS.lessonsRegistry, registry);
   await AsyncStorage.setItem(STORAGE_KEYS.lessonsRegistryAt, String(Date.now()));

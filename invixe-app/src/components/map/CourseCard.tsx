@@ -12,6 +12,7 @@ export type CourseCardProps = {
   badgeText?: string; // e.g., 'מומלץ להתחלה'
   comingSoon?: boolean; // Show "coming soon" badge
   disabled?: boolean;
+  cardWidth?: number;
   onPress?: () => void;
 };
 
@@ -25,13 +26,18 @@ export default function CourseCard({
   badgeText,
   comingSoon = false,
   disabled,
+  cardWidth,
   onPress,
 }: CourseCardProps) {
   return (
     <Pressable
       disabled={disabled || comingSoon}
       onPress={onPress}
-      style={[styles.card, (disabled || comingSoon) && styles.cardDisabled]}
+      style={[
+        styles.card,
+        cardWidth != null ? { width: cardWidth } : null,
+        (disabled || comingSoon) && styles.cardDisabled,
+      ]}
     >
       {badgeText ? (
         <View style={styles.badge}>
@@ -76,7 +82,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     width: "48%",
     marginBottom: 12,
-    // alignItems: 'stretch',
     position: "relative",
     borderWidth: 1,
     borderColor: "#E9EEF7",
@@ -87,7 +92,6 @@ const styles = StyleSheet.create({
     elevation: 3,
     minHeight: 200,
     marginTop: 12,
-    display: "flex",
     flexDirection: "column",
     justifyContent: "center",
     alignItems: "center",
@@ -177,7 +181,6 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: "#E5E9EF",
     marginLeft: 8,
-    display: "flex",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",

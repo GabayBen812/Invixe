@@ -11,11 +11,17 @@ import { LessonStep, StepRegistry } from "../modules/lessons/types";
 import { normalizeLessonType } from "../modules/lessons/lessonTheme";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
-import { getCachedRegistry, setCachedRegistry } from "../utils/storage";
+import {
+  getCachedRegistry,
+  getStaleRegistry,
+  setCachedRegistry,
+} from "../utils/storage";
 
 type LessonsContextType = {
   lessonsRegistry: StepRegistry[];
   loadingRegistry: boolean;
+  registryError: string | null;
+  refreshRegistry: () => Promise<void>;
   getLessonSteps: (lessonId: number, unitId?: string) => Promise<LessonStep[]>;
 };
 
@@ -49,45 +55,84 @@ function normalizeRegistry(data: unknown): StepRegistry[] {
   });
 }
 
+const REGISTRY_FETCH_TIMEOUT_MS = 20_000;
+const REGISTRY_MAX_ATTEMPTS = 3;
+const REGISTRY_RETRY_DELAY_MS = 1_500;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function LessonsProvider({ children }: { children: React.ReactNode }) {
   const [lessonsRegistry, setLessonsRegistry] = useState<StepRegistry[]>([]);
   const [loadingRegistry, setLoadingRegistry] = useState(true);
+  const [registryError, setRegistryError] = useState<string | null>(null);
   const stepsCacheRef = useRef<Record<string, LessonStep[]>>({});
+  const loadRequestIdRef = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshRegistry = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
+    setLoadingRegistry(true);
+    setRegistryError(null);
 
-    async function loadRegistry() {
-      const cached = await getCachedRegistry<StepRegistry[]>();
-      if (cached?.length && !cancelled) {
-        setLessonsRegistry(cached);
-        setLoadingRegistry(false);
-      }
+    const cached = await getCachedRegistry<StepRegistry[]>();
+    if (requestId !== loadRequestIdRef.current) return;
+    if (cached?.length) {
+      setLessonsRegistry(cached);
+    }
 
+    let lastError: unknown = null;
+
+    for (let attempt = 1; attempt <= REGISTRY_MAX_ATTEMPTS; attempt += 1) {
       try {
-        const res = await fetchWithTimeout(`${API_BASE}/v2/lessons/registry`);
+        const res = await fetchWithTimeout(
+          `${API_BASE}/v2/lessons/registry`,
+          undefined,
+          REGISTRY_FETCH_TIMEOUT_MS,
+        );
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = await res.json();
         const normalized = normalizeRegistry(data);
-        if (!cancelled) {
-          setLessonsRegistry(normalized);
-          void setCachedRegistry(normalized);
-        }
+        if (requestId !== loadRequestIdRef.current) return;
+        if (!normalized.length) throw new Error("empty registry");
+        setLessonsRegistry(normalized);
+        setRegistryError(null);
+        void setCachedRegistry(normalized);
+        setLoadingRegistry(false);
+        return;
       } catch (e) {
-        console.error("Failed to load lessons registry", e);
-        if (!cancelled && !cached?.length) {
-          setLessonsRegistry([]);
+        lastError = e;
+        console.error(
+          `Failed to load lessons registry (attempt ${attempt}/${REGISTRY_MAX_ATTEMPTS})`,
+          e,
+        );
+        if (attempt < REGISTRY_MAX_ATTEMPTS) {
+          await delay(REGISTRY_RETRY_DELAY_MS * attempt);
+          if (requestId !== loadRequestIdRef.current) return;
         }
-      } finally {
-        if (!cancelled) setLoadingRegistry(false);
       }
     }
 
-    loadRegistry();
-    return () => {
-      cancelled = true;
-    };
+    if (requestId !== loadRequestIdRef.current) return;
+
+    const stale = await getStaleRegistry<StepRegistry[]>();
+    if (stale?.length) {
+      setLessonsRegistry(stale);
+      setRegistryError(null);
+    } else if (!cached?.length) {
+      setLessonsRegistry([]);
+      setRegistryError(
+        lastError instanceof Error
+          ? lastError.message
+          : "Failed to load courses",
+      );
+    }
+    setLoadingRegistry(false);
   }, []);
+
+  useEffect(() => {
+    void refreshRegistry();
+  }, [refreshRegistry]);
 
   const getLessonSteps = useCallback(
     async (lessonId: number, unitId?: string): Promise<LessonStep[]> => {
@@ -114,8 +159,20 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ lessonsRegistry, loadingRegistry, getLessonSteps }),
-    [lessonsRegistry, loadingRegistry, getLessonSteps],
+    () => ({
+      lessonsRegistry,
+      loadingRegistry,
+      registryError,
+      refreshRegistry,
+      getLessonSteps,
+    }),
+    [
+      lessonsRegistry,
+      loadingRegistry,
+      registryError,
+      refreshRegistry,
+      getLessonSteps,
+    ],
   );
 
   return (
