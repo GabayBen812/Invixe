@@ -13,6 +13,7 @@ import {
   getAlternateSupabaseUrl,
   normalizeSupabaseUrl,
 } from "../../utils/supabaseUrl";
+import { font } from "../../theme";
 
 type Props = {
   title: string;
@@ -220,7 +221,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: "#0D2033",
-    fontWeight: "800",
+    // Weight comes from HtmlText / <strong> — do not force 800 here or bold
+    // markup inverts on Android (body bold, <strong> regular).
+    fontFamily: font.family,
     fontSize: 22,
     lineHeight: 30,
     textAlign: "center",

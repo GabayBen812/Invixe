@@ -1517,6 +1517,7 @@ export default function LessonScreen({ navigation, route }: Props) {
             <DrillViewport style={styles.drillContentArea}>
               <View style={styles.mediaDrillWrap}>
               <GraphQuestionDrill
+                key={step.id}
                 mediaType="png"
                 pngUrl={(step.activityConfig as any).graphQuestionPNG.pngUrl}
                 choices={normalizeDrillChoices(
@@ -1603,6 +1604,7 @@ export default function LessonScreen({ navigation, route }: Props) {
             <DrillViewport style={styles.drillContentArea}>
               <View style={styles.carouselDrillWrap}>
                 <CarouselSelectDrill
+                  key={step.id}
                   items={step.activityConfig.carousel.items.map((i: any) => ({
                     id: i.id,
                     label: i.label,
@@ -1759,6 +1761,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                   step.activityConfig?.questionWithImage && (
                     <View style={styles.mediaDrillWrap}>
                       <QuestionWithImage
+                        key={step.id}
                         question={
                           step.activityConfig.questionWithImage.question || ""
                         }
@@ -1850,6 +1853,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     return (
                       <View style={styles.mediaDrillWrap}>
                         <QuestionWithSVG
+                          key={step.id}
                           question={
                             step.activityConfig.questionWithImage.question || ""
                           }
@@ -1898,6 +1902,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                   !graphQuestionViewingExplanation && (
                     <View style={styles.mediaDrillWrap}>
                       <GraphQuestionDrill
+                        key={step.id}
                         mediaType="svg"
                         svgCode={
                           (step.activityConfig as any).graphQuestion.svgCode
@@ -2148,6 +2153,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       }}
                     >
                       <MultiSelectDrill
+                        key={step.id}
                         options={step.activityConfig.options.map((o) => ({
                           id: o.id,
                           label: o.label,
@@ -2190,6 +2196,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       ]}
                     >
                       <SVGMultiSelectDrill
+                        key={step.id}
                         options={(
                           step.activityConfig.svgOptions ||
                           step.activityConfig.svgMultiSelect?.options ||
@@ -2258,6 +2265,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       }}
                     >
                       <DragMatchDrill
+                        key={step.id}
                         slots={step.activityConfig.dragMatch.slots
                           .filter((s) => s && s.id)
                           .map((s) => ({
@@ -2315,6 +2323,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                       }}
                     >
                       <SequenceBuildDrill
+                        key={step.id}
                         slotsCount={
                           step.activityConfig.sequenceBuild.slotsCount
                         }

@@ -67,125 +67,137 @@ function SVGMultiSelectDrill({
 }: Props) {
   const { theme, isPractice } = useLessonTheme();
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  /** Exclusive selection for binary (yes/no) drills — cannot select both. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
 
+  const normalizedOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return options.map((o, index) => {
+      const rawId = o?.id != null ? String(o.id).trim() : "";
+      let id = rawId.length > 0 ? rawId : `option-${index}`;
+      if (seen.has(id)) {
+        id = `${id}-${index}`;
+      }
+      seen.add(id);
+      return {
+        ...o,
+        id,
+        correct: o.correct === true || (o.correct as unknown) === "true",
+      };
+    });
+  }, [options]);
+
+  const optionIdsKey = useMemo(
+    () => normalizedOptions.map((o) => o.id).join(","),
+    [normalizedOptions],
+  );
+
+  // Check if this is a yes/no question: exactly 2 options and only 1 is correct
+  const isYesNoQuestion =
+    normalizedOptions.length === 2 &&
+    normalizedOptions.filter((o) => o.correct).length === 1;
+
   // Reset state when options change (new step)
   React.useEffect(() => {
     setSelected({});
+    setSelectedId(null);
     setSubmitted(false);
     setShowingExplanation(false);
     setIsCorrect(false);
-  }, [options.map((o) => o.id).join(",")]);
+  }, [optionIdsKey]);
+
+  const isOptionPicked = React.useCallback(
+    (id: string) =>
+      isYesNoQuestion ? selectedId === id : !!selected[id],
+    [isYesNoQuestion, selectedId, selected],
+  );
+
+  const selectedIds = useMemo(() => {
+    if (isYesNoQuestion) {
+      return selectedId ? [selectedId] : [];
+    }
+    return Object.keys(selected).filter((k) => selected[k]);
+  }, [isYesNoQuestion, selectedId, selected]);
 
   // Expose state to parent for button management
   React.useEffect(() => {
     if (onStateChange) {
       onStateChange({
         showingExplanation,
-        canSubmit: Object.keys(selected).filter((k) => selected[k]).length > 0,
+        canSubmit: selectedIds.length > 0,
       });
     }
-  }, [showingExplanation, selected, onStateChange]);
-
-  const selectedIds = useMemo(
-    () => Object.keys(selected).filter((k) => selected[k]),
-    [selected],
-  );
+  }, [showingExplanation, selectedIds, onStateChange]);
 
   // Get all correct option IDs
   const correctOptionIds = useMemo(() => {
-    return options.filter((o) => o.correct).map((o) => o.id);
-  }, [options]);
+    return normalizedOptions.filter((o) => o.correct).map((o) => o.id);
+  }, [normalizedOptions]);
 
   // Check if selection is exactly correct: must select exactly all correct answers, no more, no less
   const allCorrect = useMemo(() => {
-    // Get current selected IDs
-    const currentSelectedIds = Object.keys(selected).filter((k) => selected[k]);
+    const currentSelectedIds = selectedIds;
+    const currentCorrectIds = correctOptionIds;
 
-    // Get all correct option IDs
-    const currentCorrectIds = options.filter((o) => o.correct).map((o) => o.id);
-
-    // Must have at least one selection
     if (currentSelectedIds.length === 0) return false;
-
-    // Must have at least one correct answer
     if (currentCorrectIds.length === 0) return false;
+    if (currentSelectedIds.length !== currentCorrectIds.length) return false;
 
-    // Must select exactly the same number as correct answers
-    if (currentSelectedIds.length !== currentCorrectIds.length) {
-      return false;
-    }
-
-    // All selected IDs must be in the correct set
     const allSelectedAreCorrect = currentSelectedIds.every((id) =>
       currentCorrectIds.includes(id),
     );
-
-    // All correct IDs must be in the selected set
     const allCorrectAreSelected = currentCorrectIds.every((id) =>
       currentSelectedIds.includes(id),
     );
 
-    // Both conditions must be true (they should be equivalent if lengths match, but checking both for safety)
     return allSelectedAreCorrect && allCorrectAreSelected;
-  }, [selected, options]);
+  }, [selectedIds, correctOptionIds]);
 
   const perOptionCorrectness = useMemo(() => {
     const res: Record<string, boolean> = {};
-    options.forEach((o) => {
-      const picked = !!selected[o.id];
-      // correctness per option: if picked, it is correct only if option.correct
-      // if not picked and option.correct, then it's an error
+    normalizedOptions.forEach((o) => {
+      const picked = isOptionPicked(o.id);
       res[o.id] = (picked && o.correct) || (!picked && !o.correct);
     });
     return res;
-  }, [selected, options]);
+  }, [normalizedOptions, isOptionPicked]);
 
   const numCorrectSelections = useMemo(() => {
     let count = 0;
-    options.forEach((o) => {
-      const picked = !!selected[o.id];
-      if (picked && o.correct) count += 1;
+    normalizedOptions.forEach((o) => {
+      if (isOptionPicked(o.id) && o.correct) count += 1;
     });
     return count;
-  }, [selected, options]);
+  }, [normalizedOptions, isOptionPicked]);
 
   const toggle = (id: string) => {
     if (submitted) return;
-    setSelected((prev) => {
-      const newSelected = { ...prev, [id]: !prev[id] };
-      // Auto-submit when an option is selected and showSubmitButton is false
-      if (
-        !showSubmitButton &&
-        Object.keys(newSelected).filter((k) => newSelected[k]).length > 0
-      ) {
-        // Don't auto-submit, let user see their selection
-        // Submit will be triggered by parent button
-      }
-      return newSelected;
-    });
+    setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Check if this is a yes/no question: exactly 2 options and only 1 is correct
-  const isYesNoQuestion =
-    options.length === 2 && options.filter((o) => o.correct).length === 1;
+  // Binary drills: radio behavior — exactly one selected id at a time
+  const handleYesNoToggle = (id: string) => {
+    if (submitted) return;
+    setSelectedId((prev) => (prev === id ? null : id));
+  };
 
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const drillViewportHeight = useDrillViewportHeight();
 
   /** Two-option timeline layout — compact for icon SVGs, slightly taller when labels exist. */
   const yesNoHasLabels = useMemo(
-    () => options.some((o) => (o.label?.trim().length ?? 0) > 0),
-    [options],
+    () => normalizedOptions.some((o) => (o.label?.trim().length ?? 0) > 0),
+    [normalizedOptions],
   );
   const yesNoHasLongLabels = useMemo(
     () =>
-      options.some(
+      normalizedOptions.some(
         (o) => toPlainDisplayText(o.label || "").length > 24,
       ),
-    [options],
+    [normalizedOptions],
   );
 
   const yesNoMediaSize = useMemo(() => {
@@ -224,31 +236,12 @@ function SVGMultiSelectDrill({
     return Math.min(120, Math.max(88, Math.floor(cardWidth * 0.72)));
   }, [screenWidth]);
 
-  // For yes/no questions, only allow selecting one option (toggle behavior)
-  const handleYesNoToggle = (id: string) => {
-    if (submitted) return;
-    setSelected((prev) => {
-      // If clicking the same option, deselect it; otherwise, select only this one
-      if (prev[id]) {
-        return { ...prev, [id]: false };
-      } else {
-        // Deselect all others and select this one
-        const newSelected: Record<string, boolean> = {};
-        options.forEach((opt) => {
-          newSelected[opt.id] = opt.id === id;
-        });
-        return newSelected;
-      }
-    });
-  };
-
   const handleSubmit = React.useCallback(() => {
-    if (Object.keys(selected).filter((k) => selected[k]).length === 0) return; // Can't submit without selection
+    if (selectedIds.length === 0) return;
     setSubmitted(true);
 
-    // Recalculate allCorrect directly from current state to ensure accuracy
-    const currentSelectedIds = Object.keys(selected).filter((k) => selected[k]);
-    const currentCorrectIds = options.filter((o) => o.correct).map((o) => o.id);
+    const currentSelectedIds = selectedIds;
+    const currentCorrectIds = correctOptionIds;
 
     let correct = false;
     if (currentSelectedIds.length > 0 && currentCorrectIds.length > 0) {
@@ -278,8 +271,8 @@ function SVGMultiSelectDrill({
       explanation,
     });
   }, [
-    selected,
-    options,
+    selectedIds,
+    correctOptionIds,
     correctExplanation,
     wrongExplanation,
     numCorrectSelections,
@@ -468,9 +461,84 @@ function SVGMultiSelectDrill({
   // The parent will show the button only when showingExplanation is true
 
   // Debug: log if options are empty
-  if (!options || options.length === 0) {
+  if (!normalizedOptions || normalizedOptions.length === 0) {
     console.warn("SVGMultiSelectDrill: No options provided");
   }
+
+  const renderYesNoOption = (
+    opt: SVGMultiSelectOption,
+    side: "left" | "right",
+  ) => {
+    const picked = isOptionPicked(opt.id);
+    const isCorrectAnswer = !!opt.correct;
+
+    let backgroundColor = isPractice ? theme.assetCardBg : "#F5F5F5";
+    let borderColor = isPractice ? theme.assetCardBorder : "#E5E7EB";
+    let borderWidth = 1;
+
+    if (!submitted) {
+      if (picked) {
+        backgroundColor = isPractice ? theme.assetCardBg : "#EAF2FF";
+        borderColor = isPractice ? theme.choiceSelectedBg : "#3372D8";
+        borderWidth = 2;
+      }
+    } else if (picked) {
+      if (isCorrectAnswer) {
+        backgroundColor = "#D1FADF";
+        borderColor = "#12B76A";
+      } else {
+        backgroundColor = "#FEE4E2";
+        borderColor = "#D92D20";
+      }
+    }
+
+    return (
+      <Pressable
+        key={opt.id}
+        onPress={() => handleYesNoToggle(opt.id)}
+        accessibilityRole="radio"
+        accessibilityState={{ selected: picked }}
+        style={[
+          styles.yesNoBox,
+          side === "left" ? styles.yesNoBoxLeft : styles.yesNoBoxRight,
+          {
+            backgroundColor,
+            borderColor,
+            borderWidth,
+            minHeight: yesNoMediaSize.cardHeight,
+          },
+        ]}
+      >
+        {opt.label ? (
+          <Text
+            style={styles.yesNoLabel}
+            numberOfLines={yesNoHasLongLabels ? 4 : 1}
+          >
+            {toPlainDisplayText(opt.label)}
+          </Text>
+        ) : null}
+        <View style={styles.yesNoContent}>
+          <View
+            style={[
+              styles.yesNoDot,
+              picked ? styles.yesNoDotSelected : styles.yesNoDotUnselected,
+              submitted &&
+                picked &&
+                isCorrectAnswer &&
+                styles.yesNoDotCorrect,
+              submitted &&
+                picked &&
+                !isCorrectAnswer &&
+                styles.yesNoDotWrong,
+            ]}
+          />
+          <View style={styles.yesNoSvgWrapper} pointerEvents="none">
+            {renderSVG(opt, true)}
+          </View>
+        </View>
+      </Pressable>
+    );
+  };
 
   return (
     <View
@@ -486,100 +554,18 @@ function SVGMultiSelectDrill({
           style={[styles.title, isPractice && { color: theme.instructionText }]}
         />
       ) : null}
-      {options && options.length > 0 ? (
+      {normalizedOptions.length > 0 ? (
         isYesNoQuestion ? (
-          // Yes/No question design with timeline - horizontal layout (no panel)
           <View style={styles.yesNoContainer}>
             <View style={styles.yesNoRow}>
-              {/* Left option */}
-              {options[0] &&
-                (() => {
-                  const opt = options[0];
-                  const picked = !!selected[opt.id];
-                  const isCorrectAnswer = !!opt.correct;
+              {renderYesNoOption(normalizedOptions[0], "left")}
 
-                  let backgroundColor = isPractice
-                    ? theme.assetCardBg
-                    : "#F5F5F5";
-                  let borderColor = isPractice
-                    ? theme.assetCardBorder
-                    : "#FFFFFF";
-                  let borderWidth = 1;
-
-                  if (!submitted) {
-                    if (picked) {
-                      backgroundColor = isPractice
-                        ? theme.assetCardBg
-                        : "#F5F5F5";
-                      borderColor = isPractice
-                        ? theme.choiceSelectedBg
-                        : "#FFFFFF";
-                      borderWidth = isPractice ? 2 : 1;
-                    }
-                  } else if (picked) {
-                    if (isCorrectAnswer) {
-                      backgroundColor = "#D1FADF";
-                      borderColor = "#12B76A";
-                    } else {
-                      backgroundColor = "#FEE4E2";
-                      borderColor = "#D92D20";
-                    }
-                  }
-
-                  return (
-                    <Pressable
-                      key={opt.id}
-                      onPress={() => handleYesNoToggle(opt.id)}
-                      style={[
-                        styles.yesNoBox,
-                        styles.yesNoBoxLeft,
-                        {
-                          backgroundColor,
-                          borderColor,
-                          borderWidth,
-                          minHeight: yesNoMediaSize.cardHeight,
-                        },
-                      ]}
-                    >
-                      {opt.label ? (
-                        <Text
-                          style={styles.yesNoLabel}
-                          numberOfLines={yesNoHasLongLabels ? 4 : 1}
-                        >
-                          {toPlainDisplayText(opt.label)}
-                        </Text>
-                      ) : null}
-                      <View style={styles.yesNoContent}>
-                        <View
-                          style={[
-                            styles.yesNoDot,
-                            picked
-                              ? styles.yesNoDotSelected
-                              : styles.yesNoDotUnselected,
-                            submitted &&
-                              picked &&
-                              isCorrectAnswer &&
-                              styles.yesNoDotCorrect,
-                            submitted &&
-                              picked &&
-                              !isCorrectAnswer &&
-                              styles.yesNoDotWrong,
-                          ]}
-                        />
-                        <View style={styles.yesNoSvgWrapper}>
-                          {renderSVG(opt, true)}
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })()}
-
-              {/* Timeline in center */}
               <View
                 style={[
                   styles.timelineContainer,
                   { height: yesNoMediaSize.cardHeight },
                 ]}
+                pointerEvents="none"
               >
                 <View
                   style={[styles.timelineDiamond, styles.timelineDiamondTop]}
@@ -590,88 +576,7 @@ function SVGMultiSelectDrill({
                 />
               </View>
 
-              {/* Right option */}
-              {options[1] &&
-                (() => {
-                  const opt = options[1];
-                  const picked = !!selected[opt.id];
-                  const isCorrectAnswer = !!opt.correct;
-
-                  let backgroundColor = isPractice
-                    ? theme.assetCardBg
-                    : "#F5F5F5";
-                  let borderColor = isPractice
-                    ? theme.assetCardBorder
-                    : "#FFFFFF";
-                  let borderWidth = 1;
-
-                  if (!submitted) {
-                    if (picked) {
-                      backgroundColor = isPractice
-                        ? theme.assetCardBg
-                        : "#F5F5F5";
-                      borderColor = isPractice
-                        ? theme.choiceSelectedBg
-                        : "#FFFFFF";
-                      borderWidth = isPractice ? 2 : 1;
-                    }
-                  } else if (picked) {
-                    if (isCorrectAnswer) {
-                      backgroundColor = "#D1FADF";
-                      borderColor = "#12B76A";
-                    } else {
-                      backgroundColor = "#FEE4E2";
-                      borderColor = "#D92D20";
-                    }
-                  }
-
-                  return (
-                    <Pressable
-                      key={opt.id}
-                      onPress={() => handleYesNoToggle(opt.id)}
-                      style={[
-                        styles.yesNoBox,
-                        styles.yesNoBoxRight,
-                        {
-                          backgroundColor,
-                          borderColor,
-                          borderWidth,
-                          minHeight: yesNoMediaSize.cardHeight,
-                        },
-                      ]}
-                    >
-                      {opt.label ? (
-                        <Text
-                          style={styles.yesNoLabel}
-                          numberOfLines={yesNoHasLongLabels ? 4 : 1}
-                        >
-                          {toPlainDisplayText(opt.label)}
-                        </Text>
-                      ) : null}
-                      <View style={styles.yesNoContent}>
-                        <View
-                          style={[
-                            styles.yesNoDot,
-                            picked
-                              ? styles.yesNoDotSelected
-                              : styles.yesNoDotUnselected,
-                            submitted &&
-                              picked &&
-                              isCorrectAnswer &&
-                              styles.yesNoDotCorrect,
-                            submitted &&
-                              picked &&
-                              !isCorrectAnswer &&
-                              styles.yesNoDotWrong,
-                          ]}
-                        />
-                        <View style={styles.yesNoSvgWrapper}>
-                          {renderSVG(opt, true)}
-                        </View>
-                      </View>
-                    </Pressable>
-                  );
-                })()}
+              {renderYesNoOption(normalizedOptions[1], "right")}
             </View>
           </View>
         ) : (
@@ -682,14 +587,9 @@ function SVGMultiSelectDrill({
               layout === "grid" ? styles.grid : styles.list,
             ]}
           >
-            {options.map((opt, index) => {
-                const picked = !!selected[opt.id];
-                const isCorrectAfterSubmit = submitted
-                  ? perOptionCorrectness[opt.id]
-                  : undefined;
-                // Explicitly convert to boolean - handle undefined, null, string "true"/"false", etc.
-                // Check if this option is marked as correct in the options array
-                const isCorrectAnswer = !!opt.correct; // Whether this option is a correct answer
+            {normalizedOptions.map((opt, index) => {
+                const picked = isOptionPicked(opt.id);
+                const isCorrectAnswer = !!opt.correct;
 
                 const hasVisualAsset =
                   !!opt.svgCode ||
@@ -811,15 +711,12 @@ function SVGMultiSelectDrill({
         <Pressable
           style={[
             styles.submitButton,
-            Object.keys(selected).filter((k) => selected[k]).length === 0 &&
+            selectedIds.length === 0 &&
               !showingExplanation &&
               styles.submitButtonDisabled,
           ]}
           onPress={showingExplanation ? handleContinue : handleSubmit}
-          disabled={
-            !showingExplanation &&
-            Object.keys(selected).filter((k) => selected[k]).length === 0
-          }
+          disabled={!showingExplanation && selectedIds.length === 0}
         >
           <Text style={styles.submitText}>
             {showingExplanation ? "המשך" : submitText}

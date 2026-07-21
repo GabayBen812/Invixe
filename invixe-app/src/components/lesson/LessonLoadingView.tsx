@@ -65,6 +65,7 @@ export function LessonLoadingView({
         quoteText: "rgba(255,255,255,0.9)",
         author: "#76D761",
         shadow: "#000000",
+        disclaimer: "rgba(255,255,255,0.45)",
       }
     : {
         card: colors.surface.card,
@@ -83,6 +84,7 @@ export function LessonLoadingView({
         quoteText: colors.neutral[700],
         author: colors.primary[500],
         shadow: colors.neutral[900],
+        disclaimer: colors.neutral[400],
       };
 
   useEffect(() => {
@@ -160,76 +162,82 @@ export function LessonLoadingView({
 
   return (
     <View style={styles.root}>
-      <Animated.View
-        style={[
-          styles.mainCard,
-          {
-            backgroundColor: palette.card,
-            borderColor: palette.cardBorder,
-            shadowColor: palette.shadow,
-            transform: [{ scale: cardScale }],
-          },
-        ]}
-      >
-        <View style={[styles.pill, { backgroundColor: palette.pillBg }]}>
-          <Text style={[styles.pillText, { color: palette.pillText }]}>
-            טוען שיעור
-          </Text>
-        </View>
-
-        <Text style={[styles.title, { color: palette.title }]} numberOfLines={2}>
-          {lessonTitle}
-        </Text>
-
-        <Text style={[styles.status, { color: palette.status }]}>
-          {statusText}
-          {dots}
-        </Text>
-
-        <View style={styles.progressRow}>
-          <View style={[styles.progressTrack, { backgroundColor: palette.track }]}>
-            <Animated.View
-              style={[
-                styles.progressFill,
-                { backgroundColor: palette.fill, width: progressWidth },
-              ]}
-            />
-          </View>
-          <Text style={[styles.percent, { color: palette.percent }]}>
-            {percentLabel}
-          </Text>
-        </View>
-
-        <Text style={[styles.hint, { color: palette.muted }]}>
-          רגע קטן — מכינים הכל בשבילך
-        </Text>
-      </Animated.View>
-
-      <Animated.View
-        style={[
-          styles.quoteCard,
-          {
-            backgroundColor: palette.quoteBg,
-            borderColor: palette.cardBorder,
-            opacity: quoteOpacity,
-          },
-        ]}
-      >
-        <View
+      <View style={styles.content}>
+        <Animated.View
           style={[
-            styles.quoteIconWrap,
-            { backgroundColor: palette.quoteIconBg },
+            styles.mainCard,
+            {
+              backgroundColor: palette.card,
+              borderColor: palette.cardBorder,
+              shadowColor: palette.shadow,
+              transform: [{ scale: cardScale }],
+            },
           ]}
         >
-          <QuoteMarkIcon color={palette.quoteIcon} />
-        </View>
-        <Text style={[styles.quoteText, { color: palette.quoteText }]}>
-          {quote.text}
-        </Text>
-        <Text style={[styles.quoteAuthor, { color: palette.author }]}>
-          — {quote.author}
-        </Text>
-      </Animated.View>
+          <View style={[styles.pill, { backgroundColor: palette.pillBg }]}>
+            <Text style={[styles.pillText, { color: palette.pillText }]}>
+              טוען שיעור
+            </Text>
+          </View>
+
+          <Text style={[styles.title, { color: palette.title }]} numberOfLines={2}>
+            {lessonTitle}
+          </Text>
+
+          <Text style={[styles.status, { color: palette.status }]}>
+            {statusText}
+            {dots}
+          </Text>
+
+          <View style={styles.progressRow}>
+            <View style={[styles.progressTrack, { backgroundColor: palette.track }]}>
+              <Animated.View
+                style={[
+                  styles.progressFill,
+                  { backgroundColor: palette.fill, width: progressWidth },
+                ]}
+              />
+            </View>
+            <Text style={[styles.percent, { color: palette.percent }]}>
+              {percentLabel}
+            </Text>
+          </View>
+
+          <Text style={[styles.hint, { color: palette.muted }]}>
+            רגע קטן — מכינים הכל בשבילך
+          </Text>
+        </Animated.View>
+
+        <Animated.View
+          style={[
+            styles.quoteCard,
+            {
+              backgroundColor: palette.quoteBg,
+              borderColor: palette.cardBorder,
+              opacity: quoteOpacity,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.quoteIconWrap,
+              { backgroundColor: palette.quoteIconBg },
+            ]}
+          >
+            <QuoteMarkIcon color={palette.quoteIcon} />
+          </View>
+          <Text style={[styles.quoteText, { color: palette.quoteText }]}>
+            {quote.text}
+          </Text>
+          <Text style={[styles.quoteAuthor, { color: palette.author }]}>
+            — {quote.author}
+          </Text>
+        </Animated.View>
+      </View>
+
+      <Text style={[styles.disclaimer, { color: palette.disclaimer }]}>
+        התוכן לימודי בלבד ואינו ייעוץ פיננסי
+      </Text>
     </View>
   );
 }
@@ -237,10 +245,14 @@ export function LessonLoadingView({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    justifyContent: "center",
+    justifyContent: "space-between",
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
     paddingTop: theme.spacing.md,
+  },
+  content: {
+    flex: 1,
+    justifyContent: "center",
   },
   mainCard: {
     borderRadius: 28,
@@ -338,5 +350,14 @@ const styles = StyleSheet.create({
     textAlign: "right",
     writingDirection: "rtl",
     alignSelf: "stretch",
+  },
+  disclaimer: {
+    fontFamily: font.family,
+    fontSize: 12,
+    lineHeight: 18,
+    textAlign: "center",
+    writingDirection: "rtl",
+    paddingHorizontal: 12,
+    paddingTop: 8,
   },
 });

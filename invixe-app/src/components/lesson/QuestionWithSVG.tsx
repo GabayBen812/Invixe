@@ -67,6 +67,21 @@ export default function QuestionWithSVG({
   const visibleChoices = choices.filter(
     (c) => getDrillChoicePlainText(c).length > 0,
   );
+
+  // Reset when consecutive questionWithSVG steps reuse this instance
+  const contentKey = `${svgPublicUrl || svgUrl || ""}::${svgCode ? svgCode.slice(0, 40) : ""}::${visibleChoices.map((c) => c.id).join("|")}`;
+  useEffect(() => {
+    setSelectedChoice(null);
+    setSubmitted(false);
+    setShowingExplanation(false);
+    setIsCorrect(false);
+    setSvgCache(null);
+    if (onStateChange) {
+      onStateChange({ showingExplanation: false, canSubmit: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when question content changes
+  }, [contentKey]);
+
   const layout = useChoiceDrillLayout(visibleChoices.length || choices.length, {
     hasMedia: true,
     gridCols: useGridLayout ? 2 : 1,

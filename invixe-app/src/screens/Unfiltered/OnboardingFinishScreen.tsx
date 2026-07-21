@@ -80,7 +80,9 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
             <Text style={styles.success}>נרשמת בהצלחה!</Text>
             <TouchableOpacity
               style={styles.button}
-              onPress={() => navigation.navigate("Welcome")}
+              onPress={() =>
+                navigation.reset({ index: 0, routes: [{ name: "Map", params: {} }] })
+              }
             >
               <Text style={styles.buttonText}>התחל ללמוד</Text>
             </TouchableOpacity>

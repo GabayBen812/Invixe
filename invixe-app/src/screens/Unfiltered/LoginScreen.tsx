@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,41 +7,208 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
+  Pressable,
+  Image,
+  Animated,
+  Easing,
+  ScrollView,
+  Alert,
 } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import PageBackground from "../../components/ui/PageBackground";
-import Button from "../../components/ui/Button";
 import theme from "../../theme";
 import { useUser } from "../../context/UserContext";
-import Svg, { Path } from "react-native-svg";
-
+import { useRegistration } from "../../../context/RegistrationContext";
+import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { API_BASE_URL } from "../../config/api";
 import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 
 const API_URL = `${API_BASE_URL}/login`;
 
-// Inline SVG logo as a React component
-const InvixeLogo = () => (
-  <View style={{ alignItems: "center", marginBottom: theme.spacing.xl }}>
-    <Svg width={106} height={38} viewBox="0 0 106 38" fill="none">
-      <Path
-        d="M91.4316 11.7417L86.1475 10.2134L78.0723 27.313V27.5571L83.4365 37.0933H76.6816L73.4531 31.0337L70.3242 37.0933H63.4697L68.8838 27.5571L63.8174 18.02H70.6719L73.3564 23.7261L85.0752 4.00244L89.9014 7.03271L95.1221 0.561035L91.4316 11.7417ZM96.1699 17.4243C97.6104 17.4243 98.9148 17.6472 100.082 18.0942C101.249 18.5413 102.246 19.1918 103.074 20.0444C103.902 20.8888 104.539 21.915 104.986 23.1235C105.433 24.3322 105.657 25.6945 105.657 27.2095V28.7983H93.2393V29.0962C93.2393 29.7088 93.3684 30.2557 93.625 30.7358C93.8816 31.2158 94.2495 31.5926 94.7295 31.8657C95.2095 32.1389 95.7891 32.2758 96.4678 32.2759C96.9396 32.2759 97.3707 32.2091 97.7598 32.0767C98.1571 31.9442 98.4969 31.7537 98.7783 31.5054C99.0596 31.2488 99.266 30.9423 99.3984 30.5864H105.657C105.442 31.9109 104.933 33.0617 104.13 34.0386C103.327 35.0071 102.263 35.7602 100.938 36.2983C99.6223 36.8281 98.0826 37.0932 96.3193 37.0933C94.2829 37.0933 92.5273 36.7044 91.0537 35.9263C89.5886 35.1398 88.4587 34.0135 87.6641 32.5483C86.8777 31.0748 86.4844 29.3112 86.4844 27.2583C86.4844 25.2883 86.8821 23.5667 87.6768 22.0933C88.4715 20.6197 89.5933 19.4734 91.042 18.6538C92.4906 17.8343 94.1998 17.4244 96.1699 17.4243ZM7.82715 36.7456H0.972656V17.6724H7.82715V36.7456ZM23.8867 17.4243C25.2358 17.4244 26.4071 17.7343 27.4004 18.355C28.402 18.9675 29.1763 19.8121 29.7227 20.8882C30.2773 21.9644 30.5503 23.1942 30.542 24.5767V36.7456H23.6875V26.0171C23.6958 25.0735 23.456 24.3325 22.9678 23.7944C22.4877 23.2564 21.8169 22.9869 20.9561 22.9868C20.3932 22.9868 19.9007 23.1116 19.4785 23.3599C19.0646 23.5999 18.745 23.9475 18.5215 24.4028C18.2981 24.8498 18.1821 25.3881 18.1738 26.0171V36.7456H11.3193V17.6724H17.8262V21.2983H18.0254C18.4393 20.0897 19.1679 19.1417 20.2109 18.4546C21.2623 17.7676 22.4877 17.4243 23.8867 17.4243ZM41.9854 30.2886H42.1846L45.2637 17.6724H52.4658L46.0586 36.7456H38.1113L31.7041 17.6724H38.9062L41.9854 30.2886ZM61.2686 36.7456H54.4141V17.6724H61.2686V36.7456ZM96.3193 22.2417C95.7648 22.2417 95.2555 22.362 94.792 22.6021C94.3284 22.8338 93.9553 23.1569 93.6738 23.5708C93.4007 23.9847 93.2558 24.4694 93.2393 25.0239H99.3486C99.3404 24.4776 99.1999 23.9974 98.9268 23.5835C98.6619 23.1613 98.302 22.8338 97.8467 22.6021C97.3997 22.362 96.8905 22.2417 96.3193 22.2417ZM4.40039 9.42725C5.33564 9.42735 6.1303 9.7337 6.78418 10.3462C7.44631 10.9587 7.77729 11.6953 7.77734 12.5562C7.77734 13.4171 7.44645 14.1545 6.78418 14.7671C6.13033 15.3795 5.33557 15.6859 4.40039 15.686C3.47328 15.686 2.67787 15.3796 2.01562 14.7671C1.35335 14.1545 1.02246 13.4171 1.02246 12.5562C1.02251 11.6953 1.3535 10.9587 2.01562 10.3462C2.6779 9.73359 3.47321 9.42725 4.40039 9.42725ZM57.8418 9.42725C58.7771 9.42734 59.5717 9.73368 60.2256 10.3462C60.8877 10.9587 61.2187 11.6953 61.2188 12.5562C61.2188 13.4171 60.8879 14.1545 60.2256 14.7671C59.5717 15.3795 58.777 15.6859 57.8418 15.686C56.9147 15.686 56.1193 15.3796 55.457 14.7671C54.7948 14.1545 54.4639 13.4171 54.4639 12.5562C54.4639 11.6954 54.7949 10.9587 55.457 10.3462C56.1193 9.73359 56.9146 9.42725 57.8418 9.42725Z"
-        fill="#3F9FFF"
-      />
-    </Svg>
-  </View>
-);
-
+type AuthMode = "signin" | "signup";
 type Props = NativeStackScreenProps<RootStackParamList, "Login">;
 
-export default function LoginScreen({ navigation }: Props) {
-  const [phone, setPhone] = useState("");
+const AUTH = {
+  brand: theme.colors.primary[500],
+  brandSoft: theme.colors.primary[400],
+  ink: theme.colors.neutral[900],
+  muted: theme.colors.neutral[500],
+  label: theme.colors.neutral[700],
+  field: "#F1F5FB",
+  fieldBorder: "#E1E9F4",
+  card: "#FFFFFF",
+};
+
+function MailIcon({ color = "#94A3B8" }: { color?: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Rect
+        x="3"
+        y="5"
+        width="18"
+        height="14"
+        rx="2.5"
+        stroke={color}
+        strokeWidth={1.8}
+      />
+      <Path
+        d="M4 7.5L12 13l8-5.5"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+function LockIcon({ color = "#94A3B8" }: { color?: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Rect
+        x="5"
+        y="10"
+        width="14"
+        height="10"
+        rx="2.5"
+        stroke={color}
+        strokeWidth={1.8}
+      />
+      <Path
+        d="M8 10V7.5a4 4 0 018 0V10"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+      <Circle cx="12" cy="15" r="1.3" fill={color} />
+    </Svg>
+  );
+}
+
+function UserIcon({ color = "#94A3B8" }: { color?: string }) {
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Circle cx="12" cy="8" r="3.5" stroke={color} strokeWidth={1.8} />
+      <Path
+        d="M5 19c1.6-3.2 4-4.8 7-4.8s5.4 1.6 7 4.8"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+function EyeIcon({
+  open,
+  color = "#94A3B8",
+}: {
+  open: boolean;
+  color?: string;
+}) {
+  if (open) {
+    return (
+      <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+        <Path
+          d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12s-3.5 6.5-9.5 6.5S2.5 12 2.5 12z"
+          stroke={color}
+          strokeWidth={1.8}
+        />
+        <Circle cx="12" cy="12" r="2.8" stroke={color} strokeWidth={1.8} />
+      </Svg>
+    );
+  }
+  return (
+    <Svg width={20} height={20} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M3 3l18 18M10.5 10.7A2.8 2.8 0 0012 14.8c.5 0 1-.1 1.4-.4M7.1 7.4C5 8.8 3.5 11 3.5 12s3.5 6.5 9.5 6.5c1.6 0 3-.3 4.2-.8M14.2 6.1c.9.3 1.7.7 2.4 1.2C19 8.8 20.5 11 20.5 12c0 .4-.3 1.2-.9 2.1"
+        stroke={color}
+        strokeWidth={1.8}
+        strokeLinecap="round"
+      />
+    </Svg>
+  );
+}
+
+function ChevronLeft({ color = "#FFFFFF" }: { color?: string }) {
+  return (
+    <Svg width={18} height={18} viewBox="0 0 24 24" fill="none">
+      <Path
+        d="M14.5 6l-6 6 6 6"
+        stroke={color}
+        strokeWidth={2.4}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </Svg>
+  );
+}
+
+export default function LoginScreen({ navigation, route }: Props) {
+  const initialMode: AuthMode = route.params?.mode === "signup" ? "signup" : "signin";
+  const [mode, setMode] = useState<AuthMode>(initialMode);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { setCurrentUser } = useUser();
+  const { setPhone, setPassword: setRegPassword, setFirstName, setLastName } =
+    useRegistration();
+
+  const floatAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(floatAnim, {
+          toValue: 1,
+          duration: 2200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 0,
+          duration: 2200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
+    ).start();
+  }, [floatAnim]);
+
+  useEffect(() => {
+    contentAnim.setValue(0);
+    Animated.timing(contentAnim, {
+      toValue: 1,
+      duration: 280,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [mode, contentAnim]);
+
+  const copy = useMemo(
+    () =>
+      mode === "signup"
+        ? {
+            title: "ברוך הבא ל-Invixe",
+            subtitle: "צור חשבון והתחל ללמוד שוק הון בדרך פשוטה ומהנה.",
+            cta: "צור חשבון",
+          }
+        : {
+            title: "טוב לראות אותך שוב",
+            subtitle: "התחבר כדי להמשיך מאיפה שעצרת.",
+            cta: "התחבר",
+          },
+    [mode],
+  );
 
   const getHebrewError = (msg: string) => {
     const lower = msg.toLowerCase();
@@ -51,140 +218,489 @@ export default function LoginScreen({ navigation }: Props) {
       return "משתמש לא נמצא";
     if (lower.includes("password") || lower.includes("credentials"))
       return "סיסמה שגויה";
-    if (lower.includes("invalid")) return "פרטים שגויים, אנא נסו שוב";
+    if (lower.includes("invalid") || lower.includes("missing"))
+      return "פרטים שגויים, אנא נסו שוב";
     return "שגיאה בהתחברות, אנא נסו שוב";
   };
 
-  const handleLogin = async () => {
+  const validate = () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) return "נא להזין אימייל";
+    if (!trimmedEmail.includes("@")) return "כתובת אימייל לא תקינה";
+    if (!password || password.length < 4) return "סיסמה קצרה מדי";
+    if (mode === "signup" && !fullName.trim()) return "נא להזין שם מלא";
+    return "";
+  };
+
+  const handleSignIn = async () => {
     setLoading(true);
     setError("");
     try {
       const res = await fetchWithTimeout(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ phone: email.trim(), password }),
       });
       if (!res.ok) {
-        const data = await res.json();
-        // Translate known backend errors
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Login failed");
       }
       const data = await res.json();
-      await setCurrentUser(data.phone || phone, {
+      await setCurrentUser(data.phone || email.trim(), {
         firstName: data.firstName,
         lastName: data.lastName,
       });
-      navigation.navigate("Map", {});
+      navigation.reset({ index: 0, routes: [{ name: "Map", params: {} }] });
     } catch (e: any) {
-      const msg = e.message || "Network error";
-      setError(getHebrewError(msg));
+      setError(getHebrewError(e.message || "Network error"));
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSignUp = () => {
+    const parts = fullName.trim().split(/\s+/);
+    const first = parts[0] || "";
+    const last = parts.slice(1).join(" ");
+    setPhone(email.trim());
+    setRegPassword(password);
+    setFirstName(first);
+    setLastName(last);
+    navigation.navigate("AgeSelect");
+  };
+
+  const handleSubmit = async () => {
+    const validationError = validate();
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    if (mode === "signin") {
+      await handleSignIn();
+    } else {
+      handleSignUp();
+    }
+  };
+
+  const floatY = floatAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -7],
+  });
+
   return (
     <PageBackground source={require("../../assets/DefaultBlankBackground.png")}>
       <KeyboardAvoidingView
-        style={{ flex: 1, justifyContent: "center" }}
+        style={styles.flex}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        <View style={styles.logoWrap}>
-          <InvixeLogo />
-        </View>
-        <View style={styles.card}>
-          <Text style={styles.title}>התחברות</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="שם משתמש"
-            placeholderTextColor="#8CA0AE"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="default"
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="סיסמה"
-            placeholderTextColor="#8CA0AE"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View
+            style={[styles.mascotWrap, { transform: [{ translateY: floatY }] }]}
+          >
+            <Image
+              source={require("../../assets/Characters/auth_mascot.png")}
+              style={styles.mascot}
+            />
+          </Animated.View>
+
+          <Animated.View
+            style={{
+              opacity: contentAnim,
+              transform: [
+                {
+                  translateY: contentAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [10, 0],
+                  }),
+                },
+              ],
+            }}
+          >
+            <Text style={styles.title}>{copy.title}</Text>
+            <Text style={styles.subtitle}>{copy.subtitle}</Text>
+          </Animated.View>
+
+          <View style={styles.segment}>
+            <Pressable
+              style={[styles.segmentBtn, mode === "signin" && styles.segmentActive]}
+              onPress={() => {
+                setError("");
+                setMode("signin");
+              }}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  mode === "signin" && styles.segmentTextActive,
+                ]}
+              >
+                כבר רשום? התחברות
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.segmentBtn, mode === "signup" && styles.segmentActive]}
+              onPress={() => {
+                setError("");
+                setMode("signup");
+              }}
+            >
+              <Text
+                style={[
+                  styles.segmentText,
+                  mode === "signup" && styles.segmentTextActive,
+                ]}
+              >
+                חדש כאן? הרשמה
+              </Text>
+            </Pressable>
+          </View>
+
+          {mode === "signup" && (
+            <View style={styles.fieldBlock}>
+              <Text style={styles.fieldLabel}>שם מלא</Text>
+              <View style={styles.field}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="ישראל ישראלי"
+                  placeholderTextColor="#A9B4C6"
+                  value={fullName}
+                  onChangeText={setFullName}
+                  textAlign="right"
+                  autoCapitalize="words"
+                />
+                <UserIcon />
+              </View>
+            </View>
+          )}
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>אימייל</Text>
+            <View style={styles.field}>
+              <TextInput
+                style={styles.input}
+                placeholder="you@email.com"
+                placeholderTextColor="#A9B4C6"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                textAlign="right"
+              />
+              <MailIcon />
+            </View>
+          </View>
+
+          <View style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>סיסמה</Text>
+            <View style={styles.field}>
+              <Pressable
+                onPress={() => setShowPassword((v) => !v)}
+                hitSlop={10}
+                style={styles.eyeBtn}
+              >
+                <EyeIcon open={showPassword} />
+              </Pressable>
+              <TextInput
+                style={styles.input}
+                placeholder="••••••••"
+                placeholderTextColor="#A9B4C6"
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry={!showPassword}
+                textAlign="right"
+              />
+              <LockIcon />
+            </View>
+          </View>
+
+          {mode === "signin" && (
+            <Pressable
+              onPress={() =>
+                Alert.alert(
+                  "שחזור סיסמה",
+                  "בקרוב נוסיף שחזור סיסמה. בינתיים פנו לתמיכה.",
+                )
+              }
+              style={styles.forgotWrap}
+            >
+              <Text style={styles.forgot}>שכחת סיסמה?</Text>
+            </Pressable>
+          )}
+
+          {!!error && <Text style={styles.error}>{error}</Text>}
+
           {loading ? (
             <ActivityIndicator
               size="large"
-              color="#3372D8"
-              style={{ marginTop: theme.spacing.md }}
+              color={AUTH.brand}
+              style={{ marginTop: 18 }}
             />
           ) : (
-            <Button text="התחבר" onPress={handleLogin} />
+            <Pressable
+              style={({ pressed }) => [
+                styles.cta,
+                pressed && { transform: [{ scale: 0.98 }] },
+              ]}
+              onPress={handleSubmit}
+            >
+              <Text style={styles.ctaText}>{copy.cta}</Text>
+              <ChevronLeft />
+            </Pressable>
           )}
-          {!!error && <Text style={styles.error}>{error}</Text>}
-          <TouchableOpacity
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>או המשך עם</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <View style={styles.socialRow}>
+            <Pressable
+              style={styles.socialBtn}
+              onPress={() =>
+                Alert.alert("בקרוב", "התחברות עם Apple תתווסף בקרוב.")
+              }
+            >
+              <Text style={styles.socialApple}></Text>
+              <Text style={styles.socialText}>Apple</Text>
+            </Pressable>
+            <Pressable
+              style={styles.socialBtn}
+              onPress={() =>
+                Alert.alert("בקרוב", "התחברות עם Google תתווסף בקרוב.")
+              }
+            >
+              <Text style={styles.socialGoogle}>G</Text>
+              <Text style={styles.socialText}>Google</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.legal}>
+            בהמשך אתה מאשר את תנאי השימוש ומדיניות הפרטיות. התוכן לימודי בלבד
+            ואינו ייעוץ פיננסי.
+          </Text>
+
+          <Pressable
             onPress={() => navigation.navigate("Welcome")}
             style={styles.backBtn}
           >
             <Text style={styles.backBtnText}>חזרה</Text>
-          </TouchableOpacity>
-        </View>
+          </Pressable>
+        </ScrollView>
       </KeyboardAvoidingView>
     </PageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  logoWrap: {
-    alignItems: "center",
-    marginTop: theme.spacing.xl * 1.5,
-    marginBottom: theme.spacing.lg,
+  flex: { flex: 1 },
+  scroll: {
+    flexGrow: 1,
+    paddingHorizontal: 22,
+    paddingTop: 36,
+    paddingBottom: 28,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: theme.spacing.xl,
-    marginHorizontal: theme.spacing.lg,
+  mascotWrap: {
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    elevation: 4,
+    marginBottom: 10,
+  },
+  mascot: {
+    width: 108,
+    height: 108,
+    resizeMode: "contain",
   },
   title: {
-    fontSize: 24,
+    fontSize: 26,
     fontFamily: theme.font.bold,
-    color: "#3372D8",
-    marginBottom: theme.spacing.lg,
+    color: AUTH.ink,
     textAlign: "center",
+    marginBottom: 6,
+  },
+  subtitle: {
+    fontSize: 15,
+    lineHeight: 22,
+    fontFamily: theme.font.family,
+    color: AUTH.muted,
+    textAlign: "center",
+    marginBottom: 18,
+    paddingHorizontal: 8,
+  },
+  segment: {
+    flexDirection: "row-reverse",
+    backgroundColor: "rgba(255,255,255,0.55)",
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 18,
+    borderWidth: 1,
+    borderColor: "rgba(51,114,216,0.08)",
+  },
+  segmentBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 13,
+    alignItems: "center",
+  },
+  segmentActive: {
+    backgroundColor: AUTH.card,
+    shadowColor: "#1F3A80",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  segmentText: {
+    fontSize: 13,
+    fontFamily: theme.font.family,
+    color: "#8A97AB",
+    textAlign: "center",
+  },
+  segmentTextActive: {
+    fontFamily: theme.font.bold,
+    color: AUTH.brand,
+  },
+  fieldBlock: {
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    color: AUTH.label,
+    textAlign: "right",
+    marginBottom: 6,
+    marginRight: 4,
+  },
+  field: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    backgroundColor: AUTH.field,
+    borderWidth: 1.6,
+    borderColor: AUTH.fieldBorder,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    minHeight: 52,
+    gap: 10,
   },
   input: {
-    width: 260,
-    height: 48,
-    backgroundColor: "#F4F7FA",
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    fontSize: 16,
-    marginBottom: theme.spacing.md,
-    textAlign: "right",
+    flex: 1,
+    fontSize: 15.5,
     fontFamily: theme.font.family,
-    color: "#0F2233",
+    color: AUTH.ink,
+    paddingVertical: 12,
+  },
+  eyeBtn: {
+    padding: 2,
+  },
+  forgotWrap: {
+    alignSelf: "flex-start",
+    marginBottom: 4,
+    marginTop: -2,
+  },
+  forgot: {
+    color: AUTH.brandSoft,
+    fontFamily: theme.font.bold,
+    fontSize: 14,
   },
   error: {
-    color: "#D92D20",
+    color: theme.colors.error[600],
     fontSize: 14,
-    marginTop: theme.spacing.sm,
+    marginTop: 8,
     fontFamily: theme.font.family,
     textAlign: "center",
   },
+  cta: {
+    marginTop: 18,
+    backgroundColor: AUTH.brand,
+    borderRadius: 16,
+    paddingVertical: 16,
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    shadowColor: AUTH.brand,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.28,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  ctaText: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontFamily: theme.font.bold,
+  },
+  dividerRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    marginTop: 22,
+    marginBottom: 14,
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "rgba(15,34,51,0.1)",
+  },
+  dividerText: {
+    color: AUTH.muted,
+    fontSize: 13,
+    fontFamily: theme.font.family,
+  },
+  socialRow: {
+    flexDirection: "row-reverse",
+    gap: 10,
+  },
+  socialBtn: {
+    flex: 1,
+    backgroundColor: AUTH.card,
+    borderRadius: 14,
+    borderWidth: 1.4,
+    borderColor: AUTH.fieldBorder,
+    minHeight: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row-reverse",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  socialText: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: AUTH.ink,
+  },
+  socialApple: {
+    fontSize: 18,
+    color: AUTH.ink,
+  },
+  socialGoogle: {
+    fontSize: 16,
+    fontFamily: theme.font.bold,
+    color: "#EA4335",
+  },
+  legal: {
+    marginTop: 18,
+    fontSize: 12,
+    lineHeight: 18,
+    color: "#93A0B3",
+    textAlign: "center",
+    fontFamily: theme.font.family,
+    paddingHorizontal: 6,
+  },
   backBtn: {
-    marginTop: theme.spacing.md,
+    marginTop: 14,
+    alignItems: "center",
     paddingVertical: 8,
-    paddingHorizontal: 24,
-    borderRadius: theme.radius.lg,
   },
   backBtnText: {
-    color: "#3372D8",
-    fontSize: 16,
+    color: AUTH.brand,
+    fontSize: 15,
     fontFamily: theme.font.bold,
   },
 });

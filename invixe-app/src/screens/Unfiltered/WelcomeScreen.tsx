@@ -140,13 +140,13 @@ export default function WelcomeScreen({ navigation }: Props) {
         >
           <Button
             text="התחברות"
-            onPress={() => navigation.navigate("Login")}
+            onPress={() => navigation.navigate("Login", { mode: "signin" })}
             style={styles.primaryButton}
           />
           <Button
             text="אני חדש פה – הרשמה"
             variant="secondary"
-            onPress={() => navigation.navigate("Register")}
+            onPress={() => navigation.navigate("Login", { mode: "signup" })}
             style={styles.secondaryButton}
           />
         </Animated.View>

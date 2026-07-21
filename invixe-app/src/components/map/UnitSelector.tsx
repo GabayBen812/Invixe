@@ -117,7 +117,8 @@ export default function UnitSelector({
                     ? "אסטרטגיות DCA, פיזור וניהול סיכונים"
                     : "קריאת דוחות, מכפילים ויתרון תחרותי";
             const badge = idx === 0 ? "מומלץ להתחלה" : undefined;
-            const comingSoon = step.step === 3 || step.step === 4; // "השקעות לטווח ארוך" and "ניתוח פונדמנטלי"
+            // Only long-term investing stays locked; fundamental analysis is live
+            const comingSoon = step.step === 3;
             const level = step.step <= 2 ? "בסיסי" : "מתקדם";
             const duration =
               step.step === 1

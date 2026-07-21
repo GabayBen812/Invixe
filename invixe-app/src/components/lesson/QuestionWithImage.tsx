@@ -54,24 +54,47 @@ export default function QuestionWithImage({
   const [showingExplanation, setShowingExplanation] = useState(false);
   const [imageLoading, setImageLoading] = useState(true);
 
-  const visibleChoices = useMemo(
-    () => choices.filter((c) => getDrillChoicePlainText(c).length > 0),
-    [choices],
-  );
-  const layout = useChoiceDrillLayout(visibleChoices.length || choices.length, {
-    hasMedia: true,
-  });
-
   const resolvedSource = useMemo(() => {
-    if (imageSource && typeof imageSource === 'object' && imageSource.uri) {
+    if (imageSource && typeof imageSource === "object" && imageSource.uri) {
       const normalized = normalizeSupabaseUrl(imageSource.uri);
       return normalized ? { uri: normalized } : imageSource;
     }
     return imageSource;
   }, [imageSource]);
 
+  const visibleChoices = useMemo(
+    () => choices.filter((c) => getDrillChoicePlainText(c).length > 0),
+    [choices],
+  );
+
+  // Reset selection/submit when navigating between consecutive questionWithImage steps
+  // (same component type — without a remount, state would otherwise leak).
+  const contentKey = useMemo(() => {
+    const uri =
+      resolvedSource && typeof resolvedSource === "object" && resolvedSource.uri
+        ? String(resolvedSource.uri)
+        : "";
+    const choiceIds = visibleChoices.map((c) => c.id).join("|");
+    return `${uri}::${choiceIds}`;
+  }, [resolvedSource, visibleChoices]);
+
   useEffect(() => {
-    if (resolvedSource && typeof resolvedSource === 'object' && resolvedSource.uri) {
+    setSelectedChoice(null);
+    setSubmitted(false);
+    setShowingExplanation(false);
+    setImageLoading(true);
+    if (onStateChange) {
+      onStateChange({ showingExplanation: false, canSubmit: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only reset when question content changes
+  }, [contentKey]);
+
+  const layout = useChoiceDrillLayout(visibleChoices.length || choices.length, {
+    hasMedia: true,
+  });
+
+  useEffect(() => {
+    if (resolvedSource && typeof resolvedSource === "object" && resolvedSource.uri) {
       Image.prefetch(resolvedSource.uri)
         .then(() => setImageLoading(false))
         .catch(() => setImageLoading(false));

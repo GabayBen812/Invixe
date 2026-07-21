@@ -67,7 +67,7 @@ function lazyScreen<P extends object>(
 export type RootStackParamList = {
   Splash: undefined;
   Welcome: undefined;
-  Login: undefined;
+  Login: { mode?: "signin" | "signup" } | undefined;
   Register: undefined;
   OnboardingIntro: undefined;
   PhoneLogin: undefined;
