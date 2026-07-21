@@ -20,7 +20,7 @@ export default function SplashScreen({ navigation }: Props) {
     if (isHydrating) return;
 
     const timer = setTimeout(() => {
-      navigation.replace(currentUserEmail ? "Map" : "Welcome");
+      navigation.replace(currentUserEmail ? "Map" : "Login");
     }, 500);
 
     return () => clearTimeout(timer);

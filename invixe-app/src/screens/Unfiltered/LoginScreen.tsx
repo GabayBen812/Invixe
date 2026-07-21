@@ -14,6 +14,7 @@ import {
   ScrollView,
   Alert,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import PageBackground from "../../components/ui/PageBackground";
@@ -146,6 +147,7 @@ function ChevronLeft({ color = "#FFFFFF" }: { color?: string }) {
 }
 
 export default function LoginScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const initialMode: AuthMode = route.params?.mode === "signup" ? "signup" : "signin";
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [fullName, setFullName] = useState("");
@@ -294,7 +296,14 @@ export default function LoginScreen({ navigation, route }: Props) {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scroll}
+          contentContainerStyle={[
+            styles.scroll,
+            {
+              // Clear Dynamic Island / notch — mascot sits below safe top.
+              paddingTop: Math.max(insets.top + 20, 52),
+              paddingBottom: Math.max(insets.bottom + 20, 28),
+            },
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -484,13 +493,6 @@ export default function LoginScreen({ navigation, route }: Props) {
             בהמשך אתה מאשר את תנאי השימוש ומדיניות הפרטיות. התוכן לימודי בלבד
             ואינו ייעוץ פיננסי.
           </Text>
-
-          <Pressable
-            onPress={() => navigation.navigate("Welcome")}
-            style={styles.backBtn}
-          >
-            <Text style={styles.backBtnText}>חזרה</Text>
-          </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>
     </PageBackground>
@@ -502,16 +504,14 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 22,
-    paddingTop: 36,
-    paddingBottom: 28,
   },
   mascotWrap: {
     alignItems: "center",
-    marginBottom: 10,
+    marginBottom: 8,
   },
   mascot: {
-    width: 108,
-    height: 108,
+    width: 96,
+    height: 96,
     resizeMode: "contain",
   },
   title: {
@@ -692,15 +692,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontFamily: theme.font.family,
     paddingHorizontal: 6,
-  },
-  backBtn: {
-    marginTop: 14,
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  backBtnText: {
-    color: AUTH.brand,
-    fontSize: 15,
-    fontFamily: theme.font.bold,
   },
 });

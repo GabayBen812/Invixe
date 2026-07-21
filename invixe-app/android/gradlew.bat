@@ -24,7 +24,7 @@
 @rem ##########################################################################
 
 @rem Set local scope for the variables with windows NT shell
-if "%OS%"=="Windows_NT" setlocal
+if "%OS%"=="Windows_NT" setlocal EnableDelayedExpansion
 
 set DIRNAME=%~dp0
 if "%DIRNAME%"=="" set DIRNAME=.
@@ -68,6 +68,17 @@ echo location of your Java installation. 1>&2
 goto fail
 
 :execute
+@rem Cursor terminals may inherit a long GRADLE_USER_HOME under
+@rem Temp\cursor-sandbox-cache\... which breaks Windows 260-char paths in ninja/CMake.
+echo !GRADLE_USER_HOME! | findstr /I "cursor-sandbox-cache" >NUL
+if !ERRORLEVEL! equ 0 (
+  set "GRADLE_USER_HOME=%USERPROFILE%\.gradle"
+  echo Overriding GRADLE_USER_HOME to !GRADLE_USER_HOME!
+)
+if not defined GRADLE_USER_HOME set "GRADLE_USER_HOME=%USERPROFILE%\.gradle"
+if not defined ANDROID_HOME if exist "%LOCALAPPDATA%\Android\Sdk" set "ANDROID_HOME=%LOCALAPPDATA%\Android\Sdk"
+if defined ANDROID_HOME set "ANDROID_SDK_ROOT=!ANDROID_HOME!"
+
 @rem Setup the command line
 
 set CLASSPATH=%APP_HOME%\gradle\wrapper\gradle-wrapper.jar

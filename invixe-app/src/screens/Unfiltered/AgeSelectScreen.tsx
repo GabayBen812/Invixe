@@ -1,109 +1,134 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  ImageBackground,
-  Image,
-  TouchableOpacity,
-} from "react-native";
+import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
+import OnboardingShell, {
+  OnboardingOptionCard,
+} from "../../components/onboarding/OnboardingShell";
+import Svg, { Circle, Path } from "react-native-svg";
+
+const TOTAL_STEPS = 3;
 
 const ageGroups = [
-  {
-    label: "16 - 21",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-  {
-    label: "21 - 34",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-  {
-    label: "34 - 49",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-  {
-    label: "50+",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-];
+  { label: "מתחת ל-18", icon: "sprout" },
+  { label: "18-24", icon: "bolt" },
+  { label: "25-34", icon: "rocket" },
+  { label: "35-44", icon: "target" },
+  { label: "45-54", icon: "compass" },
+  { label: "55+", icon: "star" },
+] as const;
 
 type Props = NativeStackScreenProps<RootStackParamList, "AgeSelect">;
 
-export default function AgeSelectScreen({ navigation }: Props) {
-  const { setAgeGroup } = useRegistration();
-  const handleSelect = (age: string) => {
-    setAgeGroup(age);
-    navigation.navigate("GoalSelect");
-  };
-  return (
-    <ImageBackground
-      source={require("../../assets/DefaultBlankBackground.png")}
-      style={styles.bg}
-    >
-      <View style={styles.content}>
-        <View style={styles.speechBubble}>
-          <Text style={styles.speechText}>באיזה טווח גילאים אתה?</Text>
-        </View>
-        <Image
-          source={require("../../assets/Characters/character_orange_noback.png")}
-          style={styles.character}
-        />
-        <View style={styles.choices}>
-          {ageGroups.map((group) => (
-            <TouchableOpacity
-              key={group.label}
-              style={styles.choice}
-              onPress={() => handleSelect(group.label)}
-            >
-              <Image source={group.icon} style={styles.icon} />
-              <Text style={styles.choiceText}>{group.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </ImageBackground>
-  );
+function AgeIcon({ kind, color = "#3372D8" }: { kind: string; color?: string }) {
+  switch (kind) {
+    case "sprout":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 20V11M12 11C12 7 9 4 5 4c0 4 3 7 7 7zm0 0c0-4 3-7 7-7 0 4-3 7-7 7z"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case "bolt":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M13 2L4 14h7l-1 8 10-14h-7l0-6z"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case "rocket":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M5 15l-2 6 6-2M14 4l6 6M9.5 14.5L14 10"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
+          <Path
+            d="M14 4c2.5 1 5.5 4 6.5 6.5-2.5 1-5.5 4-6.5 6.5C12 14.5 9.5 11.5 8 9c1.5-1.5 4.5-4 6-5z"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case "target":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="12" r="8" stroke={color} strokeWidth={1.8} />
+          <Circle cx="12" cy="12" r="4.5" stroke={color} strokeWidth={1.8} />
+          <Circle cx="12" cy="12" r="1.5" fill={color} />
+        </Svg>
+      );
+    case "compass":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Circle cx="12" cy="12" r="8" stroke={color} strokeWidth={1.8} />
+          <Path
+            d="M14.8 9.2l-1.6 4.8-4.8 1.6 1.6-4.8 4.8-1.6z"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    default:
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M12 3l2.2 5.4L20 9l-4.4 3.6L17 19l-5-3.2L7 19l1.4-6.4L4 9l5.8-.6L12 3z"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+  }
 }
 
-const styles = StyleSheet.create({
-  bg: { flex: 1, resizeMode: "cover" },
-  content: { flex: 1, justifyContent: "center", alignItems: "center" },
-  speechBubble: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    maxWidth: 300,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  speechText: { fontSize: 18, textAlign: "center", color: "#0F2233" },
-  character: {
-    width: 120,
-    height: 120,
-    resizeMode: "contain",
-    marginBottom: 16,
-  },
-  choices: { width: "100%", alignItems: "center" },
-  choice: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3372D8",
-    borderRadius: 16,
-    padding: 12,
-    marginVertical: 6,
-    width: 260,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  icon: { width: 32, height: 32, marginRight: 16 },
-  choiceText: { color: "white", fontSize: 20, fontWeight: "bold" },
-});
+export default function AgeSelectScreen({ navigation }: Props) {
+  const { data, setAgeGroup } = useRegistration();
+  const [selected, setSelected] = useState(data.ageGroup || "");
+
+  return (
+    <OnboardingShell
+      step={1}
+      totalSteps={TOTAL_STEPS}
+      eyebrow="קצת עליך"
+      title="בן כמה אתה?"
+      subtitle="נתאים את קצב הלמידה והדוגמאות לגיל שלך."
+      onBack={() => navigation.navigate("Login", { mode: "signup" })}
+      ctaDisabled={!selected}
+      onCta={() => {
+        if (!selected) return;
+        setAgeGroup(selected);
+        navigation.navigate("GoalSelect");
+      }}
+    >
+      {ageGroups.map((group) => (
+        <OnboardingOptionCard
+          key={group.label}
+          label={group.label}
+          selected={selected === group.label}
+          onPress={() => setSelected(group.label)}
+          icon={
+            <AgeIcon
+              kind={group.icon}
+              color={selected === group.label ? "#3372D8" : "#5B6B82"}
+            />
+          }
+        />
+      ))}
+    </OnboardingShell>
+  );
+}

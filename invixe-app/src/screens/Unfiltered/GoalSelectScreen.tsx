@@ -1,109 +1,113 @@
-import {
-  View,
-  Text,
-  StyleSheet,
-  ImageBackground,
-  Image,
-  TouchableOpacity,
-} from "react-native";
+import { useState } from "react";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
+import OnboardingShell, {
+  OnboardingOptionCard,
+} from "../../components/onboarding/OnboardingShell";
+import Svg, { Circle, Path } from "react-native-svg";
+
+const TOTAL_STEPS = 3;
 
 const goals = [
-  {
-    label: "הבנת שוק ההון",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-  {
-    label: "השקעה לטווח ארוך",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-  {
-    label: "מסחר יומי",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-  {
-    label: "ניתוח פונדמנטלי",
-    icon: require("../../assets/Characters/character_orange_noback.png"),
-  },
-];
+  { label: "הבנת שוק ההון", icon: "book" },
+  { label: "השקעה לטווח ארוך", icon: "chart" },
+  { label: "מסחר יומי", icon: "bolt" },
+  { label: "ניתוח פונדמנטלי", icon: "search" },
+] as const;
 
 type Props = NativeStackScreenProps<RootStackParamList, "GoalSelect">;
 
-export default function GoalSelectScreen({ navigation }: Props) {
-  const { setGoal } = useRegistration();
-  const handleSelect = (goal: string) => {
-    setGoal(goal);
-    navigation.navigate("OnboardingFinish");
-  };
-  return (
-    <ImageBackground
-      source={require("../../assets/DefaultBlankBackground.png")}
-      style={styles.bg}
-    >
-      <View style={styles.content}>
-        <View style={styles.speechBubble}>
-          <Text style={styles.speechText}>מה המטרה שלך בשוק ההון?</Text>
-        </View>
-        <Image
-          source={require("../../assets/Characters/character_orange_noback.png")}
-          style={styles.character}
-        />
-        <View style={styles.choices}>
-          {goals.map((goal) => (
-            <TouchableOpacity
-              key={goal.label}
-              style={styles.choice}
-              onPress={() => handleSelect(goal.label)}
-            >
-              <Image source={goal.icon} style={styles.icon} />
-              <Text style={styles.choiceText}>{goal.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-    </ImageBackground>
-  );
+function GoalIcon({ kind, color = "#3372D8" }: { kind: string; color?: string }) {
+  switch (kind) {
+    case "book":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 5.5A2.5 2.5 0 016.5 3H20v16H6.5A2.5 2.5 0 004 16.5v-11z"
+            stroke={color}
+            strokeWidth={1.8}
+          />
+          <Path d="M4 16.5h16" stroke={color} strokeWidth={1.8} />
+        </Svg>
+      );
+    case "chart":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M4 19V5M4 19h16"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
+          <Path
+            d="M8 15l3-4 3 2 4-6"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    case "bolt":
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Path
+            d="M13 2L4 14h7l-1 8 10-14h-7l0-6z"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinejoin="round"
+          />
+        </Svg>
+      );
+    default:
+      return (
+        <Svg width={22} height={22} viewBox="0 0 24 24" fill="none">
+          <Circle cx="11" cy="11" r="6.5" stroke={color} strokeWidth={1.8} />
+          <Path
+            d="M16 16l4 4"
+            stroke={color}
+            strokeWidth={1.8}
+            strokeLinecap="round"
+          />
+        </Svg>
+      );
+  }
 }
 
-const styles = StyleSheet.create({
-  bg: { flex: 1, resizeMode: "cover" },
-  content: { flex: 1, justifyContent: "center", alignItems: "center" },
-  speechBubble: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    maxWidth: 300,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  speechText: { fontSize: 18, textAlign: "center", color: "#0F2233" },
-  character: {
-    width: 120,
-    height: 120,
-    resizeMode: "contain",
-    marginBottom: 16,
-  },
-  choices: { width: "100%", alignItems: "center" },
-  choice: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#3372D8",
-    borderRadius: 16,
-    padding: 12,
-    marginVertical: 6,
-    width: 260,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  icon: { width: 32, height: 32, marginRight: 16 },
-  choiceText: { color: "white", fontSize: 18, fontWeight: "bold" },
-});
+export default function GoalSelectScreen({ navigation }: Props) {
+  const { data, setGoal } = useRegistration();
+  const [selected, setSelected] = useState(data.goal || "");
+
+  return (
+    <OnboardingShell
+      step={2}
+      totalSteps={TOTAL_STEPS}
+      eyebrow="המטרה שלך"
+      title="מה בא לך להשיג?"
+      subtitle="כך נוכל להציע לך מסלול למידה שמתאים לסגנון שלך."
+      onBack={() => navigation.navigate("AgeSelect")}
+      ctaDisabled={!selected}
+      onCta={() => {
+        if (!selected) return;
+        setGoal(selected);
+        navigation.navigate("OnboardingFinish");
+      }}
+    >
+      {goals.map((goal) => (
+        <OnboardingOptionCard
+          key={goal.label}
+          label={goal.label}
+          selected={selected === goal.label}
+          onPress={() => setSelected(goal.label)}
+          icon={
+            <GoalIcon
+              kind={goal.icon}
+              color={selected === goal.label ? "#3372D8" : "#5B6B82"}
+            />
+          }
+        />
+      ))}
+    </OnboardingShell>
+  );
+}
