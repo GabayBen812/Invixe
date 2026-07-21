@@ -5,6 +5,7 @@ export { default as ThreeInsideDown } from './ThreeInsideDown';
 export { default as MorningStar } from './MorningStar';
 export { default as EveningStar } from './EveningStar';
 export { default as Hammer } from './Hammer';
+export { default as HangingMan } from './HangingMan';
 export { default as LongLeggedDoji } from './Long-LeggedDoji';
 export { default as GravestoneDoji } from './GravestoneDoji';
 export { default as InvertedHammer } from './InvertedHammer';

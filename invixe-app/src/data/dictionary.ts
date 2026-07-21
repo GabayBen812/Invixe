@@ -2,6 +2,7 @@ import React from 'react';
 import {
   DragonflyDoji,
   Hammer,
+  HangingMan,
   LongLeggedDoji,
   GravestoneDoji,
   InvertedHammer,
@@ -129,7 +130,7 @@ export const DICTIONARY_ENTRIES: DictionaryEntry[] = [
     explanation:
       'נר איש תלוי נראה כמו פטיש (גוף קטן למעלה, פתיל תחתון ארוך) אך מופיע בסוף מגמת עלייה. הוא מהווה אזהרה להיפוך אפשרי כלפי מטה.',
     topicId: 'candles',
-    imageComponent: Hammer,
+    imageComponent: HangingMan,
     unlockedByLesson: 203,
     direction: 'bearish',
     reliability: 'medium',
