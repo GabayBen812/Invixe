@@ -20,6 +20,7 @@ app.set('SUPABASE_ONLY', process.env.SUPABASE_ONLY === 'true');
 // API Routes
 app.use('/api/register', require('./routes/register'));
 app.use('/api/login', require('./routes/login'));
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/stocks', require('./routes/stocks'));
 app.use('/api/v2/lessons', require('./routes/v2.lessons'));

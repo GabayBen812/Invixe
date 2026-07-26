@@ -24,6 +24,14 @@ import { useRegistration } from "../../../context/RegistrationContext";
 import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { API_BASE_URL } from "../../config/api";
 import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
+import { isGoogleAuthConfigured } from "../../config/auth";
+import {
+  getSocialAuthErrorMessage,
+  isExpoGo,
+  shouldShowAppleSignIn,
+  signInWithApple,
+  signInWithGoogle,
+} from "../../services/socialAuth";
 
 const API_URL = `${API_BASE_URL}/login`;
 
@@ -155,6 +163,9 @@ export default function LoginScreen({ navigation, route }: Props) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<"google" | "apple" | null>(
+    null,
+  );
   const [error, setError] = useState("");
   const { setCurrentUser } = useUser();
   const { setPhone, setPassword: setRegPassword, setFirstName, setLastName } =
@@ -283,6 +294,46 @@ export default function LoginScreen({ navigation, route }: Props) {
       handleSignUp();
     }
   };
+
+  const completeSocialLogin = async (
+    provider: "google" | "apple",
+    signIn: () => Promise<{ phone: string; firstName?: string | null; lastName?: string | null }>,
+  ) => {
+    if (loading || socialLoading) return;
+    setError("");
+    setSocialLoading(provider);
+    try {
+      const result = await signIn();
+      await setCurrentUser(result.phone, {
+        firstName: result.firstName ?? undefined,
+        lastName: result.lastName ?? undefined,
+      });
+      navigation.reset({ index: 0, routes: [{ name: "Map", params: {} }] });
+    } catch (e: unknown) {
+      const message = getSocialAuthErrorMessage(e);
+      if (message) {
+        setError(getHebrewError(message));
+      }
+    } finally {
+      setSocialLoading(null);
+    }
+  };
+
+  const handleGoogleSignIn = () => {
+    if (!isGoogleAuthConfigured()) {
+      setError("התחברות Google לא הוגדרה עדיין");
+      return;
+    }
+    void completeSocialLogin("google", signInWithGoogle);
+  };
+
+  const handleAppleSignIn = () => {
+    void completeSocialLogin("apple", signInWithApple);
+  };
+
+  const showAppleButton = shouldShowAppleSignIn();
+  const showSocialLogin = !isExpoGo();
+  const isBusy = loading || socialLoading !== null;
 
   const floatY = floatAnim.interpolate({
     inputRange: [0, 1],
@@ -454,40 +505,70 @@ export default function LoginScreen({ navigation, route }: Props) {
               style={({ pressed }) => [
                 styles.cta,
                 pressed && { transform: [{ scale: 0.98 }] },
+                isBusy && styles.ctaDisabled,
               ]}
               onPress={handleSubmit}
+              disabled={isBusy}
             >
               <Text style={styles.ctaText}>{copy.cta}</Text>
               <ChevronLeft />
             </Pressable>
           )}
 
-          <View style={styles.dividerRow}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>או המשך עם</Text>
-            <View style={styles.dividerLine} />
-          </View>
+          {showSocialLogin ? (
+            <>
+              <View style={styles.dividerRow}>
+                <View style={styles.dividerLine} />
+                <Text style={styles.dividerText}>או המשך עם</Text>
+                <View style={styles.dividerLine} />
+              </View>
 
-          <View style={styles.socialRow}>
-            <Pressable
-              style={styles.socialBtn}
-              onPress={() =>
-                Alert.alert("בקרוב", "התחברות עם Apple תתווסף בקרוב.")
-              }
-            >
-              <Text style={styles.socialApple}></Text>
-              <Text style={styles.socialText}>Apple</Text>
-            </Pressable>
-            <Pressable
-              style={styles.socialBtn}
-              onPress={() =>
-                Alert.alert("בקרוב", "התחברות עם Google תתווסף בקרוב.")
-              }
-            >
-              <Text style={styles.socialGoogle}>G</Text>
-              <Text style={styles.socialText}>Google</Text>
-            </Pressable>
-          </View>
+              <View
+                style={[
+                  styles.socialRow,
+                  !showAppleButton && styles.socialRowSingle,
+                ]}
+              >
+                {showAppleButton ? (
+                  <Pressable
+                    style={[
+                      styles.socialBtn,
+                      isBusy && styles.socialBtnDisabled,
+                    ]}
+                    onPress={handleAppleSignIn}
+                    disabled={isBusy}
+                  >
+                    {socialLoading === "apple" ? (
+                      <ActivityIndicator color={AUTH.ink} size="small" />
+                    ) : (
+                      <>
+                        <Text style={styles.socialApple}></Text>
+                        <Text style={styles.socialText}>Apple</Text>
+                      </>
+                    )}
+                  </Pressable>
+                ) : null}
+                <Pressable
+                  style={[
+                    styles.socialBtn,
+                    !showAppleButton && styles.socialBtnFull,
+                    isBusy && styles.socialBtnDisabled,
+                  ]}
+                  onPress={handleGoogleSignIn}
+                  disabled={isBusy}
+                >
+                  {socialLoading === "google" ? (
+                    <ActivityIndicator color={AUTH.ink} size="small" />
+                  ) : (
+                    <>
+                      <Text style={styles.socialGoogle}>G</Text>
+                      <Text style={styles.socialText}>Google</Text>
+                    </>
+                  )}
+                </Pressable>
+              </View>
+            </>
+          ) : null}
 
           <Text style={styles.legal}>
             בהמשך אתה מאשר את תנאי השימוש ומדיניות הפרטיות. התוכן לימודי בלבד
@@ -632,6 +713,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: theme.font.bold,
   },
+  ctaDisabled: {
+    opacity: 0.65,
+  },
   dividerRow: {
     flexDirection: "row-reverse",
     alignItems: "center",
@@ -653,6 +737,9 @@ const styles = StyleSheet.create({
     flexDirection: "row-reverse",
     gap: 10,
   },
+  socialRowSingle: {
+    flexDirection: "column",
+  },
   socialBtn: {
     flex: 1,
     backgroundColor: AUTH.card,
@@ -669,6 +756,13 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 1,
+  },
+  socialBtnFull: {
+    flex: 0,
+    width: "100%",
+  },
+  socialBtnDisabled: {
+    opacity: 0.65,
   },
   socialText: {
     fontSize: 15,
