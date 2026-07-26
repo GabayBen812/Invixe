@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const { parseUserName, buildDisplayName } = require('../utils/userName');
-const { buildDisplayName } = require('../utils/userName');
 
 function getSupabaseClient(req) {
   return req?.app?.get('supabase') || null;

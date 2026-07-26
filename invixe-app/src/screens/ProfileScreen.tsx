@@ -16,6 +16,7 @@ import {
   Modal,
   TextInput,
   KeyboardAvoidingView,
+  Linking,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -53,6 +54,7 @@ import {
   type NormalizedHolding,
 } from "../utils/portfolioNormalize";
 import { getStockLogo } from "../assets/StockLogos";
+import { TERMS_POLICY_URL } from "../config/externalLinks";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Profile">;
 
@@ -493,6 +495,11 @@ export default function ProfileScreen({ navigation }: Props) {
     );
   }, [deleteAccount, navigation]);
 
+  const openTermsPolicy = useCallback(() => {
+    if (!TERMS_POLICY_URL) return;
+    void Linking.openURL(TERMS_POLICY_URL);
+  }, []);
+
   const openTrading = (symbol?: string) =>
     navigation.navigate("Sandbox", symbol ? { symbol } : undefined);
 
@@ -787,21 +794,35 @@ export default function ProfileScreen({ navigation }: Props) {
           onContinue={continueLearning}
         />
 
-        <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
-          <Text style={styles.logoutText}>התנתק</Text>
-        </TouchableOpacity>
+        <View style={styles.accountActions}>
+          <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
+            <Text style={styles.logoutText}>התנתק</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={handleDeleteAccount}
-          style={styles.deleteAccountBtn}
-          disabled={deletingAccount}
-        >
-          {deletingAccount ? (
-            <ActivityIndicator color={theme.colors.error[600]} size="small" />
-          ) : (
-            <Text style={styles.deleteAccountText}>מחק חשבון</Text>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={handleDeleteAccount}
+            style={[
+              styles.deleteAccountBtn,
+              deletingAccount && styles.deleteAccountBtnDisabled,
+            ]}
+            disabled={deletingAccount}
+          >
+            {deletingAccount ? (
+              <ActivityIndicator color="#FFFFFF" size="small" />
+            ) : (
+              <Text style={styles.deleteAccountText}>מחק חשבון</Text>
+            )}
+          </TouchableOpacity>
+
+          <Pressable
+            onPress={openTermsPolicy}
+            style={styles.termsLinkWrap}
+            accessibilityRole="link"
+            accessibilityLabel="תנאי שימוש ומדיניות פרטיות"
+          >
+            <Text style={styles.termsLinkText}>תנאי שימוש ומדיניות פרטיות</Text>
+          </Pressable>
+        </View>
       </ScrollView>
       <BottomNavbar activeTab="profile" onTabPress={handleTabPress} />
 
@@ -1199,18 +1220,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.font.family,
   },
+  accountActions: {
+    marginTop: 4,
+    gap: 10,
+    alignItems: "stretch",
+  },
   deleteAccountBtn: {
-    alignSelf: "center",
-    paddingVertical: 8,
-    marginBottom: 8,
-    minHeight: 32,
+    alignSelf: "stretch",
+    backgroundColor: theme.colors.error[600],
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    minHeight: 48,
+    alignItems: "center",
     justifyContent: "center",
   },
+  deleteAccountBtnDisabled: {
+    opacity: 0.7,
+  },
   deleteAccountText: {
-    color: theme.colors.error[600],
-    fontSize: 14,
+    color: "#FFFFFF",
+    fontSize: 15,
     fontFamily: theme.font.bold,
-    opacity: 0.85,
+  },
+  termsLinkWrap: {
+    alignSelf: "center",
+    paddingVertical: 6,
+    marginTop: 2,
+  },
+  termsLinkText: {
+    fontSize: 12,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[400],
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
   periodRow: {
     flexDirection: "row",
