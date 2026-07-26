@@ -2,8 +2,7 @@ import { Image } from "react-native";
 import type { LessonStep } from "../modules/lessons/types";
 import { fetchRemoteText } from "./remoteAssetCache";
 import {
-  isRemoteAssetUrl,
-  normalizeSupabaseUrl,
+  resolveLessonRemoteUrl,
   resolveSupabaseAssetUrl,
 } from "./supabaseUrl";
 
@@ -32,25 +31,25 @@ type PreloadOptions = {
 
 function addUnique(
   set: Set<string>,
-  raw?: string | null,
+  ...candidates: Array<string | null | undefined>
 ): string | null {
-  const normalized = normalizeSupabaseUrl(raw);
-  if (!normalized || !isRemoteAssetUrl(normalized)) return null;
-  if (set.has(normalized)) return null;
-  set.add(normalized);
-  return normalized;
+  const resolved = resolveLessonRemoteUrl(...candidates);
+  if (!resolved) return null;
+  if (set.has(resolved)) return null;
+  set.add(resolved);
+  return resolved;
 }
 
 function collectImageUrls(steps: LessonStep[]): string[] {
   const urls = new Set<string>();
 
-  const addImage = (raw?: string | null) => {
-    addUnique(urls, raw);
+  const addImage = (...candidates: Array<string | null | undefined>) => {
+    addUnique(urls, ...candidates);
   };
 
-  const addSvg = (raw?: string | null) => {
+  const addSvg = (...candidates: Array<string | null | undefined>) => {
     // SVG URLs are fetched as text, not Image.prefetch
-    addUnique(urls, raw);
+    addUnique(urls, ...candidates);
   };
 
   for (const step of steps) {
@@ -59,16 +58,16 @@ function collectImageUrls(steps: LessonStep[]): string[] {
 
     const qwi = cfg.questionWithImage;
     if (qwi) {
-      addImage(qwi.uploadedImagePublicUrl || qwi.uploadedImageUrl);
-      addSvg(qwi.svgPublicUrl || qwi.svgUrl);
+      addImage(qwi.uploadedImagePublicUrl, qwi.uploadedImageUrl);
+      addSvg(qwi.svgPublicUrl, qwi.svgUrl);
     }
 
     const explanation = cfg.explanation;
     if (explanation) {
       if (explanation.imageType === "svg") {
-        addSvg(explanation.imagePublicUrl || explanation.imageUrl);
+        addSvg(explanation.imagePublicUrl, explanation.imageUrl);
       } else {
-        addImage(explanation.imagePublicUrl || explanation.imageUrl);
+        addImage(explanation.imagePublicUrl, explanation.imageUrl);
       }
     }
 
@@ -76,10 +75,10 @@ function collectImageUrls(steps: LessonStep[]): string[] {
     if (pathSelect?.choices) {
       for (const choice of pathSelect.choices) {
         addImage(choice.explanationImageUrl);
-        addSvg(choice.explanationSvgPublicUrl || choice.explanationSvgUrl);
+        addSvg(choice.explanationSvgPublicUrl, choice.explanationSvgUrl);
         for (const extra of choice.extraExplanations || []) {
           addImage(extra.explanationImageUrl);
-          addSvg(extra.explanationSvgPublicUrl || extra.explanationSvgUrl);
+          addSvg(extra.explanationSvgPublicUrl, extra.explanationSvgUrl);
         }
       }
     }
@@ -87,12 +86,12 @@ function collectImageUrls(steps: LessonStep[]): string[] {
     const svgOptions =
       cfg.svgOptions || cfg.svgMultiSelect?.options || [];
     for (const opt of svgOptions) {
-      addImage(opt.pngPublicUrl || opt.pngUrl);
-      addSvg(opt.svgPublicUrl || opt.svgUrl);
+      addImage(opt.pngPublicUrl, opt.pngUrl);
+      addSvg(opt.svgPublicUrl, opt.svgUrl);
     }
 
     for (const slot of cfg.dragMatch?.slots || []) {
-      addSvg(slot.svgPublicUrl || slot.svgUrl);
+      addSvg(slot.svgPublicUrl, slot.svgUrl);
     }
 
     const rawCfg = cfg as Record<string, unknown>;
@@ -101,26 +100,26 @@ function collectImageUrls(steps: LessonStep[]): string[] {
       if (!block) continue;
 
       addImage(
-        (block.pngPublicUrl as string) ||
-          (block.pngUrl as string) ||
-          (block.imagePublicUrl as string) ||
-          (block.imageUrl as string),
+        block.pngPublicUrl as string,
+        block.pngUrl as string,
+        block.imagePublicUrl as string,
+        block.imageUrl as string,
       );
-      addSvg((block.svgPublicUrl as string) || (block.svgUrl as string));
+      addSvg(block.svgPublicUrl as string, block.svgUrl as string);
 
       const choices = (block.choices as Array<Record<string, unknown>>) || [];
       for (const choice of choices) {
         addImage(
-          (choice.explanationImageUrl as string) ||
-            (choice.pngUrl as string) ||
-            (choice.pngPublicUrl as string) ||
-            (choice.imageUrl as string),
+          choice.explanationImageUrl as string,
+          choice.pngPublicUrl as string,
+          choice.pngUrl as string,
+          choice.imageUrl as string,
         );
         addSvg(
-          (choice.explanationSvgPublicUrl as string) ||
-            (choice.svgPublicUrl as string) ||
-            (choice.explanationSvgUrl as string) ||
-            (choice.svgUrl as string),
+          choice.explanationSvgPublicUrl as string,
+          choice.svgPublicUrl as string,
+          choice.explanationSvgUrl as string,
+          choice.svgUrl as string,
         );
       }
     }

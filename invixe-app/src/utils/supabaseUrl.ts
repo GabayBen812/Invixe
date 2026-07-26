@@ -6,7 +6,29 @@ export function normalizeSupabaseUrl(url?: string | null): string | null {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
   if (!trimmed) return null;
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("blob:") || lower.startsWith("data:")) return null;
   return trimmed;
+}
+
+/** Browser-only URLs from the lesson builder — unusable in React Native. */
+export function isBrowserOnlyUrl(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  const lower = url.trim().toLowerCase();
+  return lower.startsWith("blob:") || lower.startsWith("data:");
+}
+
+/** Pick the first loadable remote URL from lesson-builder fields. */
+export function resolveLessonRemoteUrl(
+  ...candidates: Array<string | null | undefined>
+): string | null {
+  for (const candidate of candidates) {
+    const normalized = normalizeSupabaseUrl(candidate);
+    if (normalized && isRemoteAssetUrl(normalized)) {
+      return normalized;
+    }
+  }
+  return null;
 }
 
 export function isSupabaseStorageUrl(url: string): boolean {

@@ -57,7 +57,7 @@ export default function QuestionWithImage({
   const resolvedSource = useMemo(() => {
     if (imageSource && typeof imageSource === "object" && imageSource.uri) {
       const normalized = normalizeSupabaseUrl(imageSource.uri);
-      return normalized ? { uri: normalized } : imageSource;
+      return normalized ? { uri: normalized } : null;
     }
     return imageSource;
   }, [imageSource]);
@@ -102,6 +102,10 @@ export default function QuestionWithImage({
       setImageLoading(false);
     }
   }, [resolvedSource]);
+
+  const hasImage =
+    resolvedSource &&
+    (typeof resolvedSource !== "object" || !!resolvedSource.uri);
 
   const handleSubmit = () => {
     if (selectedChoice) {
@@ -281,19 +285,23 @@ export default function QuestionWithImage({
     >
       <PracticeMediaSurface style={{ height: layout.mediaHeight }}>
         <View style={[styles.imageContainer, { height: "100%" }]}>
-          {imageLoading && (
-            <View style={styles.imageLoadingContainer}>
-              <ActivityIndicator size="large" color="#3F9FFF" />
-            </View>
-          )}
-          <Image
-            source={resolvedSource}
-            style={[styles.image, imageLoading && styles.imageHidden]}
-            resizeMode="contain"
-            onLoadStart={() => setImageLoading(true)}
-            onLoadEnd={() => setImageLoading(false)}
-            onError={() => setImageLoading(false)}
-          />
+          {hasImage ? (
+            <>
+              {imageLoading && (
+                <View style={styles.imageLoadingContainer}>
+                  <ActivityIndicator size="large" color="#3F9FFF" />
+                </View>
+              )}
+              <Image
+                source={resolvedSource}
+                style={[styles.image, imageLoading && styles.imageHidden]}
+                resizeMode="contain"
+                onLoadStart={() => setImageLoading(true)}
+                onLoadEnd={() => setImageLoading(false)}
+                onError={() => setImageLoading(false)}
+              />
+            </>
+          ) : null}
         </View>
       </PracticeMediaSurface>
 

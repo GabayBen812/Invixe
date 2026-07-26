@@ -10,6 +10,7 @@ import React, {
 import { LessonStep, StepRegistry } from "../modules/lessons/types";
 import { normalizeLessonType } from "../modules/lessons/lessonTheme";
 import { sanitizeLessonContent } from "../utils/decodeHtmlEntities";
+import { normalizeLessonSteps } from "../modules/lessons/lessonUtils";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import {
@@ -150,7 +151,7 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
         const res = await fetchWithTimeout(url);
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = (await res.json()) as LessonStep[];
-        const steps = sanitizeLessonContent(data || []);
+        const steps = normalizeLessonSteps(sanitizeLessonContent(data || []));
         stepsCacheRef.current[cacheKey] = steps;
         return steps;
       } catch (e) {

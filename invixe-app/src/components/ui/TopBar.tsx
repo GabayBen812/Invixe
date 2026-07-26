@@ -84,7 +84,11 @@ export default function TopBar() {
             useNativeDriver: true,
           }),
         ]),
-      ]).start(() => setFloatingLabel(null));
+      ]).start(({ finished }) => {
+        if (finished) {
+          requestAnimationFrame(() => setFloatingLabel(null));
+        }
+      });
 
       return () => {
         if (frame != null) cancelAnimationFrame(frame);

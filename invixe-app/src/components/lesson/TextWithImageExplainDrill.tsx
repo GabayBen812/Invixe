@@ -11,7 +11,7 @@ import HtmlText from "../ui/HtmlText";
 import { useLessonTheme } from "../../context/LessonThemeContext";
 import {
   getAlternateSupabaseUrl,
-  normalizeSupabaseUrl,
+  resolveLessonRemoteUrl,
 } from "../../utils/supabaseUrl";
 import { font } from "../../theme";
 
@@ -38,25 +38,27 @@ export default function TextWithImageExplainDrill({
     [screenHeight],
   );
 
-  const [hasError, setHasError] = useState(false);
-  const [isLoading, setIsLoading] = useState(!!imageUrl);
-  const [activeUri, setActiveUri] = useState(
-    () => (imageUrl ? normalizeSupabaseUrl(imageUrl) || imageUrl : ""),
+  const resolvedImageUrl = useMemo(
+    () => resolveLessonRemoteUrl(imageUrl),
+    [imageUrl],
   );
+  const [hasError, setHasError] = useState(false);
+  const [isLoading, setIsLoading] = useState(!!resolvedImageUrl);
+  const [activeUri, setActiveUri] = useState(() => resolvedImageUrl || "");
   const triedAlternateRef = useRef(false);
 
   useEffect(() => {
-    if (!imageUrl) {
+    if (!resolvedImageUrl) {
       setActiveUri("");
       setHasError(false);
       setIsLoading(false);
       return;
     }
     triedAlternateRef.current = false;
-    setActiveUri(normalizeSupabaseUrl(imageUrl) || imageUrl);
+    setActiveUri(resolvedImageUrl);
     setHasError(false);
     setIsLoading(true);
-  }, [imageUrl]);
+  }, [resolvedImageUrl]);
 
   const handleImageError = () => {
     const alternate = getAlternateSupabaseUrl(activeUri);
@@ -74,7 +76,7 @@ export default function TextWithImageExplainDrill({
     setIsLoading(false);
   };
 
-  const imageContent = imageUrl ? (
+  const imageContent = resolvedImageUrl ? (
     hasError ? (
       <Text
         style={[

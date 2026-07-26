@@ -16,6 +16,7 @@ import { preloadLessonAssetsCached } from "../utils/lessonAssetPreload";
 import {
   getAlternateSupabaseUrl,
   normalizeSupabaseUrl,
+  resolveLessonRemoteUrl,
 } from "../utils/supabaseUrl";
 import { countGradedFromDrillResult } from "../utils/lessonResults";
 import {
@@ -81,6 +82,7 @@ import GraphQuestionDrill from "../components/lesson/GraphQuestionDrill";
 import GraphQuestionExplanationMedia from "../components/lesson/GraphQuestionExplanationMedia";
 import DrillChoiceLabel from "../components/lesson/DrillChoiceLabel";
 import { getDrillChoicePlainText, normalizeDrillChoices } from "../utils/drillFitLayout";
+import { normalizeLessonSteps } from "../modules/lessons/lessonUtils";
 import PathSelectDrill from "../components/lesson/PathSelectDrill";
 import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import TextWithImageExplainDrill from "../components/lesson/TextWithImageExplainDrill";
@@ -565,10 +567,12 @@ export default function LessonScreen({ navigation, route }: Props) {
       const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
       let steps = inMemorySteps[cacheKey];
       if (!steps) {
-        steps = sanitizeLessonContent(await getLessonSteps(lessonId, unitId));
+        steps = normalizeLessonSteps(
+          sanitizeLessonContent(await getLessonSteps(lessonId, unitId)),
+        );
         inMemorySteps[cacheKey] = steps;
       } else {
-        steps = sanitizeLessonContent(steps);
+        steps = normalizeLessonSteps(sanitizeLessonContent(steps));
       }
       if (cancelled) return;
 
@@ -957,25 +961,30 @@ export default function LessonScreen({ navigation, route }: Props) {
   const handleChoice = (nextStep: string) => {
     if (stepTransitionLockRef.current) return;
 
+    const normalizedNextStep =
+      typeof nextStep === "string" ? nextStep.trim() : nextStep;
+
     console.log(
       "handleChoice called with nextStep:",
-      nextStep,
+      normalizedNextStep,
       "from current step:",
       stepId,
     );
 
     // If the next step is a known fail step, navigate to fail immediately
-    if (nextStep === "wrong1") {
+    if (normalizedNextStep === "wrong1") {
       console.log("Navigating to LessonFail");
       navigation.navigate("LessonFail");
       return;
     }
 
     // Check if lesson is complete (empty/undefined nextStep)
-    if (!nextStep || nextStep === "") {
+    if (!normalizedNextStep || normalizedNextStep === "") {
       // Empty nextStep means lesson is complete
       console.log("Empty nextStep, navigating to map");
       nextStep = "map";
+    } else {
+      nextStep = normalizedNextStep;
     }
 
     // Check if nextStep exists in steps
@@ -1485,11 +1494,11 @@ export default function LessonScreen({ navigation, route }: Props) {
           (() => {
             if (!step.activityConfig?.questionWithImage) return null;
 
-            const rawImageUrl =
-              step.activityConfig.questionWithImage.uploadedImagePublicUrl ||
-              step.activityConfig.questionWithImage.uploadedImageUrl ||
-              step.activityConfig.questionWithImage.uploadedImage;
-            const imageUrl = normalizeSupabaseUrl(rawImageUrl);
+            const imageUrl = resolveLessonRemoteUrl(
+              step.activityConfig.questionWithImage.uploadedImagePublicUrl,
+              step.activityConfig.questionWithImage.uploadedImageUrl,
+              step.activityConfig.questionWithImage.uploadedImage,
+            );
 
             return (
               <View style={styles.textWithImageFullScreen}>
@@ -1704,12 +1713,12 @@ export default function LessonScreen({ navigation, route }: Props) {
 
                   if (!step.activityConfig?.questionWithImage) return null;
 
-                  const rawImageUrl =
+                  const imageUrl = resolveLessonRemoteUrl(
                     step.activityConfig.questionWithImage
-                      .uploadedImagePublicUrl ||
-                    step.activityConfig.questionWithImage.uploadedImageUrl ||
-                    step.activityConfig.questionWithImage.uploadedImage;
-                  const imageUrl = normalizeSupabaseUrl(rawImageUrl);
+                      .uploadedImagePublicUrl,
+                    step.activityConfig.questionWithImage.uploadedImageUrl,
+                    step.activityConfig.questionWithImage.uploadedImage,
+                  );
 
                   if (!imageUrl) {
                     console.warn(
@@ -1758,27 +1767,18 @@ export default function LessonScreen({ navigation, route }: Props) {
                         question={
                           step.activityConfig.questionWithImage.question || ""
                         }
-                        imageSource={
-                          step.activityConfig.questionWithImage
-                            .uploadedImagePublicUrl
-                            ? {
-                                uri: step.activityConfig.questionWithImage
-                                  .uploadedImagePublicUrl,
-                              }
-                            : step.activityConfig.questionWithImage
-                                  .uploadedImageUrl
-                              ? {
-                                  uri: step.activityConfig.questionWithImage
-                                    .uploadedImageUrl,
-                                }
-                              : step.activityConfig.questionWithImage
-                                    .uploadedImage
-                                ? {
-                                    uri: step.activityConfig.questionWithImage
-                                      .uploadedImage,
-                                  }
-                                : require("../assets/DefaultBlankBackground.png")
-                        }
+                        imageSource={(() => {
+                          const uri = resolveLessonRemoteUrl(
+                            step.activityConfig.questionWithImage
+                              .uploadedImagePublicUrl,
+                            step.activityConfig.questionWithImage
+                              .uploadedImageUrl,
+                            step.activityConfig.questionWithImage.uploadedImage,
+                          );
+                          return uri
+                            ? { uri }
+                            : require("../assets/DefaultBlankBackground.png");
+                        })()}
                         choices={normalizeDrillChoices(
                           step.activityConfig.questionWithImage.choices,
                           step.choices,
