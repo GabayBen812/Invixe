@@ -5,6 +5,7 @@ import type { RootStackParamList } from "../../navigation/AppNavigator";
 import { useRegistration } from "../../../context/RegistrationContext";
 import { useUser } from "../../context/UserContext";
 import OnboardingShell from "../../components/onboarding/OnboardingShell";
+import TermsScrollGate from "../../components/onboarding/TermsScrollGate";
 import theme from "../../theme";
 import { API_BASE_URL } from "../../config/api";
 import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
@@ -20,6 +21,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const handleRegister = async () => {
     setLoading(true);
@@ -60,7 +62,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       }
       onBack={success ? undefined : () => navigation.navigate("GoalSelect")}
       ctaLabel={success ? "התחל ללמוד" : loading ? "יוצרים חשבון..." : "סיים והרשם"}
-      ctaDisabled={loading}
+      ctaDisabled={loading || (!success && !termsAccepted)}
       onCta={() => {
         if (success) {
           navigation.reset({ index: 0, routes: [{ name: "Map", params: {} }] });
@@ -72,20 +74,24 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       <View style={styles.summaryCard}>
         <Text style={styles.summaryTitle}>סיכום קצר</Text>
         <View style={styles.row}>
-          <Text style={styles.rowValue}>{data.ageGroup || "—"}</Text>
           <Text style={styles.rowLabel}>גיל</Text>
+          <Text style={styles.rowValue}>{data.ageGroup || "—"}</Text>
         </View>
         <View style={styles.row}>
-          <Text style={styles.rowValue}>{data.goal || "—"}</Text>
           <Text style={styles.rowLabel}>מטרה</Text>
+          <Text style={styles.rowValue}>{data.goal || "—"}</Text>
         </View>
         <View style={styles.row}>
+          <Text style={styles.rowLabel}>שם</Text>
           <Text style={styles.rowValue}>
             {[data.firstName, data.lastName].filter(Boolean).join(" ") || "—"}
           </Text>
-          <Text style={styles.rowLabel}>שם</Text>
         </View>
       </View>
+
+      {!success ? (
+        <TermsScrollGate onAcceptedChange={setTermsAccepted} />
+      ) : null}
 
       {loading ? (
         <ActivityIndicator
@@ -129,7 +135,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row-reverse",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     alignItems: "center",
     gap: 12,
   },
@@ -137,13 +143,15 @@ const styles = StyleSheet.create({
     fontFamily: theme.font.family,
     fontSize: 14,
     color: theme.colors.neutral[500],
+    textAlign: "right",
+    flexShrink: 0,
   },
   rowValue: {
     flex: 1,
     fontFamily: theme.font.bold,
     fontSize: 15,
     color: theme.colors.neutral[900],
-    textAlign: "left",
+    textAlign: "right",
   },
   error: {
     color: theme.colors.error[600],
