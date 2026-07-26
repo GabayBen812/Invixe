@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
+const { parseUserName } = require('../utils/userName');
 
 router.post('/', async (req, res) => {
   try {
@@ -13,7 +14,7 @@ router.post('/', async (req, res) => {
     if (!supabase) return res.status(500).json({ error: 'Supabase not configured' });
     const { data: user, error } = await supabase
       .from('User')
-      .select('id, email, password, agegroup, goal')
+      .select('id, email, password, agegroup, goal, name')
       .eq('email', phone)
       .maybeSingle();
     if (error) throw error;
@@ -24,7 +25,15 @@ router.post('/', async (req, res) => {
     if (!valid) {
       return res.status(401).json({ error: 'Invalid password' });
     }
-    res.json({ id: user.id, phone: user.email, ageGroup: user.agegroup ?? user.ageGroup, goal: user.goal });
+    const { firstName, lastName } = parseUserName(user);
+    res.json({
+      id: user.id,
+      phone: user.email,
+      ageGroup: user.agegroup ?? user.ageGroup,
+      goal: user.goal,
+      firstName,
+      lastName,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Login failed' });

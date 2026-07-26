@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { createClient } = require('@supabase/supabase-js');
+const { parseUserName, buildDisplayName } = require('../utils/userName');
+const { buildDisplayName } = require('../utils/userName');
 
 function getSupabaseClient(req) {
   return req?.app?.get('supabase') || null;
@@ -57,7 +59,7 @@ async function getUserRowByEmail(email, supabaseIn) {
   if (!supabase) throw new Error('Supabase not configured');
   const { data: user, error } = await supabase
     .from('User')
-    .select('id, email, coins')
+    .select('id, email, coins, name')
     .eq('email', email)
     .maybeSingle();
   if (error) throw error;
@@ -108,13 +110,90 @@ router.get('/progress', async (req, res) => {
       attempts: attempt.attempts
     })) : [];
     
+    const { firstName, lastName } = parseUserName(user);
+
     res.json({
       completedLessons,
       lessonAttempts,
       coins: user.coins || 0,
+      firstName,
+      lastName,
     });
   } catch (error) {
     console.error('Error fetching user progress:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST update display name
+router.post('/profile', async (req, res) => {
+  try {
+    const { email, firstName, lastName } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'email is required' });
+    }
+
+    const trimmedFirst = String(firstName || '').trim();
+    const trimmedLast = String(lastName || '').trim();
+    if (!trimmedFirst) {
+      return res.status(400).json({ error: 'firstName is required' });
+    }
+
+    globalThis.__supabase_for_router = req.app.get('supabase') || null;
+    globalThis.__supabase_only = !!req.app.get('SUPABASE_ONLY');
+    const supabase = req.app.get('supabase');
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const user = await getUserRowByEmail(email, supabase);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const displayName = buildDisplayName(trimmedFirst, trimmedLast);
+    const { error } = await supabase
+      .from('User')
+      .update({ name: displayName })
+      .eq('id', user.id);
+    if (error) throw error;
+
+    return res.json({
+      firstName: trimmedFirst,
+      lastName: trimmedLast || null,
+    });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST permanently delete user account and related data
+router.post('/delete-account', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ error: 'email is required' });
+    }
+
+    globalThis.__supabase_for_router = req.app.get('supabase') || null;
+    globalThis.__supabase_only = !!req.app.get('SUPABASE_ONLY');
+    const supabase = req.app.get('supabase');
+    if (!supabase) throw new Error('Supabase not configured');
+
+    const user = await getUserRowByEmail(email, supabase);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const relatedTables = ['TradeHistory', 'Portfolio', 'LessonAttempt', 'Progress'];
+    for (const table of relatedTables) {
+      const { error } = await supabase.from(table).delete().eq('userid', user.id);
+      if (error) {
+        console.warn(`Failed deleting ${table} for user ${user.id}:`, error.message || error);
+      }
+    }
+
+    const { error: userError } = await supabase.from('User').delete().eq('id', user.id);
+    if (userError) throw userError;
+
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting account:', error);
     res.status(500).json({ error: 'Server error' });
   }
 });

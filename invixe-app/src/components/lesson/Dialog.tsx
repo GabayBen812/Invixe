@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import CharacterPrimarySVG from './CharacterPrimarySVG';
 import HtmlText from '../ui/HtmlText';
+import { sanitizeDisplayText } from '../../utils/decodeHtmlEntities';
 
 export interface DialogMessage {
   id: string;
@@ -34,7 +35,10 @@ export default function Dialog({
   const opacityAnim = new Animated.Value(0);
 
   const currentMessage = messages[currentMessageIndex];
-  const messageHasHtml = currentMessage && /<[^>]+>/.test(currentMessage.text);
+  const sanitizedMessageText = currentMessage
+    ? sanitizeDisplayText(currentMessage.text)
+    : "";
+  const messageHasHtml = /<[^>]+>/.test(sanitizedMessageText);
 
   useEffect(() => {
     if (currentMessage) {
@@ -59,7 +63,7 @@ export default function Dialog({
       ]).start();
 
       if (messageHasHtml) {
-        setDisplayedText(currentMessage.text);
+        setDisplayedText(sanitizedMessageText);
         setIsTyping(false);
         return;
       }
@@ -70,8 +74,8 @@ export default function Dialog({
       // Type out the message
       let charIndex = 0;
       const typeInterval = setInterval(() => {
-        if (charIndex < currentMessage.text.length) {
-          setDisplayedText(currentMessage.text.slice(0, charIndex + 1));
+        if (charIndex < sanitizedMessageText.length) {
+          setDisplayedText(sanitizedMessageText.slice(0, charIndex + 1));
           charIndex++;
         } else {
           setIsTyping(false);

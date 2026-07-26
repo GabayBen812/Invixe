@@ -11,40 +11,110 @@ export type LessonLocation = {
   isSublesson: boolean;
 };
 
-/** Find a main lesson or sublesson inside the live API registry. */
-export function findLessonInRegistry(
-  registry: StepRegistry[],
+export type PlayableLessonRef = {
+  lessonId: number;
+  unitId?: string;
+  stepIndex: number;
+};
+
+function findInStep(
+  step: StepRegistry,
+  stepIndex: number,
   lessonId: number,
 ): LessonLocation | null {
-  for (let stepIndex = 0; stepIndex < registry.length; stepIndex++) {
-    const step = registry[stepIndex];
-    for (const lesson of step.lessons) {
-      if (lesson.id === lessonId) {
+  for (const lesson of step.lessons) {
+    if (lesson.id === lessonId) {
+      return {
+        stepIndex,
+        unitId: step.unitId,
+        lesson,
+        isSublesson: false,
+      };
+    }
+    if (lesson.sublessons?.length) {
+      const sub = lesson.sublessons.find((s) => s.id === lessonId);
+      if (sub) {
         return {
           stepIndex,
           unitId: step.unitId,
-          lesson,
-          isSublesson: false,
+          lesson: sub,
+          parentLesson: lesson,
+          isSublesson: true,
         };
-      }
-      if (lesson.sublessons?.length) {
-        const sub = lesson.sublessons.find((s) => s.id === lessonId);
-        if (sub) {
-          return {
-            stepIndex,
-            unitId: step.unitId,
-            lesson: sub,
-            parentLesson: lesson,
-            isSublesson: true,
-          };
-        }
       }
     }
   }
   return null;
 }
 
-/** Linear playable lesson ids: sublessons expand in order, else main lesson id. */
+/** Find a main lesson or sublesson inside the live API registry. */
+export function findLessonInRegistry(
+  registry: StepRegistry[],
+  lessonId: number,
+  unitId?: string,
+): LessonLocation | null {
+  if (unitId) {
+    const stepIndex = registry.findIndex((step) => step.unitId === unitId);
+    if (stepIndex >= 0) {
+      const match = findInStep(registry[stepIndex], stepIndex, lessonId);
+      if (match) return match;
+    }
+  }
+
+  for (let stepIndex = 0; stepIndex < registry.length; stepIndex++) {
+    const match = findInStep(registry[stepIndex], stepIndex, lessonId);
+    if (match) return match;
+  }
+  return null;
+}
+
+/** Linear playable lessons in map order (sublessons expand in place). */
+export function buildFlatPlayableRefs(
+  registry: StepRegistry[],
+): PlayableLessonRef[] {
+  const refs: PlayableLessonRef[] = [];
+  for (let stepIndex = 0; stepIndex < registry.length; stepIndex++) {
+    const step = registry[stepIndex];
+    for (const lesson of step.lessons) {
+      if (lesson.sublessons?.length) {
+        for (const sub of lesson.sublessons) {
+          refs.push({
+            lessonId: sub.id,
+            unitId: step.unitId,
+            stepIndex,
+          });
+        }
+      } else {
+        refs.push({
+          lessonId: lesson.id,
+          unitId: step.unitId,
+          stepIndex,
+        });
+      }
+    }
+  }
+  return refs;
+}
+
+/** @deprecated Prefer buildFlatPlayableRefs — ids alone are ambiguous across units. */
+export function buildFlatPlayableIds(registry: StepRegistry[]): number[] {
+  return buildFlatPlayableRefs(registry).map((ref) => ref.lessonId);
+}
+
+function findPlayableIndex(
+  refs: PlayableLessonRef[],
+  lessonId: number,
+  unitId?: string,
+): number {
+  if (unitId) {
+    const scoped = refs.findIndex(
+      (ref) => ref.lessonId === lessonId && ref.unitId === unitId,
+    );
+    if (scoped !== -1) return scoped;
+  }
+  return refs.findIndex((ref) => ref.lessonId === lessonId);
+}
+
 export type IncompleteLessonTarget = {
   lessonId: number;
   title: string;
@@ -58,15 +128,19 @@ export function findFirstIncompleteLesson(
   completedLessons: number[],
 ): IncompleteLessonTarget | null {
   const completedSet = new Set(completedLessons);
-  for (const lessonId of buildFlatPlayableIds(registry)) {
-    if (completedSet.has(lessonId)) continue;
-    const location = findLessonInRegistry(registry, lessonId);
+  for (const ref of buildFlatPlayableRefs(registry)) {
+    if (completedSet.has(ref.lessonId)) continue;
+    const location = findLessonInRegistry(
+      registry,
+      ref.lessonId,
+      ref.unitId,
+    );
     if (!location) continue;
     return {
-      lessonId,
+      lessonId: ref.lessonId,
       title: location.lesson.title,
-      unitId: location.unitId,
-      stepIndex: location.stepIndex,
+      unitId: ref.unitId,
+      stepIndex: ref.stepIndex,
     };
   }
   return null;
@@ -88,22 +162,6 @@ export function countUnitsInProgress(
   return count;
 }
 
-export function buildFlatPlayableIds(registry: StepRegistry[]): number[] {
-  const ids: number[] = [];
-  for (const step of registry) {
-    for (const lesson of step.lessons) {
-      if (lesson.sublessons?.length) {
-        for (const sub of lesson.sublessons) {
-          ids.push(sub.id);
-        }
-      } else {
-        ids.push(lesson.id);
-      }
-    }
-  }
-  return ids;
-}
-
 export type NextLessonTarget = {
   lessonId: number;
   unitId?: string;
@@ -111,17 +169,26 @@ export type NextLessonTarget = {
 };
 
 /**
- * Next lesson in the user's path (next sublesson, then next in unit order).
- * Uses the API-backed registry from LessonsContext — not the static stub file.
+ * Next lesson in the user's path — always exactly one step ahead in map order.
+ * Uses unitId when provided so reused lesson codes resolve to the correct unit.
  */
 export function getNextLessonFromRegistry(
   registry: StepRegistry[],
   currentLessonId: number,
+  currentUnitId?: string,
 ): NextLessonTarget | null {
   if (!registry.length) return null;
 
-  for (let stepIndex = 0; stepIndex < registry.length; stepIndex++) {
-    const step = registry[stepIndex];
+  const currentStepIndex =
+    currentUnitId !== undefined
+      ? registry.findIndex((step) => step.unitId === currentUnitId)
+      : -1;
+  const scopedSteps =
+    currentStepIndex >= 0
+      ? [{ step: registry[currentStepIndex], stepIndex: currentStepIndex }]
+      : registry.map((step, stepIndex) => ({ step, stepIndex }));
+
+  for (const { step, stepIndex } of scopedSteps) {
     for (const lesson of step.lessons) {
       if (!lesson.sublessons?.length) continue;
       const subIndex = lesson.sublessons.findIndex(
@@ -137,28 +204,26 @@ export function getNextLessonFromRegistry(
     }
   }
 
-  const flat = buildFlatPlayableIds(registry);
-  const currentIndex = flat.indexOf(currentLessonId);
+  const flat = buildFlatPlayableRefs(registry);
+  const currentIndex = findPlayableIndex(flat, currentLessonId, currentUnitId);
   if (currentIndex === -1 || currentIndex >= flat.length - 1) {
     return null;
   }
 
-  const nextId = flat[currentIndex + 1];
-  const location = findLessonInRegistry(registry, nextId);
-  if (!location) return null;
-
+  const next = flat[currentIndex + 1];
   return {
-    lessonId: nextId,
-    unitId: location.unitId,
-    stepIndex: location.stepIndex,
+    lessonId: next.lessonId,
+    unitId: next.unitId,
+    stepIndex: next.stepIndex,
   };
 }
 
 export function getStepIndexForLessonInRegistry(
   registry: StepRegistry[],
   lessonId: number,
+  unitId?: string,
 ): number | null {
-  return findLessonInRegistry(registry, lessonId)?.stepIndex ?? null;
+  return findLessonInRegistry(registry, lessonId, unitId)?.stepIndex ?? null;
 }
 
 /** Playable step ids in a unit: each sublesson counts, or the main lesson if none. */

@@ -86,7 +86,7 @@ import PathSelectExplanation from "../components/lesson/PathSelectExplanation";
 import TextWithImageExplainDrill from "../components/lesson/TextWithImageExplainDrill";
 import ExplanationDrill from "../components/lesson/ExplanationDrill";
 import HtmlText from "../components/ui/HtmlText";
-import { toPlainDisplayText } from "../utils/decodeHtmlEntities";
+import { toPlainDisplayText, sanitizeLessonContent } from "../utils/decodeHtmlEntities";
 
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
@@ -272,12 +272,9 @@ function SimpleQuestionChoiceList({
   theme: LessonVisualTheme;
 }) {
   const layout = useChoiceDrillLayout(choices.length, { hasMedia: false });
-  const isPractice = theme.variant === "practice";
-  const isGrid = isPractice && choices.length > 2;
   const uniformRowHeight = useUniformChoiceRowHeight(
     choices as unknown as Record<string, unknown>[],
     layout,
-    isGrid ? 200 : 420,
   );
 
   return (
@@ -286,12 +283,12 @@ function SimpleQuestionChoiceList({
         styles.choices,
         styles.choicesSimpleQuestion,
         { gap: layout.choiceGap, paddingHorizontal: 8 },
-        isPractice && styles.choicesSimpleQuestionPractice,
       ]}
     >
       {choices.map((choice, idx) => {
         const isSelected = selectedChoiceIdx === idx;
         const isCorrect = choice.correct === true;
+        const isPractice = theme.variant === "practice";
         let cardStyle: object[] = [
           styles.choiceCard,
           isPractice && {
@@ -350,9 +347,7 @@ function SimpleQuestionChoiceList({
                 paddingHorizontal: layout.choicePaddingHorizontal,
                 marginVertical: 0,
                 minHeight: uniformRowHeight,
-                height: uniformRowHeight,
                 justifyContent: "center",
-                ...(isGrid ? { width: "46%" as const } : {}),
               },
               pressed && !isSubmitted && { transform: [{ scale: 0.985 }] },
             ]}
@@ -384,6 +379,7 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [progressAnim] = useState(new Animated.Value(0));
   const stepTransitionLockRef = useRef(false);
   const lessonId = route.params?.lessonId || 1;
+  const unitId = route.params?.unitId;
   const {
     completedLessons,
     markLessonCompleted,
@@ -392,7 +388,11 @@ export default function LessonScreen({ navigation, route }: Props) {
   } = useUser();
   const { openDictionary } = useDictionary();
   const { getLessonSteps, lessonsRegistry } = useLessons();
-  const lessonMeta = findLessonInRegistry(lessonsRegistry, lessonId)?.lesson;
+  const lessonMeta = findLessonInRegistry(
+    lessonsRegistry,
+    lessonId,
+    unitId,
+  )?.lesson;
   const visualTheme = getThemeForLesson(lessonMeta);
   const isPractice = isPracticeLesson(lessonMeta?.lessonType, lessonMeta?.title);
   const [showCorrectOverlay, setShowCorrectOverlay] = useState(false);
@@ -456,6 +456,29 @@ export default function LessonScreen({ navigation, route }: Props) {
       explanation: string;
     } | null>(null);
   const visitedStepsRef = useRef<Set<string>>(new Set());
+  const maxStepIndexRef = useRef(0);
+  const progressAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
+  const IN_LESSON_PROGRESS_CAP = 0.97;
+
+  const animateLessonProgress = useCallback(
+    (toValue: number, duration = 400) => {
+      progressAnimationRef.current?.stop();
+      const clamped = Math.min(Math.max(toValue, 0), 1);
+      const animation = Animated.timing(progressAnim, {
+        toValue: clamped,
+        duration,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      });
+      progressAnimationRef.current = animation;
+      animation.start(({ finished }) => {
+        if (finished && progressAnimationRef.current === animation) {
+          progressAnimationRef.current = null;
+        }
+      });
+    },
+    [progressAnim],
+  );
 
   const runStepTransition = useCallback(
     (applyStepChange: () => void) => {
@@ -512,6 +535,8 @@ export default function LessonScreen({ navigation, route }: Props) {
       setStepId("intro");
       visitedStepsRef.current.clear();
       visitedStepsRef.current.add("intro");
+      maxStepIndexRef.current = 0;
+      progressAnimationRef.current?.stop();
       fadeAnim.setValue(1);
       slideAnim.setValue(0);
       progressAnim.setValue(0);
@@ -529,8 +554,6 @@ export default function LessonScreen({ navigation, route }: Props) {
   const [preloadStatusText, setPreloadStatusText] = useState("טוען שיעור");
   const [loadProgress, setLoadProgress] = useState(0);
 
-  const unitId = route.params?.unitId;
-
   useEffect(() => {
     let cancelled = false;
     setLessonContentReady(false);
@@ -542,14 +565,17 @@ export default function LessonScreen({ navigation, route }: Props) {
       const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
       let steps = inMemorySteps[cacheKey];
       if (!steps) {
-        steps = await getLessonSteps(lessonId, unitId);
+        steps = sanitizeLessonContent(await getLessonSteps(lessonId, unitId));
         inMemorySteps[cacheKey] = steps;
+      } else {
+        steps = sanitizeLessonContent(steps);
       }
       if (cancelled) return;
 
       setCurrentLessonSteps(steps);
       setLoadProgress(0.28);
       setPreloadStatusText("מכין את השיעור");
+      maxStepIndexRef.current = 0;
 
       const assetBase = 0.28;
       const assetSpan = 0.64;
@@ -586,7 +612,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     };
   }, [lessonId, unitId, getLessonSteps]);
 
-  // Track current step as visited and update progress
+  // Track current step as visited and update progress (monotonic — never jumps backward)
   useEffect(() => {
     if (stepId && currentLessonSteps.length > 0) {
       visitedStepsRef.current.add(stepId);
@@ -594,19 +620,21 @@ export default function LessonScreen({ navigation, route }: Props) {
         `Visited step: "${stepId}". Total visited: ${Array.from(visitedStepsRef.current).join(", ")}`,
       );
 
-      // Calculate and animate progress
       const currentIndex = currentLessonSteps.findIndex(
         (s) => s && s.id === stepId,
       );
-      const progress =
-        currentIndex >= 0 ? (currentIndex + 1) / currentLessonSteps.length : 0;
+      if (currentIndex >= 0) {
+        maxStepIndexRef.current = Math.max(
+          maxStepIndexRef.current,
+          currentIndex,
+        );
+      }
 
-      Animated.timing(progressAnim, {
-        toValue: progress,
-        duration: 400,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: false, // width animation doesn't support native driver
-      }).start();
+      const progress = Math.min(
+        (maxStepIndexRef.current + 1) / currentLessonSteps.length,
+        IN_LESSON_PROGRESS_CAP,
+      );
+      animateLessonProgress(progress);
 
       // Reset graphQuestion state when step changes
       setGraphQuestionViewingExplanation(false);
@@ -614,7 +642,7 @@ export default function LessonScreen({ navigation, route }: Props) {
       setGraphQuestionPNGViewingExplanation(false);
       setGraphQuestionPNGSelectedChoiceId(null);
     }
-  }, [stepId, currentLessonSteps]);
+  }, [stepId, currentLessonSteps, animateLessonProgress]);
 
   // Reset drill state when step changes
   useEffect(() => {
@@ -950,42 +978,6 @@ export default function LessonScreen({ navigation, route }: Props) {
       nextStep = "map";
     }
 
-    // Find current step index and next step index to detect backwards navigation (loops)
-    const currentStepIndex = currentLessonSteps.findIndex(
-      (s) => s && s.id === stepId,
-    );
-    const nextStepIndices = currentLessonSteps
-      .map((s, idx) => (s && s.id === nextStep ? idx : -1))
-      .filter((idx) => idx !== -1);
-
-    console.log(
-      "Current step index:",
-      currentStepIndex,
-      "Next step indices:",
-      nextStepIndices,
-    );
-
-    // If nextStep exists, check if we're going backwards (loop detection)
-    if (nextStep && nextStep !== "map" && nextStepIndices.length > 0) {
-      const lastNextStepIndex = nextStepIndices[nextStepIndices.length - 1]; // Get the LAST occurrence
-      const firstNextStepIndex = nextStepIndices[0]; // Get the FIRST occurrence
-
-      // ONLY detect as a loop if we've ACTUALLY visited that step AND we're going backwards
-      // Don't just skip based on array position - that breaks lessons that reuse step IDs
-      if (
-        visitedStepsRef.current.has(nextStep) &&
-        nextStep !== stepId &&
-        currentStepIndex >= 0 &&
-        firstNextStepIndex < currentStepIndex
-      ) {
-        // We've visited this step before AND we're going backwards in the array
-        console.log(
-          `Loop detected: trying to go to "${nextStep}" from "${stepId}", but we've already visited "${nextStep}" and going backwards`,
-        );
-        nextStep = "map";
-      }
-    }
-
     // Check if nextStep exists in steps
     const nextStepExists = currentLessonSteps.find(
       (s) => s && s.id === nextStep,
@@ -1024,9 +1016,10 @@ export default function LessonScreen({ navigation, route }: Props) {
         })();
       }
 
+      progressAnimationRef.current?.stop();
+
       // Animate progress to 100% first, then fade out, then navigate
       Animated.sequence([
-        // Animate progress bar to 100% - user wants to see this complete
         Animated.timing(progressAnim, {
           toValue: 1,
           duration: 500,
@@ -3253,11 +3246,6 @@ const styles = StyleSheet.create({
     flex: 1,
     width: "100%",
     height: "100%",
-  },
-  choicesSimpleQuestionPractice: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
   },
   content: {
     flex: 1,

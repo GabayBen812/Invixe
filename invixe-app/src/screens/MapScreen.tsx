@@ -21,6 +21,12 @@ import {
   computeUnitProgress,
   isLessonNodeCompleted,
 } from "../modules/lessons/lessonNavigation";
+import {
+  getCourseDescription,
+  getCourseIcon,
+  getCourseTitle,
+} from "../modules/lessons/courseDisplay";
+import { rememberMapUnitIndex } from "../navigation/mapNavigation";
 import { useLessons } from "../context/LessonsContext";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
@@ -539,13 +545,23 @@ export default function MapScreen({ navigation, route }: Props) {
 
   // Sync route params with local state
   React.useEffect(() => {
+    if (route.params?.selectedUnitIdx === null) {
+      setSelectedUnitIdx(null);
+      rememberMapUnitIndex(null);
+      return;
+    }
     if (
       route.params?.selectedUnitIdx !== undefined &&
       route.params?.selectedUnitIdx !== null
     ) {
       setSelectedUnitIdx(route.params.selectedUnitIdx);
+      rememberMapUnitIndex(route.params.selectedUnitIdx);
     }
   }, [route.params?.selectedUnitIdx]);
+
+  React.useEffect(() => {
+    rememberMapUnitIndex(selectedUnitIdx);
+  }, [selectedUnitIdx]);
 
   // New state for Tooltip
   const [activeTooltipId, setActiveTooltipId] = React.useState<number | null>(
@@ -578,6 +594,11 @@ export default function MapScreen({ navigation, route }: Props) {
   const { lessonsRegistry, loadingRegistry, refreshRegistry } = useLessons();
   const activeStep =
     selectedUnitIdx !== null ? lessonsRegistry[selectedUnitIdx] : null;
+  const activeCourseTitle = activeStep ? getCourseTitle(activeStep) : "";
+  const activeCourseDescription = activeStep
+    ? getCourseDescription(activeStep)
+    : "";
+  const ActiveCourseIcon = activeStep ? getCourseIcon(activeStep) : null;
 
   // Unit progress counts every playable step (sublessons when present)
   const unitProgress = React.useMemo(() => {
@@ -930,15 +951,7 @@ export default function MapScreen({ navigation, route }: Props) {
           ]}
         >
           <StickyHeader
-            title={
-              activeStep?.step === 1
-                ? "מבוא לשוק ההון"
-                : activeStep?.step === 2
-                ? "ניתוח טכני"
-                : activeStep?.step === 3
-                ? "השקעות לטווח ארוך"
-                : "ניתוח פונדמנטלי"
-            }
+            title={activeCourseTitle}
             progress={progressPercentage}
           />
         </Animated.View>
@@ -982,34 +995,25 @@ export default function MapScreen({ navigation, route }: Props) {
                 <TouchableOpacity
                   style={styles.backToUnitsButton}
                   activeOpacity={0.8}
-                  onPress={() => setSelectedUnitIdx(null)}
+                  onPress={() => {
+                    setSelectedUnitIdx(null);
+                    rememberMapUnitIndex(null);
+                  }}
                 >
                   <Text style={styles.backToUnitsText}>חזרה לבחירת קורס</Text>
                 </TouchableOpacity>
               </View>
                 {/* Text Right */}
                 <View style={styles.headerTextContainer}>
-                  <Text style={styles.headerTitle}>
-                    {activeStep?.step === 1
-                      ? "מבוא לשוק ההון"
-                      : activeStep?.step === 2
-                      ? "ניתוח טכני"
-                      : activeStep?.step === 3
-                      ? "השקעות לטווח ארוך"
-                      : "ניתוח פונדמנטלי"}
-                  </Text>
+                  <Text style={styles.headerTitle}>{activeCourseTitle}</Text>
                   <Text style={styles.headerSubtitle}>
-                    {activeStep?.step === 1
-                      ? "מושגי יסוד ומונחים"
-                      : activeStep?.step === 2
-                      ? "תמיכה והתנגדות"
-                      : "אסטרטגיות מתקדמות"}
+                    {activeCourseDescription}
                   </Text>
                 </View>
 
                 {/* Icon Left */}
                 <View style={styles.headerIconContainer}>
-                  <TechnicalAnalysisIcon size={56} />
+                  {ActiveCourseIcon ? <ActiveCourseIcon size={56} /> : null}
                 </View>
 
 

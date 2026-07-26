@@ -9,6 +9,7 @@ import React, {
 } from "react";
 import { LessonStep, StepRegistry } from "../modules/lessons/types";
 import { normalizeLessonType } from "../modules/lessons/lessonTheme";
+import { sanitizeLessonContent } from "../utils/decodeHtmlEntities";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import {
@@ -47,6 +48,8 @@ function normalizeRegistry(data: unknown): StepRegistry[] {
     return {
       ...raw,
       unitId: raw.unitId ?? raw.unitid ?? raw.unit_id,
+      title: raw.title,
+      description: raw.description,
       lessons: (raw.lessons || []).map((lesson) => ({
         ...normalizeLessonEntry(lesson),
         sublessons: (lesson.sublessons || []).map((sub) => normalizeLessonEntry(sub)),
@@ -138,7 +141,7 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
     async (lessonId: number, unitId?: string): Promise<LessonStep[]> => {
       const cacheKey = unitId ? `${unitId}:${lessonId}` : `${lessonId}`;
       const cached = stepsCacheRef.current[cacheKey];
-      if (cached) return cached;
+      if (cached) return sanitizeLessonContent(cached);
 
       try {
         const url = unitId
@@ -147,7 +150,7 @@ export function LessonsProvider({ children }: { children: React.ReactNode }) {
         const res = await fetchWithTimeout(url);
         if (!res.ok) throw new Error(`status ${res.status}`);
         const data = (await res.json()) as LessonStep[];
-        const steps = data || [];
+        const steps = sanitizeLessonContent(data || []);
         stepsCacheRef.current[cacheKey] = steps;
         return steps;
       } catch (e) {

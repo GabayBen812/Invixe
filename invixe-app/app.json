@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "invixe-app",
+    "name": "Invixe",
     "slug": "invixe-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/InvixeLogo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#E3EEF9"
     },
 
     "ios": {
@@ -21,7 +21,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/InvixeLogo.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#E3EEF9"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.gabayben812.invixeapp",

@@ -2,6 +2,8 @@ export interface StepRegistry {
   step: number;
   lessons: LessonMetadata[];
   unitId?: string;
+  title?: string;
+  description?: string;
 }
 
 export interface LessonMetadata {

@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { openMapFromTab } from "../navigation/mapNavigation";
 import Button from "../components/ui/Button";
 import theme from "../theme";
 
@@ -14,7 +15,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "LessonFail">;
 
 export default function LessonFailScreen({ navigation }: Props) {
   const handleContinue = () => {
-    navigation.navigate("Map");
+    openMapFromTab(navigation);
   };
 
   return (

@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import { openMapFromTab } from "../navigation/mapNavigation";
 import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
 import ShopSectionHeader from "../components/shop/ShopSectionHeader";
@@ -29,7 +30,7 @@ export default function ShopScreen({ navigation }: Props) {
   const handleTabPress = (tab: "map" | "profile" | "graph") => {
     switch (tab) {
       case "map":
-        navigation.navigate("Map");
+        openMapFromTab(navigation);
         break;
       case "graph":
         navigation.navigate("Sandbox");

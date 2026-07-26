@@ -13,6 +13,9 @@ import {
   Alert,
   ActionSheetIOS,
   Platform,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -29,6 +32,7 @@ import { useDictionary } from "../context/DictionaryContext";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useLessons } from "../context/LessonsContext";
 import { profileAvatarKey } from "../utils/storage";
+import { getDisplayFirstName, getDisplayFullName, hasRealFirstName } from "../utils/userDisplayName";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Svg, { Path, Circle } from "react-native-svg";
 import {
@@ -39,6 +43,10 @@ import {
   countUnitsInProgress,
   findFirstIncompleteLesson,
 } from "../modules/lessons/lessonNavigation";
+import {
+  openMapFromTab,
+  resetToLessonScreen,
+} from "../navigation/mapNavigation";
 import {
   formatPercent,
   formatMoney,
@@ -166,9 +174,11 @@ export default function ProfileScreen({ navigation }: Props) {
     completedLessons,
     lessonAttempts,
     logout,
+    deleteAccount,
     currentUserEmail,
     firstName,
     lastName,
+    updateProfileName,
   } = useUser();
   const { openDictionary, unlockMap } = useDictionary();
   const { lessonsRegistry } = useLessons();
@@ -235,15 +245,13 @@ export default function ProfileScreen({ navigation }: Props) {
     completedLessons,
   );
 
-  const resolvedFirstName =
-    firstName?.trim() ||
-    (currentUserEmail ? currentUserEmail.split("@")[0] : "לומד");
+  const resolvedFirstName = getDisplayFirstName(firstName);
   const resolvedLastName = lastName?.trim() || "";
-  const userName = resolvedLastName
-    ? `${resolvedFirstName} ${resolvedLastName}`
-    : resolvedFirstName;
+  const userName = getDisplayFullName(firstName, lastName);
+  const showNameSetup = !hasRealFirstName(firstName);
 
   const userInitials = (() => {
+    if (showNameSetup) return "?";
     const first = resolvedFirstName.charAt(0);
     const last = resolvedLastName.charAt(0);
     return (first + last).trim() || resolvedFirstName.slice(0, 2).toUpperCase();
@@ -259,6 +267,11 @@ export default function ProfileScreen({ navigation }: Props) {
   const holdingsSectionHeightRef = useRef(0);
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [nameDraftFirst, setNameDraftFirst] = useState("");
+  const [nameDraftLast, setNameDraftLast] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -386,6 +399,39 @@ export default function ProfileScreen({ navigation }: Props) {
     );
   }, [avatarUri, persistAvatar, pickFromLibrary, takePhoto]);
 
+  const openNameModal = useCallback(() => {
+    setNameDraftFirst(firstName?.trim() || "");
+    setNameDraftLast(lastName?.trim() || "");
+    setShowNameModal(true);
+  }, [firstName, lastName]);
+
+  const closeNameModal = useCallback(() => {
+    if (savingName) return;
+    setShowNameModal(false);
+  }, [savingName]);
+
+  const handleSaveName = useCallback(async () => {
+    const trimmedFirst = nameDraftFirst.trim();
+    if (!trimmedFirst) {
+      Alert.alert("חסר שם", "נא להזין שם פרטי.");
+      return;
+    }
+
+    setSavingName(true);
+    const ok = await updateProfileName(trimmedFirst, nameDraftLast.trim());
+    setSavingName(false);
+
+    if (ok) {
+      setShowNameModal(false);
+      return;
+    }
+
+    Alert.alert(
+      "שגיאה",
+      "לא הצלחנו לשמור את השם. בדוק את החיבור ונסה שוב.",
+    );
+  }, [nameDraftFirst, nameDraftLast, updateProfileName]);
+
   const scrollToHoldings = useCallback(() => {
     const viewportH = scrollViewportHeightRef.current;
     const sectionCenter =
@@ -403,7 +449,7 @@ export default function ProfileScreen({ navigation }: Props) {
   const handleTabPress = (tab: "map" | "profile" | "graph") => {
     switch (tab) {
       case "map":
-        navigation.navigate("Map", {});
+        openMapFromTab(navigation);
         break;
       case "graph":
         navigation.navigate("Sandbox");
@@ -418,18 +464,49 @@ export default function ProfileScreen({ navigation }: Props) {
     navigation.reset({ index: 0, routes: [{ name: "Welcome" }] });
   };
 
+  const handleDeleteAccount = useCallback(() => {
+    Alert.alert(
+      "מחיקת חשבון",
+      "פעולה זו תמחק לצמיתות את החשבון, ההתקדמות, התיק והיסטוריית המסחר. לא ניתן לשחזר.",
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "מחק חשבון",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setDeletingAccount(true);
+              const ok = await deleteAccount();
+              setDeletingAccount(false);
+              if (ok) {
+                navigation.reset({ index: 0, routes: [{ name: "Welcome" }] });
+                return;
+              }
+              Alert.alert(
+                "שגיאה",
+                "לא הצלחנו למחוק את החשבון. בדוק את החיבור ונסה שוב.",
+              );
+            })();
+          },
+        },
+      ],
+    );
+  }, [deleteAccount, navigation]);
+
   const openTrading = (symbol?: string) =>
     navigation.navigate("Sandbox", symbol ? { symbol } : undefined);
 
   const continueLearning = () => {
     if (nextLesson) {
-      navigation.navigate("Lesson", {
-        lessonId: nextLesson.lessonId,
-        unitId: nextLesson.unitId,
-      });
+      resetToLessonScreen(
+        navigation,
+        nextLesson.lessonId,
+        nextLesson.unitId,
+        nextLesson.stepIndex,
+      );
       return;
     }
-    navigation.navigate("Map", {});
+    openMapFromTab(navigation);
   };
 
   const renderChangeLabel = (changePercent: number) => {
@@ -516,16 +593,39 @@ export default function ProfileScreen({ navigation }: Props) {
             </View>
           </Pressable>
           <View style={styles.profileTextCol}>
-            <Text style={styles.userName} numberOfLines={1}>
-              {userName}
-            </Text>
+            {showNameSetup ? (
+              <Pressable
+                onPress={openNameModal}
+                accessibilityRole="button"
+                accessibilityLabel="הוסף את שמך"
+                style={({ pressed }) => [
+                  styles.nameSetupBlock,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={[styles.userName, styles.userNamePlaceholder]}>
+                  {userName}
+                </Text>
+                <View style={styles.addNameChip}>
+                  <Text style={styles.addNameChipText}>+ הוסף את שמך</Text>
+                </View>
+              </Pressable>
+            ) : (
+              <Text style={styles.userName} numberOfLines={1}>
+                {userName}
+              </Text>
+            )}
             <View style={styles.badgeChip}>
               <TrophyMiniIcon />
               <Text style={styles.badgeText}>
                 {getInvestorBadge(completedLessons.length)}
               </Text>
             </View>
-            <Text style={styles.avatarHint}>הקש על התמונה לעדכון</Text>
+            <Text style={styles.avatarHint}>
+              {showNameSetup
+                ? "הקש על «הוסף את שמך» או על התמונה לעדכון"
+                : "הקש על התמונה לעדכון"}
+            </Text>
           </View>
         </View>
 
@@ -690,8 +790,89 @@ export default function ProfileScreen({ navigation }: Props) {
         <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
           <Text style={styles.logoutText}>התנתק</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={handleDeleteAccount}
+          style={styles.deleteAccountBtn}
+          disabled={deletingAccount}
+        >
+          {deletingAccount ? (
+            <ActivityIndicator color={theme.colors.error[600]} size="small" />
+          ) : (
+            <Text style={styles.deleteAccountText}>מחק חשבון</Text>
+          )}
+        </TouchableOpacity>
       </ScrollView>
       <BottomNavbar activeTab="profile" onTabPress={handleTabPress} />
+
+      <Modal
+        visible={showNameModal}
+        transparent
+        animationType="fade"
+        onRequestClose={closeNameModal}
+      >
+        <KeyboardAvoidingView
+          style={styles.nameModalOverlay}
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
+          <Pressable style={styles.nameModalBackdrop} onPress={closeNameModal} />
+          <View style={styles.nameModalSheet}>
+            <Text style={styles.nameModalTitle}>איך לקרוא לך?</Text>
+            <Text style={styles.nameModalSubtitle}>
+              השם יופיע בפרופיל ובמסך הבית.
+            </Text>
+
+            <Text style={styles.nameFieldLabel}>שם פרטי</Text>
+            <TextInput
+              style={styles.nameInput}
+              value={nameDraftFirst}
+              onChangeText={setNameDraftFirst}
+              placeholder="לדוגמה: יוסי"
+              placeholderTextColor={theme.colors.neutral[400]}
+              textAlign="right"
+              autoFocus
+              returnKeyType="next"
+            />
+
+            <Text style={styles.nameFieldLabel}>שם משפחה (אופציונלי)</Text>
+            <TextInput
+              style={styles.nameInput}
+              value={nameDraftLast}
+              onChangeText={setNameDraftLast}
+              placeholder="לדוגמה: כהן"
+              placeholderTextColor={theme.colors.neutral[400]}
+              textAlign="right"
+              returnKeyType="done"
+              onSubmitEditing={() => void handleSaveName()}
+            />
+
+            <View style={styles.nameModalActions}>
+              <Pressable
+                style={styles.nameModalCancel}
+                onPress={closeNameModal}
+                disabled={savingName}
+              >
+                <Text style={styles.nameModalCancelText}>ביטול</Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.nameModalSave,
+                  (!nameDraftFirst.trim() || savingName) &&
+                    styles.nameModalSaveDisabled,
+                ]}
+                onPress={() => void handleSaveName()}
+                disabled={!nameDraftFirst.trim() || savingName}
+              >
+                {savingName ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.nameModalSaveText}>שמור</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -731,6 +912,30 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
     textAlign: "right",
     writingDirection: "rtl",
+  },
+  userNamePlaceholder: {
+    color: theme.colors.neutral[400],
+  },
+  nameSetupBlock: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  addNameChip: {
+    backgroundColor: theme.colors.info[100],
+    borderWidth: 1,
+    borderColor: theme.colors.primary[400],
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  addNameChipText: {
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[600],
+    textAlign: "right",
+  },
+  pressed: {
+    opacity: 0.88,
   },
   badgeChip: {
     flexDirection: "row-reverse",
@@ -994,6 +1199,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: theme.font.family,
   },
+  deleteAccountBtn: {
+    alignSelf: "center",
+    paddingVertical: 8,
+    marginBottom: 8,
+    minHeight: 32,
+    justifyContent: "center",
+  },
+  deleteAccountText: {
+    color: theme.colors.error[600],
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    opacity: 0.85,
+  },
   periodRow: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -1022,5 +1240,92 @@ const styles = StyleSheet.create({
   periodValue: {
     fontSize: 13,
     fontFamily: theme.font.bold,
+  },
+  nameModalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 20,
+  },
+  nameModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(15, 34, 51, 0.45)",
+  },
+  nameModalSheet: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    gap: 8,
+    shadowColor: "#0F2233",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
+  },
+  nameModalTitle: {
+    fontSize: 20,
+    fontFamily: theme.font.bold,
+    color: theme.colors.text,
+    textAlign: "right",
+  },
+  nameModalSubtitle: {
+    fontSize: 14,
+    fontFamily: theme.font.family,
+    color: theme.colors.neutral[500],
+    textAlign: "right",
+    marginBottom: 8,
+  },
+  nameFieldLabel: {
+    fontSize: 13,
+    fontFamily: theme.font.bold,
+    color: theme.colors.neutral[700],
+    textAlign: "right",
+    marginTop: 4,
+  },
+  nameInput: {
+    borderWidth: 1,
+    borderColor: theme.colors.border.subtle,
+    borderRadius: 12,
+    backgroundColor: theme.colors.neutral[100],
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontFamily: theme.font.family,
+    color: theme.colors.text,
+    textAlign: "right",
+    writingDirection: "rtl",
+  },
+  nameModalActions: {
+    flexDirection: "row-reverse",
+    gap: 10,
+    marginTop: 12,
+  },
+  nameModalCancel: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.colors.neutral[100],
+  },
+  nameModalCancelText: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: theme.colors.neutral[600],
+  },
+  nameModalSave: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary[500],
+    minHeight: 46,
+  },
+  nameModalSaveDisabled: {
+    opacity: 0.5,
+  },
+  nameModalSaveText: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: "#FFFFFF",
   },
 });

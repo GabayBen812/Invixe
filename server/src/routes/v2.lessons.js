@@ -71,6 +71,8 @@ router.get('/registry', async (req, res) => {
     const registry = Array.from(byUnit.entries()).map(([unitId, { unit, lessons }]) => ({
       step: unit.index,
       unitId,
+      title: unit.title,
+      description: unit.description,
       lessons,
     }));
     return res.json(registry);

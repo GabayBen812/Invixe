@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/AppNavigator';
+import { openMapFromTab } from '../navigation/mapNavigation';
 import TopBar from '../components/ui/TopBar';
 import BottomNavbar from '../components/ui/BottomNavbar';
 import theme from '../theme';
@@ -24,9 +25,9 @@ import { fetchLiveStockQuote } from '../utils/stockQuote';
 import TradingHeader from '../components/trading/TradingHeader';
 import TradingControlsBar from '../components/trading/TradingControlsBar';
 import TradingActionDock from '../components/trading/TradingActionDock';
-import TradingSmaToggle, {
-  SMA_150_COLOR,
-} from '../components/trading/TradingSmaToggle';
+import TradingSmaToggle from '../components/trading/TradingSmaToggle';
+import TradingTrendLineToggle from '../components/trading/TradingTrendLineToggle';
+import { buildTradingViewHtml } from '../components/trading/tradingChartHtml';
 import TradingTickerOverlay from '../components/trading/TradingTickerOverlay';
 import { WebView } from 'react-native-webview';
 
@@ -89,6 +90,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
   );
   const [selectedRange, setSelectedRange] = useState('1d');
   const [sma150Enabled, setSma150Enabled] = useState(false);
+  const [trendLineDrawEnabled, setTrendLineDrawEnabled] = useState(false);
   const [chartReady, setChartReady] = useState(false);
   const webViewBaseRef = useRef<WebView>(null);
   const webViewSmaRef = useRef<WebView>(null);
@@ -104,6 +106,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const smaReveal = useRef(new Animated.Value(0)).current;
   const smaChipReveal = useRef(new Animated.Value(0)).current;
+  const lastDrawingHintRef = useRef('');
 
   useFocusEffect(
     useCallback(() => {
@@ -170,7 +173,12 @@ export default function SandboxScreen({ navigation, route }: Props) {
     });
   }, [smaReveal]);
 
+  const toggleTrendLineDraw = useCallback(() => {
+    setTrendLineDrawEnabled((prev) => !prev);
+  }, []);
+
   useEffect(() => {
+    setTrendLineDrawEnabled(false);
     setChartReady(false);
     smaChipReveal.setValue(0);
     // TradingView free widget sometimes never posts `ready` — still reveal the chip
@@ -202,6 +210,14 @@ export default function SandboxScreen({ navigation, route }: Props) {
       interval: mapRangeToTv(selectedRange),
     });
   }, [selectedRange, postToChart]);
+
+  useEffect(() => {
+    if (!chartReady) return;
+    postToChart({
+      type: 'setTrendLineMode',
+      enabled: trendLineDrawEnabled,
+    });
+  }, [trendLineDrawEnabled, chartReady, postToChart]);
 
   const currentHolding = useMemo(
     () => getHolding(selectedStock.symbol),
@@ -249,10 +265,15 @@ export default function SandboxScreen({ navigation, route }: Props) {
     [toastOpacity, toastTranslateY],
   );
 
+  const clearChartDrawings = useCallback(() => {
+    postToChart({ type: 'clearDrawings' });
+    showToast('קווי המגמה הוסרו מהגרף', 'success');
+  }, [postToChart, showToast]);
+
   const handleTabPress = (tab: 'map' | 'profile' | 'graph') => {
     switch (tab) {
       case 'map':
-        navigation.navigate('Map', {});
+        openMapFromTab(navigation);
         break;
       case 'profile':
         navigation.navigate('Profile');
@@ -366,114 +387,16 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const tvInterval = mapRangeToTv(selectedRange);
 
   const buildTvHtml = useCallback(
-    (withSma: boolean) => {
-      const studiesJson = withSma
-        ? '[{ "id": "MASimple@tv-basicstudies", "inputs": { "length": 150 } }]'
-        : '[]';
-      return (
-        '<!DOCTYPE html>' +
-        '<html lang="he"><head>' +
-        '<meta charset="UTF-8" />' +
-        '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />' +
-        '<style>' +
-        'html,body,#container{margin:0;padding:0;height:100%;width:100%;background:' +
-        chartBgColor +
-        ';overflow:hidden;}' +
-        '#container, #container iframe{touch-action:none;-webkit-user-select:none;user-select:none;}' +
-        '</style>' +
-        '<script src="https://s3.tradingview.com/tv.js"></script>' +
-        '</head><body><div id="container"></div><script>' +
-        'let chartApi;' +
-        'const widget = new TradingView.widget({' +
-        'autosize:true,' +
-        "symbol:'" +
-        selectedStock.symbol +
-        "'," +
-        "interval:'" +
-        tvInterval +
-        "'," +
-        "container_id:'container'," +
-        "locale:'he'," +
-        "theme:'dark'," +
-        "timezone:'Etc/UTC'," +
-        'hide_top_toolbar:true,' +
-        'hide_side_toolbar:true,' +
-        'hide_legend:true,' +
-        'allow_symbol_change:false,' +
-        'enable_publishing:false,' +
-        'studies:' +
-        studiesJson +
-        ',' +
-        'studies_overrides:{' +
-        "\"moving average.ma.color\":'" +
-        SMA_150_COLOR +
-        "'," +
-        '"moving average.ma.linewidth":2,' +
-        '"moving average.ma.transparency":0' +
-        '},' +
-        "enabled_features:['chart_scroll','chart_zoom','horz_touch_drag_scroll','vert_touch_drag_scroll','pinch_scale']," +
-        "disabled_features:['header_widget','left_toolbar','control_bar','timeframes_toolbar','symbol_search_hot_key','header_symbol_search','header_compare','header_undo_redo','header_screenshot','header_chart_type','header_settings','header_indicators','header_saveload','display_market_status','create_volume_indicator_by_default','adaptive_logo']," +
-        'overrides:{' +
-        "\"paneProperties.background\":'" +
-        chartBgColor +
-        "'," +
-        "\"paneProperties.backgroundType\":'solid'," +
-        "\"paneProperties.vertGridProperties.color\":'" +
-        gridColor +
-        "'," +
-        "\"paneProperties.horzGridProperties.color\":'" +
-        gridColor +
-        "'," +
-        "\"scalesProperties.textColor\":'#8CA0AE'," +
-        "\"mainSeriesProperties.candleStyle.upColor\":'" +
-        candleUpColor +
-        "'," +
-        "\"mainSeriesProperties.candleStyle.downColor\":'" +
-        candleDownColor +
-        "'," +
-        "\"mainSeriesProperties.candleStyle.borderUpColor\":'" +
-        candleUpColor +
-        "'," +
-        "\"mainSeriesProperties.candleStyle.borderDownColor\":'" +
-        candleDownColor +
-        "'," +
-        "\"mainSeriesProperties.candleStyle.wickUpColor\":'" +
-        candleUpColor +
-        "'," +
-        "\"mainSeriesProperties.candleStyle.wickDownColor\":'" +
-        candleDownColor +
-        "'" +
-        '}' +
-        '});' +
-        'async function publishQuote(sym){try{' +
-        "const res=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=1d');" +
-        'const json=await res.json();' +
-        'const meta=json&&json.chart&&json.chart.result&&json.chart.result[0]&&json.chart.result[0].meta;' +
-        'if(!meta||!meta.regularMarketPrice)return;' +
-        'const price=meta.regularMarketPrice;' +
-        'const prev=meta.chartPreviousClose||meta.previousClose||price;' +
-        'const changePercent=prev?((price-prev)/prev)*100:0;' +
-        'window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:"quote",symbol:sym,price:price,changePercent:changePercent}));' +
-        '}catch(e){}}' +
-        'function handleMessage(raw){try{' +
-        "const data=JSON.parse(raw||'{}');" +
-        'if(!chartApi)return;' +
-        "if(data.type==='setSymbol'&&data.symbol){chartApi.setSymbol(data.symbol,data.interval||'" +
-        tvInterval +
-        "');publishQuote(data.symbol);}" +
-        "else if(data.type==='setInterval'&&data.interval){chartApi.setResolution(String(data.interval));}" +
-        '}catch(e){}}' +
-        "function notifyReady(){try{window.ReactNativeWebView&&window.ReactNativeWebView.postMessage(JSON.stringify({type:'ready'}));}catch(e){}}" +
-        'widget.onChartReady(function(){try{chartApi=widget.chart();}catch(e){chartApi=null;}' +
-        "const sym='" +
-        selectedStock.symbol +
-        "';" +
-        'publishQuote(sym);setInterval(function(){publishQuote(sym);},15000);notifyReady();setTimeout(notifyReady,400);});' +
-        "document.addEventListener('message',function(event){handleMessage(event.data);});" +
-        "window.addEventListener('message',function(event){handleMessage(event.data);});" +
-        '</script></body></html>'
-      );
-    },
+    (withSma: boolean) =>
+      buildTradingViewHtml({
+        symbol: selectedStock.symbol,
+        interval: tvInterval,
+        withSma,
+        chartBgColor,
+        candleUpColor,
+        candleDownColor,
+        gridColor,
+      }),
     [
       candleDownColor,
       candleUpColor,
@@ -495,6 +418,34 @@ export default function SandboxScreen({ navigation, route }: Props) {
           setChartReady(true);
           return;
         }
+        if (data.type === 'drawing') {
+          const hintKey = `${data.event}:${data.mode ?? ''}`;
+          if (lastDrawingHintRef.current !== hintKey) {
+            lastDrawingHintRef.current = hintKey;
+            setTimeout(() => {
+              if (lastDrawingHintRef.current === hintKey) {
+                lastDrawingHintRef.current = '';
+              }
+            }, 900);
+
+            if (data.event === 'modeOn') {
+              if (data.mode === 'tap') {
+                showToast('הקש שתי נקודות על הגרף לציור קו מגמה', 'success');
+              } else if (data.mode === 'native') {
+                showToast('גרור על הגרף בין שתי נקודות לציור קו מגמה', 'success');
+              } else if (data.ready === false) {
+                showToast('לא הצלחנו להפעיל ציור על הגרף', 'error');
+              }
+            } else if (data.event === 'firstPoint') {
+              showToast('עכשיו הקש את נקודת הסיום', 'success');
+            } else if (data.event === 'lineCreated') {
+              showToast('קו המגמה נוסף', 'success');
+            } else if (data.event === 'lineFailed') {
+              showToast('לא הצלחנו לצייר את הקו — נסה שוב', 'error');
+            }
+          }
+          return;
+        }
         if (
           data.type === 'quote' &&
           data.symbol &&
@@ -512,7 +463,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
         // ignore malformed messages
       }
     },
-    [selectedStock.symbol],
+    [selectedStock.symbol, showToast],
   );
 
   return (
@@ -571,7 +522,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
         <Animated.View
           pointerEvents={chartReady ? 'box-none' : 'none'}
           style={[
-            styles.smaToggle,
+            styles.chartTools,
             {
               opacity: smaChipReveal,
               transform: [
@@ -591,10 +542,24 @@ export default function SandboxScreen({ navigation, route }: Props) {
             },
           ]}
         >
+          <TradingTrendLineToggle
+            enabled={trendLineDrawEnabled}
+            onToggle={toggleTrendLineDraw}
+          />
           <TradingSmaToggle
             enabled={sma150Enabled}
             onToggle={toggleSma150}
           />
+          {trendLineDrawEnabled ? (
+            <TouchableOpacity
+              style={styles.clearDrawingsButton}
+              onPress={clearChartDrawings}
+              accessibilityRole="button"
+              accessibilityLabel="נקה קווי מגמה"
+            >
+              <Text style={styles.clearDrawingsText}>נקה</Text>
+            </TouchableOpacity>
+          ) : null}
         </Animated.View>
         <TradingTickerOverlay
           symbol={selectedStock.symbol}
@@ -778,14 +743,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.surface.darkBg,
   },
-  smaToggle: {
+  chartTools: {
     position: 'absolute',
-    // Mirror TradingView watermark height (bottom-left logo sits ~40–44px up)
-    // and clear the right price scale.
     right: 72,
     bottom: 42,
     zIndex: 5,
     elevation: 8,
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    gap: 8,
+  },
+  clearDrawingsButton: {
+    minHeight: 34,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(248, 113, 113, 0.55)',
+    backgroundColor: 'rgba(69, 10, 10, 0.72)',
+  },
+  clearDrawingsText: {
+    fontSize: 12,
+    fontFamily: theme.font.bold,
+    color: '#FCA5A5',
+    writingDirection: 'rtl',
   },
   modalOverlay: {
     flex: 1,

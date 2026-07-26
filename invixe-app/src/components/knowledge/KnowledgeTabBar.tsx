@@ -2,9 +2,10 @@ import React from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import theme from "../../theme";
 
-export type KnowledgeTab = "glossary" | "journal" | "checklist";
+export type KnowledgeTab = "glossary" | "journal" | "checklist" | "research";
 
 const TABS: { id: KnowledgeTab; label: string }[] = [
+  { id: "research", label: "מחקר" },
   { id: "checklist", label: "צ'קליסט" },
   { id: "journal", label: "יומן" },
   { id: "glossary", label: "מילון" },
@@ -53,7 +54,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   label: {
-    fontSize: 15,
+    fontSize: 13,
     fontFamily: theme.font.family,
     color: theme.colors.neutral[400],
   },

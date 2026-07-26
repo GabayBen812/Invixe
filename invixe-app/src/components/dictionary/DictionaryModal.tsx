@@ -27,6 +27,7 @@ import { dictionaryTextRtl } from "./dictionaryRtl";
 import KnowledgeTabBar, { type KnowledgeTab } from "../knowledge/KnowledgeTabBar";
 import JournalTab from "../knowledge/JournalTab";
 import ChecklistTab from "../knowledge/ChecklistTab";
+import StockResearchTab from "../knowledge/StockResearchTab";
 
 function SearchIcon() {
   return (
@@ -201,6 +202,12 @@ export default function DictionaryModal() {
         {activeTab === "checklist" && (
           <View style={styles.tabContent}>
             <ChecklistTab />
+          </View>
+        )}
+
+        {activeTab === "research" && (
+          <View style={styles.tabContent}>
+            <StockResearchTab />
           </View>
         )}
       </KeyboardAvoidingView>

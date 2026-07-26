@@ -11,15 +11,18 @@ import {
 import theme from "../../theme";
 import ProgressBar from "./ProgressBar";
 import CourseCard from "./CourseCard";
-import {
-  AppCharacterSVG,
-  TechnicalAnalysisIcon,
-  TradingIcon,
-  InvestmentIcon,
-  FundamentalIcon,
-} from "./MapAssets";
+import { AppCharacterSVG } from "./MapAssets";
 import { useLessons } from "../../context/LessonsContext";
 import { useUser } from "../../context/UserContext";
+import { getDisplayFirstName } from "../../utils/userDisplayName";
+import {
+  getCourseDescription,
+  getCourseDurationLabel,
+  getCourseIcon,
+  getCourseLevelLabel,
+  getCourseTitle,
+  isCourseComingSoon,
+} from "../../modules/lessons/courseDisplay";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 const HORIZONTAL_PADDING = 16;
@@ -41,9 +44,8 @@ export default function UnitSelector({
     registryError,
     refreshRegistry,
   } = useLessons();
-  const { firstName, currentUserEmail } = useUser();
-  const greetingName =
-    firstName && firstName.trim().length > 0 ? firstName.trim() : (currentUserEmail ? currentUserEmail.split("@")[0] : "חבר\ה");
+  const { firstName } = useUser();
+  const greetingName = getDisplayFirstName(firstName);
   const showEmptyState =
     !loadingRegistry && lessonsRegistry.length === 0;
   return (
@@ -100,40 +102,13 @@ export default function UnitSelector({
           ) : null}
 
           {lessonsRegistry.map((step, idx) => {
-            const title =
-              step.step === 1
-                ? "מבוא לשוק ההון"
-                : step.step === 2
-                  ? "ניתוח טכני"
-                  : step.step === 3
-                    ? "השקעות לטווח ארוך"
-                    : "ניתוח פונדמנטלי";
-            const subtitle =
-              step.step === 1
-                ? "קריאת גרפים, מגמות ואיתותים"
-                : step.step === 2
-                  ? "איך שוק עובד, סוגי פקודות וסיכונים"
-                  : step.step === 3
-                    ? "אסטרטגיות DCA, פיזור וניהול סיכונים"
-                    : "קריאת דוחות, מכפילים ויתרון תחרותי";
+            const title = getCourseTitle(step);
+            const subtitle = getCourseDescription(step);
             const badge = idx === 0 ? "מומלץ להתחלה" : undefined;
-            // Only long-term investing stays locked; fundamental analysis is live
-            const comingSoon = step.step === 3;
-            const level = step.step <= 2 ? "בסיסי" : "מתקדם";
-            const duration =
-              step.step === 1
-                ? "כ-60 דק׳"
-                : step.step === 2
-                  ? "כ-45 דק׳"
-                  : "כ-50 דק׳";
-            const IconComp =
-              step.step === 1
-                ? TradingIcon
-                : step.step === 2
-                  ? TechnicalAnalysisIcon
-                  : step.step === 3
-                    ? InvestmentIcon
-                    : FundamentalIcon;
+            const comingSoon = isCourseComingSoon(step);
+            const level = getCourseLevelLabel(step);
+            const duration = getCourseDurationLabel(step);
+            const IconComp = getCourseIcon(step);
             return (
               <CourseCard
                 key={`unit-${idx}`}

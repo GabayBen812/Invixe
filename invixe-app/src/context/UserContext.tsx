@@ -13,7 +13,7 @@ import { getParentLessonForSublesson } from "../modules/lessons/registry";
 import { areAllSublessonsCompleted } from "../modules/lessons/lessonUtils";
 import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout, FetchTimeoutError } from "../utils/fetchWithTimeout";
-import { STORAGE_KEYS } from "../utils/storage";
+import { STORAGE_KEYS, profileAvatarKey } from "../utils/storage";
 
 async function withTransientRetry<T>(fn: () => Promise<T>): Promise<T> {
   try {
@@ -68,6 +68,11 @@ interface UserContextType {
   ) => Promise<void>;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
+  updateProfileName: (
+    firstName: string,
+    lastName?: string,
+  ) => Promise<boolean>;
+  deleteAccount: () => Promise<boolean>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -525,6 +530,70 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     [fetchUserData],
   );
 
+  const updateProfileName = useCallback(
+    async (nextFirstName: string, nextLastName?: string) => {
+      const userEmail = currentUserEmailRef.current;
+      const trimmedFirst = nextFirstName.trim();
+      const trimmedLast = nextLastName?.trim() || "";
+      if (!userEmail || !trimmedFirst) return false;
+
+      try {
+        const res = await fetchWithTimeout(`${API_BASE_URL}/user/profile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: userEmail,
+            firstName: trimmedFirst,
+            lastName: trimmedLast || undefined,
+          }),
+        });
+        if (!res.ok) return false;
+
+        const data = (await res.json()) as {
+          firstName?: string;
+          lastName?: string | null;
+        };
+        setFirstNameState(data.firstName?.trim() || trimmedFirst);
+        setLastNameState(data.lastName?.trim() || trimmedLast || null);
+        return true;
+      } catch (e) {
+        console.error("Error updating profile name:", e);
+        return false;
+      }
+    },
+    [],
+  );
+
+  const deleteAccount = useCallback(async () => {
+    const userEmail = currentUserEmailRef.current;
+    if (!userEmail) return false;
+
+    try {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/user/delete-account`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: userEmail }),
+      });
+      if (!res.ok) return false;
+
+      try {
+        await AsyncStorage.removeItem(profileAvatarKey(userEmail));
+      } catch {
+        // ignore local cleanup failures
+      }
+
+      progressFetchGen.current += 1;
+      setCurrentUserEmail(null);
+      currentUserEmailRef.current = null;
+      resetUserState();
+      await AsyncStorage.removeItem(STORAGE_KEYS.sessionEmail);
+      return true;
+    } catch (e) {
+      console.error("Error deleting account:", e);
+      return false;
+    }
+  }, [resetUserState]);
+
   const value = useMemo(
     () => ({
       completedLessons,
@@ -545,6 +614,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setCurrentUser,
       logout,
       refreshUserData,
+      updateProfileName,
+      deleteAccount,
     }),
     [
       completedLessons,
@@ -565,6 +636,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       setCurrentUser,
       logout,
       refreshUserData,
+      updateProfileName,
+      deleteAccount,
     ],
   );
 

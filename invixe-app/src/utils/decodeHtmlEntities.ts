@@ -117,10 +117,42 @@ export function decodeHtmlEntities(text: string): string {
   return out;
 }
 
+/**
+ * Characters that must never appear in user-facing lesson copy.
+ * Includes control/format chars, zero-width marks, replacement/object glyphs,
+ * odd spaces, and private-use code points that often render as empty tofu boxes.
+ */
+const INVISIBLE_OR_BROKEN_CHAR =
+  /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180E\u2000-\u200F\u2028-\u202E\u2060-\u206F\uFEFF\uFFF9-\uFFFD\uE000-\uF8FF]/g;
+
+/** Replace invisible / broken characters with a normal space. */
+export function stripInvisibleCharacters(text: string): string {
+  if (!text || typeof text !== "string") return text;
+  return text.replace(INVISIBLE_OR_BROKEN_CHAR, " ");
+}
+
 /** Decode entities and collapse odd whitespace from CMS HTML. */
 export function sanitizeDisplayText(text: string): string {
   if (!text || typeof text !== "string") return text;
-  return decodeHtmlEntities(text).replace(/\u00A0/g, " ");
+  return stripInvisibleCharacters(decodeHtmlEntities(text)).replace(/\u00A0/g, " ");
+}
+
+/** Recursively sanitize all string fields in lesson JSON (steps, choices, configs). */
+export function sanitizeLessonContent<T>(value: T): T {
+  if (typeof value === "string") {
+    return sanitizeDisplayText(value) as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeLessonContent(item)) as T;
+  }
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value)) {
+      out[key] = sanitizeLessonContent(nested);
+    }
+    return out as T;
+  }
+  return value;
 }
 
 /**

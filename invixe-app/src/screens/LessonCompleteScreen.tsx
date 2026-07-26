@@ -11,9 +11,12 @@ import {
   Easing,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CommonActions } from "@react-navigation/native";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { RootStackParamList } from "../navigation/AppNavigator";
+import {
+  resetToLessonScreen,
+  resetToMapScreen,
+} from "../navigation/mapNavigation";
 import theme from "../theme";
 import { useUser } from "../context/UserContext";
 import { useLessons } from "../context/LessonsContext";
@@ -297,8 +300,11 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
 
   const currentLesson = useMemo(() => {
     if (!lessonId || !lessonsRegistry.length) return null;
-    return findLessonInRegistry(lessonsRegistry, lessonId)?.lesson ?? null;
-  }, [lessonsRegistry, lessonId]);
+    return (
+      findLessonInRegistry(lessonsRegistry, lessonId, unitIdFromRoute)
+        ?.lesson ?? null
+    );
+  }, [lessonsRegistry, lessonId, unitIdFromRoute]);
 
   const visualTheme = useMemo(
     () => getThemeForLesson(currentLesson),
@@ -308,14 +314,22 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
 
   const nextLesson = useMemo(() => {
     if (!lessonId || !lessonsRegistry.length) return null;
-    return getNextLessonFromRegistry(lessonsRegistry, lessonId);
-  }, [lessonsRegistry, lessonId]);
+    return getNextLessonFromRegistry(
+      lessonsRegistry,
+      lessonId,
+      unitIdFromRoute,
+    );
+  }, [lessonsRegistry, lessonId, unitIdFromRoute]);
 
   const mapUnitIndex = useMemo(() => {
     if (!lessonId || !lessonsRegistry.length) return undefined;
-    const idx = getStepIndexForLessonInRegistry(lessonsRegistry, lessonId);
+    const idx = getStepIndexForLessonInRegistry(
+      lessonsRegistry,
+      lessonId,
+      unitIdFromRoute,
+    );
     return idx !== null ? idx : undefined;
-  }, [lessonsRegistry, lessonId]);
+  }, [lessonsRegistry, lessonId, unitIdFromRoute]);
 
   useEffect(() => {
     const grantRemainingCash = async () => {
@@ -348,19 +362,9 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
 
   const resetToMap = useCallback(
     (selectedUnitIdx?: number) => {
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 0,
-          routes: [
-            {
-              name: "Map",
-              params:
-                selectedUnitIdx !== undefined
-                  ? { selectedUnitIdx }
-                  : undefined,
-            },
-          ],
-        }),
+      resetToMapScreen(
+        navigation,
+        selectedUnitIdx !== undefined ? { selectedUnitIdx } : {},
       );
     },
     [navigation],
@@ -372,19 +376,11 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
       targetUnitId?: string,
       selectedUnitIdx?: number,
     ) => {
-      const mapParams =
-        selectedUnitIdx !== undefined ? { selectedUnitIdx } : undefined;
-      navigation.dispatch(
-        CommonActions.reset({
-          index: 1,
-          routes: [
-            { name: "Map", params: mapParams },
-            {
-              name: "Lesson",
-              params: { lessonId: targetLessonId, unitId: targetUnitId },
-            },
-          ],
-        }),
+      resetToLessonScreen(
+        navigation,
+        targetLessonId,
+        targetUnitId,
+        selectedUnitIdx,
       );
     },
     [navigation],
@@ -402,7 +398,11 @@ export default function LessonCompleteScreen({ navigation, route }: Props) {
     const next =
       nextLesson ??
       (lessonsRegistry.length
-        ? getNextLessonFromRegistry(lessonsRegistry, lessonId)
+        ? getNextLessonFromRegistry(
+            lessonsRegistry,
+            lessonId,
+            unitIdFromRoute,
+          )
         : null);
 
     if (next) {
