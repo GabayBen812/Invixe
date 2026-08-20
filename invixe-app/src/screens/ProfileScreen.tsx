@@ -32,6 +32,11 @@ import { useUser } from "../context/UserContext";
 import { useDictionary } from "../context/DictionaryContext";
 import { usePortfolio } from "../context/PortfolioContext";
 import { useLessons } from "../context/LessonsContext";
+import {
+  filterSeriesByPeriod,
+  historyMarketValues,
+  type PortfolioChartPeriod,
+} from "../utils/portfolioHistory";
 import { profileAvatarKey } from "../utils/storage";
 import { getDisplayFirstName, getDisplayFullName, hasRealFirstName } from "../utils/userDisplayName";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -191,8 +196,22 @@ export default function ProfileScreen({ navigation }: Props) {
     portfolioStats,
     getHoldingChangePercent,
     portfolioHistory,
+    portfolioHistorySeries,
     periodReturns: periodReturnsFromSeries,
   } = usePortfolio();
+
+  const [selectedChartPeriod, setSelectedChartPeriod] =
+    useState<PortfolioChartPeriod | null>(null);
+
+  const chartSeries = useMemo(
+    () => filterSeriesByPeriod(portfolioHistorySeries, selectedChartPeriod),
+    [portfolioHistorySeries, selectedChartPeriod],
+  );
+
+  const chartValues = useMemo(
+    () => historyMarketValues(chartSeries),
+    [chartSeries],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -670,44 +689,75 @@ export default function ProfileScreen({ navigation }: Props) {
               </View>
               <PortfolioSparkline
                 width={sparklineWidth}
-                values={portfolioHistory}
+                values={chartValues.length >= 2 ? chartValues : portfolioHistory}
               />
-              {(periodReturns.day != null ||
-                periodReturns.week != null ||
-                periodReturns.month != null) && (
-                <View style={styles.periodRow}>
-                  {[
-                    { label: "יום", value: periodReturns.day },
-                    { label: "שבוע", value: periodReturns.week },
-                    { label: "חודש", value: periodReturns.month },
-                  ].map(({ label, value }, i) => {
-                    if (value === null) return null;
-                    const positive = value > 0.05;
-                    const negative = value < -0.05;
-                    const color = positive
-                      ? theme.colors.growthGreen
-                      : negative
-                        ? theme.colors.error[600]
-                        : theme.colors.neutral[400];
-                    const bg = positive
-                      ? theme.colors.success[100]
-                      : negative
-                        ? theme.colors.error[100]
-                        : theme.colors.neutral[100];
-                    const sign = positive ? "+" : "";
-                    return (
-                      <View key={label} style={[styles.periodItem, i > 0 && styles.periodItemBorder]}>
-                        <Text style={styles.periodLabel}>{label}</Text>
-                        <View style={[styles.periodPill, { backgroundColor: bg }]}>
-                          <Text style={[styles.periodValue, { color }]}>
-                            {sign}{value.toFixed(1)}%
-                          </Text>
-                        </View>
+              <View style={styles.periodRow}>
+                {(
+                  [
+                    { key: "day" as const, label: "יום", value: periodReturns.day },
+                    { key: "week" as const, label: "שבוע", value: periodReturns.week },
+                    { key: "month" as const, label: "חודש", value: periodReturns.month },
+                  ] as const
+                ).map(({ key, label, value }, i) => {
+                  const selected = selectedChartPeriod === key;
+                  const positive = value != null && value > 0.05;
+                  const negative = value != null && value < -0.05;
+                  const color =
+                    value == null
+                      ? theme.colors.neutral[400]
+                      : positive
+                        ? theme.colors.growthGreen
+                        : negative
+                          ? theme.colors.error[600]
+                          : theme.colors.neutral[400];
+                  const bg =
+                    value == null
+                      ? theme.colors.neutral[100]
+                      : positive
+                        ? theme.colors.success[100]
+                        : negative
+                          ? theme.colors.error[100]
+                          : theme.colors.neutral[100];
+                  const sign = positive ? "+" : "";
+                  return (
+                    <Pressable
+                      key={key}
+                      onPress={() =>
+                        setSelectedChartPeriod((current) =>
+                          current === key ? null : key,
+                        )
+                      }
+                      style={[
+                        styles.periodItem,
+                        i > 0 && styles.periodItemBorder,
+                        selected && styles.periodItemSelected,
+                      ]}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                    >
+                      <Text
+                        style={[
+                          styles.periodLabel,
+                          selected && styles.periodLabelSelected,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                      <View
+                        style={[
+                          styles.periodPill,
+                          { backgroundColor: bg },
+                          selected && styles.periodPillSelected,
+                        ]}
+                      >
+                        <Text style={[styles.periodValue, { color }]}>
+                          {value == null ? "—" : `${sign}${value.toFixed(1)}%`}
+                        </Text>
                       </View>
-                    );
-                  })}
-                </View>
-              )}
+                    </Pressable>
+                  );
+                })}
+              </View>
               <Pressable
                 onPress={handleScrollToHoldings}
                 hitSlop={8}
@@ -1264,6 +1314,14 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+  },
+  periodItemSelected: {
+    backgroundColor: theme.colors.info[100],
+    borderWidth: 1,
+    borderColor: theme.colors.primary[400],
   },
   periodItemBorder: {
     borderLeftWidth: 1,
@@ -1274,10 +1332,18 @@ const styles = StyleSheet.create({
     fontFamily: theme.font.family,
     color: theme.colors.neutral[400],
   },
+  periodLabelSelected: {
+    fontFamily: theme.font.bold,
+    color: theme.colors.primary[600],
+  },
   periodPill: {
     borderRadius: theme.radius.pill,
     paddingHorizontal: 8,
     paddingVertical: 2,
+  },
+  periodPillSelected: {
+    borderWidth: 1,
+    borderColor: theme.colors.primary[400],
   },
   periodValue: {
     fontSize: 13,

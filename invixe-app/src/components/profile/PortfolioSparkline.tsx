@@ -23,11 +23,15 @@ function buildPaths(
 
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const span = max - min || 1;
+  const rawSpan = max - min;
+  const padding = rawSpan > 0 ? rawSpan * 0.06 : Math.max(max * 0.015, 1);
+  const paddedMin = min - padding;
+  const paddedMax = max + padding;
+  const span = paddedMax - paddedMin || 1;
 
   const coords = values.map((v, i) => {
     const x = padX + (i / Math.max(n - 1, 1)) * w;
-    const normalized = (v - min) / span;
+    const normalized = (v - paddedMin) / span;
     const y = padTop + (1 - normalized) * h;
     return { x, y };
   });

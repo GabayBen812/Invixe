@@ -2,9 +2,12 @@ const express = require('express');
 const router = express.Router();
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
+const TIINGO_API_TOKEN = process.env.TIINGO_API_TOKEN;
 
 const quoteCache = new Map();
 const historyCache = new Map();
+const CHART_UA =
+  'Mozilla/5.0 (compatible; InvixeServer/1.0; +https://invixe.app)';
 
 if (!FINNHUB_API_KEY) {
   console.warn(
@@ -56,7 +59,7 @@ async function fetchFinnhubQuote(symbol) {
   return { symbol: upper, price, change, changePercent };
 }
 
-async function fetchFinnhubDailyCloses(symbol, range = '1mo') {
+async function fetchFinnhubDailyCloses(symbol, range = '1mo', fromOverride = null) {
   if (!FINNHUB_API_KEY) {
     throw new Error('Finnhub API key not configured');
   }
@@ -64,7 +67,10 @@ async function fetchFinnhubDailyCloses(symbol, range = '1mo') {
   const upper = String(symbol).toUpperCase();
   const days = rangeToDays(range);
   const to = Math.floor(Date.now() / 1000);
-  const from = to - days * 24 * 60 * 60;
+  const from =
+    fromOverride != null && Number.isFinite(Number(fromOverride))
+      ? Math.floor(Number(fromOverride))
+      : to - days * 24 * 60 * 60;
   const url =
     `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(upper)}` +
     `&resolution=D&from=${from}&to=${to}&token=${encodeURIComponent(FINNHUB_API_KEY)}`;
@@ -87,6 +93,159 @@ async function fetchFinnhubDailyCloses(symbol, range = '1mo') {
   return points;
 }
 
+function rangeToYahooParam(range) {
+  switch (String(range || '1mo').toLowerCase()) {
+    case '1d':
+      return '1d';
+    case '5d':
+      return '5d';
+    case '1w':
+      return '5d';
+    case '1mo':
+      return '1mo';
+    case '3mo':
+      return '3mo';
+    case '6mo':
+      return '6mo';
+    case '1y':
+      return '1y';
+    default:
+      return '1mo';
+  }
+}
+
+function parseYahooChartPoints(json) {
+  const result = json?.chart?.result?.[0];
+  const timestamps = result?.timestamp;
+  const closes = result?.indicators?.quote?.[0]?.close;
+  if (!Array.isArray(timestamps) || !Array.isArray(closes)) return [];
+
+  const points = [];
+  for (let i = 0; i < timestamps.length; i++) {
+    const close = Number(closes[i]);
+    const timestamp = Number(timestamps[i]);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    points.push({ timestamp, close });
+  }
+  return points;
+}
+
+/** Finnhub free tier does not include US daily candles — use EOD fallback. */
+async function fetchEodDailyCloses(symbol, range = '1mo', fromOverride = null) {
+  const upper = String(symbol).toUpperCase();
+  const to = Math.floor(Date.now() / 1000);
+  const from =
+    fromOverride != null && Number.isFinite(Number(fromOverride))
+      ? Math.floor(Number(fromOverride))
+      : to - rangeToDays(range) * 24 * 60 * 60;
+
+  let url =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upper)}` +
+    `?interval=1d&period1=${from}&period2=${to}`;
+  let response = await fetch(url, { headers: { 'User-Agent': CHART_UA } });
+  if (!response.ok) {
+    throw new Error(`EOD history failed (${response.status})`);
+  }
+
+  let points = parseYahooChartPoints(await response.json());
+  if (points.length >= 2) return points;
+
+  url =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upper)}` +
+    `?interval=1d&range=${rangeToYahooParam(range)}`;
+  response = await fetch(url, { headers: { 'User-Agent': CHART_UA } });
+  if (!response.ok) {
+    throw new Error(`EOD history failed (${response.status})`);
+  }
+
+  points = parseYahooChartPoints(await response.json());
+  if (points.length < 2) {
+    throw new Error('EOD history missing data');
+  }
+  return points;
+}
+
+async function fetchTiingoDailyCloses(symbol, range = '1mo', fromOverride = null) {
+  if (!TIINGO_API_TOKEN) {
+    throw new Error('Tiingo API token not configured');
+  }
+
+  const upper = String(symbol).toUpperCase();
+  const to = new Date();
+  const from =
+    fromOverride != null && Number.isFinite(Number(fromOverride))
+      ? new Date(Number(fromOverride) * 1000)
+      : new Date(to.getTime() - rangeToDays(range) * 24 * 60 * 60 * 1000);
+  const startDate = from.toISOString().slice(0, 10);
+  const endDate = to.toISOString().slice(0, 10);
+  const url =
+    `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(upper)}/prices` +
+    `?startDate=${startDate}&endDate=${endDate}&token=${encodeURIComponent(TIINGO_API_TOKEN)}`;
+  const response = await fetch(url, { headers: { 'Content-Type': 'application/json' } });
+  if (!response.ok) {
+    throw new Error(`Tiingo EOD failed (${response.status})`);
+  }
+
+  const rows = await response.json();
+  if (!Array.isArray(rows)) {
+    throw new Error('Tiingo EOD missing data');
+  }
+
+  const points = [];
+  for (const row of rows) {
+    const close = Number(row?.adjClose ?? row?.close);
+    const date = String(row?.date || '');
+    const timestamp = Math.floor(new Date(`${date}T00:00:00Z`).getTime() / 1000);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    points.push({ timestamp, close });
+  }
+  return points;
+}
+
+async function fetchDailyClosesForSymbol(symbol, range = '1mo', fromOverride = null) {
+  const upper = String(symbol).toUpperCase();
+  const errors = [];
+
+  if (FINNHUB_API_KEY) {
+    try {
+      const points = await fetchFinnhubDailyCloses(upper, range, fromOverride);
+      if (points.length >= 2) return { points, source: 'finnhub' };
+      errors.push('Finnhub returned insufficient data');
+    } catch (error) {
+      errors.push(`Finnhub: ${error.message}`);
+    }
+  } else {
+    errors.push('Finnhub API key not configured');
+  }
+
+  if (TIINGO_API_TOKEN) {
+    try {
+      const points = await fetchTiingoDailyCloses(upper, range, fromOverride);
+      if (points.length >= 2) return { points, source: 'tiingo' };
+      errors.push('Tiingo returned insufficient data');
+    } catch (error) {
+      errors.push(`Tiingo: ${error.message}`);
+    }
+  }
+
+  try {
+    const points = await fetchEodDailyCloses(upper, range, fromOverride);
+    if (points.length >= 2) {
+      console.warn(
+        `[stocks] Using EOD fallback for ${upper} history (Finnhub free tier lacks US daily candles).`,
+      );
+      return { points, source: 'eod' };
+    }
+    errors.push('EOD fallback returned insufficient data');
+  } catch (error) {
+    errors.push(`EOD: ${error.message}`);
+  }
+
+  throw new Error(errors.join('; '));
+}
+
 async function getLiveQuote(symbol) {
   const upper = String(symbol).toUpperCase();
   const cached = quoteCache.get(upper);
@@ -99,17 +258,21 @@ async function getLiveQuote(symbol) {
   return data;
 }
 
-async function getDailyCloses(symbol, range = '1mo') {
+async function getDailyCloses(symbol, range = '1mo', fromOverride = null) {
   const upper = String(symbol).toUpperCase();
-  const cacheKey = `${upper}:${range}`;
+  const cacheKey = `${upper}:${range}:${fromOverride ?? 'auto'}`;
   const cached = historyCache.get(cacheKey);
   if (cached && Date.now() - cached.ts < 15 * 60_000) {
     return cached.data;
   }
 
-  const points = await fetchFinnhubDailyCloses(upper, range);
+  const { points, source } = await fetchDailyClosesForSymbol(
+    upper,
+    range,
+    fromOverride,
+  );
   if (points.length) {
-    historyCache.set(cacheKey, { data: points, ts: Date.now() });
+    historyCache.set(cacheKey, { data: points, source, ts: Date.now() });
   }
   return points;
 }
@@ -151,7 +314,12 @@ router.get('/:symbol/history', async (req, res) => {
   try {
     const { symbol } = req.params;
     const range = String(req.query.range || '1mo');
-    const points = await getDailyCloses(symbol, range);
+    const fromQuery = req.query.from != null ? Number(req.query.from) : null;
+    const fromOverride =
+      fromQuery != null && Number.isFinite(fromQuery) && fromQuery > 0
+        ? fromQuery
+        : null;
+    const points = await getDailyCloses(symbol, range, fromOverride);
 
     if (!points.length) {
       return res.status(404).json({ error: 'History not found' });

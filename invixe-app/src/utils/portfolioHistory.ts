@@ -26,6 +26,8 @@ export type PortfolioPeriodReturns = {
   month: number | null;
 };
 
+export type PortfolioChartPeriod = "day" | "week" | "month";
+
 export type TradeLike = {
   type: "buy" | "sell";
   symbol: string;
@@ -42,9 +44,13 @@ type LotState = {
 async function fetchApiDailyCloses(
   symbol: string,
   range = "1mo",
+  fromTimestamp?: number,
 ): Promise<PricePoint[]> {
   const upper = symbol.toUpperCase();
-  const url = `${API_BASE_URL}/stocks/${encodeURIComponent(upper)}/history?range=${encodeURIComponent(range)}`;
+  let url = `${API_BASE_URL}/stocks/${encodeURIComponent(upper)}/history?range=${encodeURIComponent(range)}`;
+  if (fromTimestamp != null && fromTimestamp > 0) {
+    url += `&from=${Math.floor(fromTimestamp)}`;
+  }
   const response = await fetchWithTimeout(url);
   if (!response.ok) return [];
 
@@ -66,9 +72,10 @@ async function fetchApiDailyCloses(
 async function fetchDailyCloses(
   symbol: string,
   range = "1mo",
+  fromTimestamp?: number,
 ): Promise<PricePoint[]> {
   try {
-    return await fetchApiDailyCloses(symbol, range);
+    return await fetchApiDailyCloses(symbol, range, fromTimestamp);
   } catch {
     return [];
   }
@@ -225,9 +232,71 @@ function closeOnOrBefore(
 export type BuildPortfolioHistoryOptions = {
   range?: string;
   trades?: TradeLike[];
+  /** Unix seconds — trim series to account activity start (all-time chart). */
+  accountStartTimestamp?: number;
   /** Live tip prices (symbol → last price) to refresh the newest point. */
   livePrices?: Map<string, number>;
 };
+
+/** Earliest meaningful account activity for all-time portfolio chart. */
+export function getAccountStartMs(
+  trades: TradeLike[],
+  lessonAttemptMs: number[] = [],
+): number {
+  const candidates: number[] = [];
+  for (const trade of trades) {
+    const ms = new Date(trade.createdAt).getTime();
+    if (Number.isFinite(ms) && ms > 0) candidates.push(ms);
+  }
+  for (const ms of lessonAttemptMs) {
+    if (Number.isFinite(ms) && ms > 0) candidates.push(ms);
+  }
+  if (!candidates.length) {
+    return Date.now() - 365 * 24 * 60 * 60 * 1000;
+  }
+  return Math.min(...candidates);
+}
+
+/** Pick the widest Finnhub range that covers account age (max 1y). */
+export function resolveHistoryRange(accountStartMs: number): string {
+  const ageDays = (Date.now() - accountStartMs) / (24 * 60 * 60 * 1000);
+  if (ageDays <= 7) return "1w";
+  if (ageDays <= 30) return "1mo";
+  if (ageDays <= 90) return "3mo";
+  if (ageDays <= 180) return "6mo";
+  return "1y";
+}
+
+const PERIOD_CUTOFF_SECONDS: Record<PortfolioChartPeriod, number> = {
+  day: 24 * 60 * 60,
+  week: 7 * 24 * 60 * 60,
+  month: 30 * 24 * 60 * 60,
+};
+
+/** Slice full series to day / week / month window (null = all-time). */
+export function filterSeriesByPeriod(
+  series: PortfolioHistoryPoint[],
+  period: PortfolioChartPeriod | null,
+): PortfolioHistoryPoint[] {
+  if (!series.length || period == null) return series;
+  const lastTs = series[series.length - 1].timestamp;
+  const cutoff = lastTs - PERIOD_CUTOFF_SECONDS[period];
+  const filtered = series.filter((point) => point.timestamp >= cutoff);
+  if (filtered.length >= 2) return filtered;
+  return series.length >= 2 ? series.slice(-2) : series;
+}
+
+/** Return % change from first → last point in a (possibly filtered) series. */
+export function periodReturnForSeries(
+  series: PortfolioHistoryPoint[],
+): number | null {
+  if (series.length < 2) return null;
+  const first = series[0];
+  const last = series[series.length - 1];
+  if (!(first.marketValue > 0)) return null;
+  if (first === last) return 0;
+  return ((last.marketValue - first.marketValue) / first.marketValue) * 100;
+}
 
 /**
  * Build date-aligned portfolio history with accurate market value + cost + PnL.
@@ -237,8 +306,16 @@ export async function buildPortfolioHistorySeries(
   holdings: NormalizedHolding[],
   options: BuildPortfolioHistoryOptions = {},
 ): Promise<PortfolioHistoryPoint[]> {
-  const range = options.range ?? "1mo";
   const trades = options.trades ?? [];
+  const accountStartSec =
+    options.accountStartTimestamp != null && options.accountStartTimestamp > 0
+      ? Math.floor(options.accountStartTimestamp)
+      : undefined;
+  const range =
+    options.range ??
+    resolveHistoryRange(
+      accountStartSec != null ? accountStartSec * 1000 : Date.now(),
+    );
   if (!holdings.length && !trades.length) return [];
 
   const symbols = [
@@ -250,12 +327,32 @@ export async function buildPortfolioHistorySeries(
 
   if (!symbols.length) return [];
 
-  const histories = await Promise.all(
-    symbols.map(async (symbol) => ({
-      symbol,
-      points: await fetchDailyCloses(symbol, range),
-    })),
-  );
+  const fetchRange = async (requestedRange: string) =>
+    Promise.all(
+      symbols.map(async (symbol) => ({
+        symbol,
+        points: await fetchDailyCloses(
+          symbol,
+          requestedRange,
+          accountStartSec,
+        ),
+      })),
+    );
+
+  let histories = await fetchRange(range);
+
+  const countUsableDays = (rows: typeof histories) => {
+    const days = new Set<string>();
+    for (const hist of rows) {
+      if (hist.points.length < 2) continue;
+      for (const p of hist.points) days.add(dayKey(p.timestamp));
+    }
+    return days.size;
+  };
+
+  if (countUsableDays(histories) < 2 && range !== "1y") {
+    histories = await fetchRange("1y");
+  }
 
   // Only symbols with usable price history participate in the calendar.
   // Still mark lots for all held symbols using last-known / avg price.
@@ -273,7 +370,7 @@ export async function buildPortfolioHistorySeries(
     bySymbolDay.set(hist.symbol, dayMap);
   }
 
-  // Fallback: synthesize a tiny 2-point series from avg/live so UI isn't empty.
+  // No daily history available — do not fabricate a smooth growth curve.
   if (allDays.size < 2) {
     const nowSec = Math.floor(Date.now() / 1000);
     const { initial, events } = buildLotTimeline(holdings, trades);
@@ -291,10 +388,9 @@ export async function buildPortfolioHistorySeries(
     if (!(marketValue > 0)) return [];
     const pnl = marketValue - costBasis;
     const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-    const monthAgo = nowSec - 30 * 24 * 60 * 60;
     return [
       {
-        timestamp: monthAgo,
+        timestamp: nowSec - 24 * 60 * 60,
         marketValue: costBasis > 0 ? costBasis : marketValue,
         costBasis,
         pnl: 0,
@@ -391,7 +487,16 @@ export async function buildPortfolioHistorySeries(
     }
   }
 
-  return series;
+  return trimSeriesToAccountStart(series, accountStartSec);
+}
+
+function trimSeriesToAccountStart(
+  series: PortfolioHistoryPoint[],
+  accountStartSec?: number,
+): PortfolioHistoryPoint[] {
+  if (!series.length || accountStartSec == null) return series;
+  const trimmed = series.filter((point) => point.timestamp >= accountStartSec);
+  return trimmed.length >= 2 ? trimmed : series;
 }
 
 /** Back-compat: market-value numbers only (oldest → newest). */

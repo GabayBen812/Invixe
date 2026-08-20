@@ -19,7 +19,9 @@ import {
 import {
   buildPortfolioHistorySeries,
   computePeriodReturns,
+  getAccountStartMs,
   historyMarketValues,
+  resolveHistoryRange,
   type PortfolioHistoryPoint,
   type PortfolioPeriodReturns,
   type TradeLike,
@@ -80,7 +82,7 @@ async function fetchTradeHistory(email: string): Promise<TradeLike[]> {
 }
 
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
-  const { currentUserEmail } = useUser();
+  const { currentUserEmail, lessonAttempts } = useUser();
   const [holdings, setHoldings] = useState<NormalizedHolding[]>([]);
   const [stockPrices, setStockPrices] = useState<NormalizedStockPrice[]>([]);
   const [portfolioHistorySeries, setPortfolioHistorySeries] = useState<
@@ -148,10 +150,18 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
         if (quote.price > 0) livePrices.set(symbol, quote.price);
       }
 
+      const lessonAttemptMs = lessonAttempts.map((attempt) =>
+        new Date(attempt.lastAttempted).getTime(),
+      );
+      const accountStartMs = getAccountStartMs(trades, lessonAttemptMs);
+      const accountStartTimestamp = Math.floor(accountStartMs / 1000);
+      const historyRange = resolveHistoryRange(accountStartMs);
+
       const series = await buildPortfolioHistorySeries(normalized, {
-        range: "1mo",
+        range: historyRange,
         trades,
         livePrices,
+        accountStartTimestamp,
       });
 
       setStockPrices([...bySymbol.values()]);
@@ -161,7 +171,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [currentUserEmail]);
+  }, [currentUserEmail, lessonAttempts]);
 
   useEffect(() => {
     void refreshPortfolio();
