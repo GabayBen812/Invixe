@@ -2,6 +2,10 @@
   "cli": { "appVersionSource": "remote" },
   "build": {
     "production": {
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "759410396991-m1hml4a6rvhr4vijbpdprtlt6jea1a8v.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "759410396991-isd85q017726sp6drgtdftdao23abvdd.apps.googleusercontent.com"
+      },
       "ios": {
         "autoIncrement": true,
         "image": "macos-sequoia-15.6-xcode-26.2"
@@ -11,6 +15,10 @@
       }
     },
     "preview": {
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "759410396991-m1hml4a6rvhr4vijbpdprtlt6jea1a8v.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "759410396991-isd85q017726sp6drgtdftdao23abvdd.apps.googleusercontent.com"
+      },
       "android": {
         "buildType": "apk"
       }

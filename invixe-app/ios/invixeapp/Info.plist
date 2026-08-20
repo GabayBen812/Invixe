@@ -30,6 +30,12 @@
           <string>com.gabayben812.invixeapp</string>
         </array>
       </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
+          <string>com.googleusercontent.apps.759410396991-isd85q017726sp6drgtdftdao23abvdd</string>
+        </array>
+      </dict>
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>

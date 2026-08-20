@@ -6,6 +6,7 @@ const {
   upsertOAuthUser,
   verifyGoogleIdToken,
   verifyAppleIdentityToken,
+  completeOAuthOnboarding,
 } = require('../utils/oauthAuth');
 
 router.post('/google', async (req, res) => {
@@ -48,6 +49,30 @@ router.post('/apple', async (req, res) => {
     const status = error.status || 401;
     return res.status(status).json({
       error: error.message || 'Apple authentication failed',
+    });
+  }
+});
+
+router.post('/complete-onboarding', async (req, res) => {
+  try {
+    const { email, ageGroup, goal } = req.body;
+    if (!email || !ageGroup || !goal) {
+      return res.status(400).json({ error: 'email, ageGroup and goal are required' });
+    }
+
+    const supabase = getSupabase(req);
+    const user = await completeOAuthOnboarding(
+      supabase,
+      email,
+      ageGroup,
+      goal,
+    );
+    return res.json(formatAuthResponse(user));
+  } catch (error) {
+    console.error('OAuth onboarding failed:', error);
+    const status = error.status || 500;
+    return res.status(status).json({
+      error: error.message || 'Failed to complete onboarding',
     });
   }
 });

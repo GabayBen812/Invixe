@@ -1,18 +1,28 @@
 const appJson = require("./app.json");
 
 const googleIosClientId = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim();
+const googleReversedScheme = googleIosClientId?.endsWith(".apps.googleusercontent.com")
+  ? `com.googleusercontent.apps.${googleIosClientId.replace(".apps.googleusercontent.com", "")}`
+  : null;
+
 const plugins = [...(appJson.expo.plugins || []), "expo-apple-authentication"];
 
-if (googleIosClientId?.endsWith(".apps.googleusercontent.com")) {
-  const clientPrefix = googleIosClientId.replace(".apps.googleusercontent.com", "");
+if (googleReversedScheme) {
   plugins.push([
     "@react-native-google-signin/google-signin",
-    {
-      iosUrlScheme: `com.googleusercontent.apps.${clientPrefix}`,
-    },
+    { iosUrlScheme: googleReversedScheme },
   ]);
 } else {
   plugins.push("@react-native-google-signin/google-signin");
+}
+
+const urlTypes = [
+  {
+    CFBundleURLSchemes: [appJson.expo.ios?.bundleIdentifier || "com.gabayben812.invixeapp"],
+  },
+];
+if (googleReversedScheme) {
+  urlTypes.push({ CFBundleURLSchemes: [googleReversedScheme] });
 }
 
 module.exports = {
@@ -22,6 +32,9 @@ module.exports = {
       ...(appJson.expo.ios || {}),
       entitlements: {
         "com.apple.developer.applesignin": ["Default"],
+      },
+      infoPlist: {
+        CFBundleURLTypes: urlTypes,
       },
     },
     plugins,

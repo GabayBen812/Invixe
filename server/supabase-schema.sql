@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS "User" (
   goal TEXT,
   coins INTEGER DEFAULT 0,
   lightnings INTEGER DEFAULT 0,
+  apple_sub TEXT UNIQUE,
+  google_sub TEXT UNIQUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

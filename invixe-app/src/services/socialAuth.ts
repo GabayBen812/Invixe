@@ -3,6 +3,7 @@ import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { API_BASE_URL } from "../config/api";
 import {
+  GOOGLE_ANDROID_CLIENT_ID,
   GOOGLE_IOS_CLIENT_ID,
   GOOGLE_WEB_CLIENT_ID,
   isGoogleAuthConfigured,
@@ -13,6 +14,8 @@ export type SocialAuthResult = {
   phone: string;
   firstName?: string | null;
   lastName?: string | null;
+  isNewUser?: boolean;
+  needsOnboarding?: boolean;
 };
 
 type GoogleSignInModule = typeof import("@react-native-google-signin/google-signin");
@@ -67,6 +70,9 @@ async function ensureGoogleConfigured(
   GoogleSignin.configure({
     webClientId: GOOGLE_WEB_CLIENT_ID,
     iosClientId: GOOGLE_IOS_CLIENT_ID || undefined,
+    ...(GOOGLE_ANDROID_CLIENT_ID
+      ? { androidClientId: GOOGLE_ANDROID_CLIENT_ID }
+      : {}),
     offlineAccess: false,
   });
   googleConfigured = true;
@@ -95,6 +101,8 @@ async function exchangeSocialToken(
     phone: data.phone,
     firstName: data.firstName,
     lastName: data.lastName,
+    isNewUser: Boolean(data.isNewUser),
+    needsOnboarding: Boolean(data.needsOnboarding),
   };
 }
 
@@ -169,6 +177,9 @@ export function getSocialAuthErrorMessage(error: unknown): string {
     }
     if (error.message.includes("not configured")) {
       return "התחברות Google עדיין לא הוגדרה — הוסף Client ID לקובץ .env";
+    }
+    if (error.message.includes("Google auth is not configured")) {
+      return "שרת ההתחברות לא מוגדר — פנה למנהל המערכת";
     }
     if (
       error.message === "SIGN_IN_CANCELLED" ||

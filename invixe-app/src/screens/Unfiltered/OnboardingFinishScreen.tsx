@@ -27,6 +27,32 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
     setLoading(true);
     setError("");
     try {
+      const isOAuthOnboarding = !data.password;
+
+      if (isOAuthOnboarding) {
+        const res = await fetchWithTimeout(`${API_BASE_URL}/auth/complete-onboarding`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.phone,
+            ageGroup: data.ageGroup,
+            goal: data.goal,
+          }),
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Registration failed");
+        }
+        const resBody = await res.json().catch(() => ({}));
+        await setCurrentUser(data.phone, {
+          firstName: resBody.firstName ?? data.firstName,
+          lastName: resBody.lastName ?? data.lastName,
+        });
+        setSuccess(true);
+        reset();
+        return;
+      }
+
       const res = await fetchWithTimeout(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

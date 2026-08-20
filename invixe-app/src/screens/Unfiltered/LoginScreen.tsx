@@ -27,10 +27,10 @@ import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 import { isGoogleAuthConfigured } from "../../config/auth";
 import {
   getSocialAuthErrorMessage,
-  isExpoGo,
   shouldShowAppleSignIn,
   signInWithApple,
   signInWithGoogle,
+  type SocialAuthResult,
 } from "../../services/socialAuth";
 
 const API_URL = `${API_BASE_URL}/login`;
@@ -297,13 +297,23 @@ export default function LoginScreen({ navigation, route }: Props) {
 
   const completeSocialLogin = async (
     provider: "google" | "apple",
-    signIn: () => Promise<{ phone: string; firstName?: string | null; lastName?: string | null }>,
+    signIn: () => Promise<SocialAuthResult>,
   ) => {
     if (loading || socialLoading) return;
     setError("");
     setSocialLoading(provider);
     try {
       const result = await signIn();
+
+      if (result.needsOnboarding) {
+        setPhone(result.phone);
+        setRegPassword("");
+        setFirstName(result.firstName?.trim() || "");
+        setLastName(result.lastName?.trim() || "");
+        navigation.navigate("AgeSelect");
+        return;
+      }
+
       await setCurrentUser(result.phone, {
         firstName: result.firstName ?? undefined,
         lastName: result.lastName ?? undefined,
@@ -312,7 +322,7 @@ export default function LoginScreen({ navigation, route }: Props) {
     } catch (e: unknown) {
       const message = getSocialAuthErrorMessage(e);
       if (message) {
-        setError(getHebrewError(message));
+        setError(message);
       }
     } finally {
       setSocialLoading(null);
@@ -332,7 +342,6 @@ export default function LoginScreen({ navigation, route }: Props) {
   };
 
   const showAppleButton = shouldShowAppleSignIn();
-  const showSocialLogin = !isExpoGo();
   const isBusy = loading || socialLoading !== null;
 
   const floatY = floatAnim.interpolate({
@@ -515,60 +524,53 @@ export default function LoginScreen({ navigation, route }: Props) {
             </Pressable>
           )}
 
-          {showSocialLogin ? (
-            <>
-              <View style={styles.dividerRow}>
-                <View style={styles.dividerLine} />
-                <Text style={styles.dividerText}>או המשך עם</Text>
-                <View style={styles.dividerLine} />
-              </View>
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>או המשך עם</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
-              <View
-                style={[
-                  styles.socialRow,
-                  !showAppleButton && styles.socialRowSingle,
-                ]}
+          <View
+            style={[
+              styles.socialRow,
+              !showAppleButton && styles.socialRowSingle,
+            ]}
+          >
+            {showAppleButton ? (
+              <Pressable
+                style={[styles.socialBtn, isBusy && styles.socialBtnDisabled]}
+                onPress={handleAppleSignIn}
+                disabled={isBusy}
               >
-                {showAppleButton ? (
-                  <Pressable
-                    style={[
-                      styles.socialBtn,
-                      isBusy && styles.socialBtnDisabled,
-                    ]}
-                    onPress={handleAppleSignIn}
-                    disabled={isBusy}
-                  >
-                    {socialLoading === "apple" ? (
-                      <ActivityIndicator color={AUTH.ink} size="small" />
-                    ) : (
-                      <>
-                        <Text style={styles.socialApple}></Text>
-                        <Text style={styles.socialText}>Apple</Text>
-                      </>
-                    )}
-                  </Pressable>
-                ) : null}
-                <Pressable
-                  style={[
-                    styles.socialBtn,
-                    !showAppleButton && styles.socialBtnFull,
-                    isBusy && styles.socialBtnDisabled,
-                  ]}
-                  onPress={handleGoogleSignIn}
-                  disabled={isBusy}
-                >
-                  {socialLoading === "google" ? (
-                    <ActivityIndicator color={AUTH.ink} size="small" />
-                  ) : (
-                    <>
-                      <Text style={styles.socialGoogle}>G</Text>
-                      <Text style={styles.socialText}>Google</Text>
-                    </>
-                  )}
-                </Pressable>
-              </View>
-            </>
-          ) : null}
+                {socialLoading === "apple" ? (
+                  <ActivityIndicator color={AUTH.ink} size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.socialApple}></Text>
+                    <Text style={styles.socialText}>Apple</Text>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
+            <Pressable
+              style={[
+                styles.socialBtn,
+                !showAppleButton && styles.socialBtnFull,
+                isBusy && styles.socialBtnDisabled,
+              ]}
+              onPress={handleGoogleSignIn}
+              disabled={isBusy}
+            >
+              {socialLoading === "google" ? (
+                <ActivityIndicator color={AUTH.ink} size="small" />
+              ) : (
+                <>
+                  <Text style={styles.socialGoogle}>G</Text>
+                  <Text style={styles.socialText}>Google</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
 
           <Text style={styles.legal}>
             בהמשך אתה מאשר את תנאי השימוש ומדיניות הפרטיות. התוכן לימודי בלבד
