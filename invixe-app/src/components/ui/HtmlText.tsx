@@ -43,6 +43,7 @@ const defaultTagsStyles: Record<string, TextStyle> = {
 };
 
 const SYSTEM_FONTS = [...defaultSystemFonts, font.family, font.bold];
+const EMPTY_TAGS_STYLES: Record<string, TextStyle> = {};
 
 function looksLikeHtml(str: string): boolean {
   if (!str || typeof str !== "string") return false;
@@ -135,7 +136,7 @@ export interface HtmlTextProps {
 export default function HtmlText({
   value,
   style,
-  tagsStyles: customTagsStyles = {},
+  tagsStyles: customTagsStyles = EMPTY_TAGS_STYLES,
   contentColor,
   contentWidth: contentWidthProp,
 }: HtmlTextProps) {
@@ -175,6 +176,20 @@ export default function HtmlText({
     return tags;
   }, [customTagsStyles, resolvedColor]);
 
+  const htmlSource = useMemo(() => ({ html }), [html]);
+
+  const baseStyle = useMemo(() => {
+    const next = normalizeBaseStyleForHtml(
+      (StyleSheet.flatten([defaultTextStyle, style]) ??
+        defaultTextStyle) as TextStyle,
+      html,
+    );
+    if (resolvedColor) {
+      next.color = resolvedColor;
+    }
+    return next;
+  }, [style, html, resolvedColor]);
+
   if (!value || typeof value !== "string") {
     return null;
   }
@@ -208,19 +223,10 @@ export default function HtmlText({
     );
   }
 
-  const baseStyle = normalizeBaseStyleForHtml(
-    (StyleSheet.flatten([defaultTextStyle, style]) ??
-      defaultTextStyle) as TextStyle,
-    html,
-  );
-  if (resolvedColor) {
-    baseStyle.color = resolvedColor;
-  }
-
   return (
     <RenderHtml
       contentWidth={contentWidth}
-      source={{ html }}
+      source={htmlSource}
       tagsStyles={mergedTagsStyles as any}
       baseStyle={baseStyle as any}
       systemFonts={SYSTEM_FONTS}

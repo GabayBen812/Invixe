@@ -496,7 +496,6 @@ export default function ProfileScreen({ navigation }: Props) {
   }, [deleteAccount, navigation]);
 
   const openTermsPolicy = useCallback(() => {
-    if (!TERMS_POLICY_URL) return;
     void Linking.openURL(TERMS_POLICY_URL);
   }, []);
 

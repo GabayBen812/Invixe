@@ -90,6 +90,93 @@ import ExplanationDrill from "../components/lesson/ExplanationDrill";
 import HtmlText from "../components/ui/HtmlText";
 import { toPlainDisplayText, sanitizeLessonContent } from "../utils/decodeHtmlEntities";
 
+type PathSelectExplanationScreen = {
+  explanation?: string;
+  imageUrl?: string;
+  svgCode?: string;
+  svgUrl?: string;
+  svgPublicUrl?: string;
+  isComplexMedia?: boolean;
+};
+
+function buildPathSelectScreens(selectedOption: {
+  explanation?: string;
+  explanationImageUrl?: string;
+  explanationImagePath?: string;
+  explanationSvgCode?: string;
+  explanationSvgUrl?: string;
+  explanationSvgPublicUrl?: string;
+  isComplexMedia?: boolean;
+  extraExplanations?: Array<Record<string, unknown>>;
+}): PathSelectExplanationScreen[] {
+  const baseScreen: PathSelectExplanationScreen = {
+    explanation: selectedOption.explanation || "",
+    imageUrl:
+      selectedOption.explanationImageUrl || selectedOption.explanationImagePath,
+    svgCode: selectedOption.explanationSvgCode,
+    svgUrl: selectedOption.explanationSvgUrl,
+    svgPublicUrl: selectedOption.explanationSvgPublicUrl,
+    isComplexMedia: selectedOption.isComplexMedia,
+  };
+
+  const extraScreens = (selectedOption.extraExplanations || []).map((ex) => ({
+    explanation: String(ex.explanation || ""),
+    imageUrl: String(
+      ex.explanationImageUrl || ex.explanationImagePath || "",
+    ) || undefined,
+    svgCode: ex.explanationSvgCode as string | undefined,
+    svgUrl: ex.explanationSvgUrl as string | undefined,
+    svgPublicUrl: ex.explanationSvgPublicUrl as string | undefined,
+    isComplexMedia: ex.isComplexMedia as boolean | undefined,
+  }));
+
+  return [
+    ...(baseScreen.explanation ||
+    baseScreen.imageUrl ||
+    baseScreen.svgCode ||
+    baseScreen.svgUrl ||
+    baseScreen.svgPublicUrl ||
+    baseScreen.isComplexMedia
+      ? [baseScreen]
+      : []),
+    ...extraScreens,
+  ];
+}
+
+function renderPathSelectExplanationScreen(
+  currentScreen: PathSelectExplanationScreen,
+  stepId: string,
+) {
+  const imageUrl = resolveLessonRemoteUrl(
+    currentScreen.imageUrl,
+    currentScreen.svgPublicUrl,
+    currentScreen.svgUrl,
+  );
+  const hasSvgOnly =
+    !imageUrl &&
+    !!(currentScreen.svgCode || currentScreen.svgUrl || currentScreen.svgPublicUrl);
+
+  if (hasSvgOnly) {
+    return (
+      <PathSelectExplanation
+        explanation={currentScreen.explanation || ""}
+        svgCode={currentScreen.svgCode}
+        svgUrl={currentScreen.svgUrl}
+        svgPublicUrl={currentScreen.svgPublicUrl}
+        isComplexMedia={currentScreen.isComplexMedia}
+      />
+    );
+  }
+
+  return (
+    <TextWithImageExplainDrill
+      title={currentScreen.explanation || ""}
+      imageUrl={imageUrl}
+      stepId={stepId}
+    />
+  );
+}
+
 const characterImg = require("../assets/Characters/character_orange_noback.png");
 
 // Helper component to handle image loading with error fallback
@@ -685,14 +772,6 @@ export default function LessonScreen({ navigation, route }: Props) {
       activityConfig: {},
     } as unknown as LessonStep);
 
-  // Log current step details for debugging
-  console.log(`📍 Current step: "${step.id}", activity: "${step.activity}"`);
-  console.log("step.choices:", step.choices);
-  console.log(
-    "step.activityConfig?.questionWithImage:",
-    step.activityConfig?.questionWithImage ? "exists" : "missing",
-  );
-
   const isDialog = step?.activity === "dialog" && !!step.activityConfig?.dialog;
   const isExplain =
     step?.activity === "textWithImageExplain" &&
@@ -710,6 +789,10 @@ export default function LessonScreen({ navigation, route }: Props) {
     activityType === "questionWithSVG" || isGraphQuestionActivity;
   const isPathSelect =
     step?.activity === "pathSelect" && !!step.activityConfig?.pathSelect;
+  const pathSelectCompactListMode =
+    isPathSelect &&
+    pathSelectViewingOption === null &&
+    pathSelectCompletedOptions.size >= 1;
   const isSVGMultiSelect =
     step?.activity === "svgMultiSelect" &&
     (!!step.activityConfig?.svgOptions ||
@@ -772,6 +855,7 @@ export default function LessonScreen({ navigation, route }: Props) {
     (isSimpleQuestion && !!step.message?.trim()) ||
     (isPathSelect &&
       pathSelectViewingOption === null &&
+      pathSelectCompletedOptions.size === 0 &&
       !!step.message?.trim());
 
   const hasGenericBubble = !isGenericBubbleExcluded && !!step.message?.trim();
@@ -1220,6 +1304,7 @@ export default function LessonScreen({ navigation, route }: Props) {
             {/* Path select speech bubble */}
             {isPathSelect &&
               pathSelectViewingOption === null &&
+              pathSelectCompletedOptions.size === 0 &&
               !!step.message?.trim() && (
                 <SpeechBubble
                   message={step.message}
@@ -1692,7 +1777,7 @@ export default function LessonScreen({ navigation, route }: Props) {
                     (activityType === "graphQuestion" &&
                       !graphQuestionViewingExplanation)) && {
                     justifyContent: "flex-start",
-                    paddingTop: 6,
+                    paddingTop: pathSelectCompactListMode ? 0 : 6,
                   },
                 ]}
               >
@@ -1737,6 +1822,28 @@ export default function LessonScreen({ navigation, route }: Props) {
                       imageUrl={imageUrl}
                       stepId={step.id || "unknown"}
                     />
+                  );
+                })()}
+
+              {isPathSelect &&
+                pathSelectViewingOption &&
+                step.activityConfig?.pathSelect &&
+                (() => {
+                  const selectedOption =
+                    step.activityConfig.pathSelect.choices.find(
+                      (choice: { id: string }) =>
+                        choice.id === pathSelectViewingOption,
+                    );
+                  if (!selectedOption) return null;
+
+                  const allScreens = buildPathSelectScreens(selectedOption);
+                  const currentScreen =
+                    allScreens[pathSelectViewingScreenIndex] || allScreens[0];
+                  if (!currentScreen) return null;
+
+                  return renderPathSelectExplanationScreen(
+                    currentScreen,
+                    `${step.id || "pathSelect"}-${pathSelectViewingOption}-${pathSelectViewingScreenIndex}`,
                   );
                 })()}
 
@@ -2349,147 +2456,36 @@ export default function LessonScreen({ navigation, route }: Props) {
 
                 {/* Path Select drill */}
                 {step.activity === "pathSelect" &&
-                  step.activityConfig?.pathSelect && (
-                    <>
-                      {pathSelectViewingOption ? (
-                        // Show explanation for selected option
-                        (() => {
-                          const selectedOption =
-                            step.activityConfig.pathSelect.choices.find(
-                              (c: any) => c.id === pathSelectViewingOption,
-                            );
-                          if (!selectedOption) return null;
-
-                          // Build ordered list of explanation "screens" for this option.
-                          // First screen comes from the legacy single-explanation fields,
-                          // followed by any extraExplanations if present.
-                          const baseScreen = {
-                            explanation: selectedOption.explanation || "",
-                            imageUrl:
-                              selectedOption.explanationImageUrl ||
-                              selectedOption.explanationImagePath,
-                            svgCode: selectedOption.explanationSvgCode,
-                            svgUrl: selectedOption.explanationSvgUrl,
-                            svgPublicUrl:
-                              selectedOption.explanationSvgPublicUrl,
-                            isComplexMedia: (selectedOption as any)
-                              .isComplexMedia,
-                          };
-
-                          const extraScreens =
-                            (selectedOption.extraExplanations || []).map(
-                              (ex: any) => ({
-                                explanation: ex.explanation || "",
-                                imageUrl:
-                                  ex.explanationImageUrl ||
-                                  ex.explanationImagePath,
-                                svgCode: ex.explanationSvgCode,
-                                svgUrl: ex.explanationSvgUrl,
-                                svgPublicUrl: ex.explanationSvgPublicUrl,
-                                isComplexMedia: ex.isComplexMedia,
-                              }),
-                            ) || [];
-
-                          const allScreens = [
-                            // Only include base screen if it has any content
-                            ...(baseScreen.explanation ||
-                            baseScreen.imageUrl ||
-                            baseScreen.svgCode ||
-                            baseScreen.svgUrl ||
-                            baseScreen.svgPublicUrl ||
-                            baseScreen.isComplexMedia
-                              ? [baseScreen]
-                              : []),
-                            ...extraScreens,
-                          ];
-
-                          const currentScreen =
-                            allScreens[pathSelectViewingScreenIndex] ||
-                            allScreens[0];
-
-                          // Debug logging
-                          console.log(
-                            "PathSelectExplanation - currentScreen:",
-                            {
-                              explanation: currentScreen?.explanation,
-                              imageUrl: currentScreen?.imageUrl,
-                              hasImageUrl: !!currentScreen?.imageUrl,
-                              svgCode: currentScreen?.svgCode
-                                ? `exists (${currentScreen.svgCode.length} chars)`
-                                : "none",
-                              svgUrl: currentScreen?.svgUrl,
-                              svgPublicUrl: currentScreen?.svgPublicUrl,
-                              selectedOption: {
-                                explanationImageUrl:
-                                  selectedOption?.explanationImageUrl,
-                                explanationImagePath:
-                                  selectedOption?.explanationImagePath,
-                                explanationSvgCode:
-                                  selectedOption?.explanationSvgCode
-                                    ? `exists (${selectedOption.explanationSvgCode.length} chars)`
-                                    : "none",
-                                explanationSvgUrl:
-                                  selectedOption?.explanationSvgUrl,
-                                explanationSvgPublicUrl:
-                                  selectedOption?.explanationSvgPublicUrl,
-                              },
-                            },
-                          );
-
-                          return (
-                            <>
-                              <View
-                                style={{
-                                  width: "100%",
-                                  flex: 1,
-                                  marginTop: 0,
-                                }}
-                              >
-                                <PathSelectExplanation
-                                  explanation={currentScreen?.explanation || ""}
-                                  imageUrl={currentScreen?.imageUrl}
-                                  svgCode={currentScreen?.svgCode}
-                                  svgUrl={currentScreen?.svgUrl}
-                                  svgPublicUrl={currentScreen?.svgPublicUrl}
-                                  isComplexMedia={currentScreen?.isComplexMedia}
-                                />
-                              </View>
-                            </>
-                          );
-                        })()
-                      ) : (
-                        // Show main path selection drill
-                        <>
-                          <View style={styles.pathSelectDrillWrap}>
-                            <PathSelectDrill
-                              options={
-                                step.activityConfig.pathSelect.choices || []
-                              }
-                              submitText={
-                                step.activityConfig.pathSelect.submitText ||
-                                "המשך"
-                              }
-                              onOptionSelect={(optionId) => {
-                                // Reset to first screen whenever a new option is selected
-                                setPathSelectViewingScreenIndex(0);
-                                setPathSelectViewingOption(optionId);
-                              }}
-                              onContinue={() => {
-                                // Proceed to next step
-                                if (
-                                  choices &&
-                                  choices.length > 0 &&
-                                  choices[0].nextStep
-                                ) {
-                                  handleChoice(choices[0].nextStep);
-                                }
-                              }}
-                              completedOptions={pathSelectCompletedOptions}
-                            />
-                          </View>
-                        </>
-                      )}
-                    </>
+                  step.activityConfig?.pathSelect &&
+                  pathSelectViewingOption === null && (
+                    <View
+                      style={[
+                        styles.pathSelectDrillWrap,
+                        pathSelectCompactListMode &&
+                          styles.pathSelectDrillWrapCompact,
+                      ]}
+                    >
+                      <PathSelectDrill
+                        options={step.activityConfig.pathSelect.choices || []}
+                        submitText={
+                          step.activityConfig.pathSelect.submitText || "המשך"
+                        }
+                        onOptionSelect={(optionId) => {
+                          setPathSelectViewingScreenIndex(0);
+                          setPathSelectViewingOption(optionId);
+                        }}
+                        onContinue={() => {
+                          if (
+                            choices &&
+                            choices.length > 0 &&
+                            choices[0].nextStep
+                          ) {
+                            handleChoice(choices[0].nextStep);
+                          }
+                        }}
+                        completedOptions={pathSelectCompletedOptions}
+                      />
+                    </View>
                   )}
 
                 {isSimpleQuestion && choices && choices.length > 0 && (
@@ -3173,24 +3169,11 @@ export default function LessonScreen({ navigation, route }: Props) {
               onPress={() => {
                 const selectedOption =
                   step.activityConfig?.pathSelect?.choices?.find(
-                    (opt: any) => opt.id === pathSelectViewingOption,
+                    (opt: { id: string }) => opt.id === pathSelectViewingOption,
                   );
-                const baseScreen = selectedOption
-                  ? {
-                      explanation: selectedOption.explanation,
-                      imageUrl: selectedOption.explanationImageUrl,
-                      explanationImagePath: selectedOption.explanationImagePath,
-                      svgCode: selectedOption.explanationSvgCode,
-                      svgUrl: selectedOption.explanationSvgUrl,
-                      svgPublicUrl: selectedOption.explanationSvgPublicUrl,
-                      explanationSvgPath: selectedOption.explanationSvgPath,
-                    }
-                  : null;
-                const extraScreens = selectedOption?.extraExplanations || [];
-                const allScreens = [
-                  ...(baseScreen ? [baseScreen] : []),
-                  ...extraScreens,
-                ];
+                if (!selectedOption) return;
+
+                const allScreens = buildPathSelectScreens(selectedOption);
 
                 if (
                   allScreens.length > 0 &&
@@ -3354,6 +3337,10 @@ const styles = StyleSheet.create({
   pathSelectDrillWrap: {
     width: "100%",
     paddingHorizontal: 12,
+  },
+  pathSelectDrillWrapCompact: {
+    paddingTop: 8,
+    paddingBottom: 96,
   },
   mediaDrillWrap: {
     width: "100%",

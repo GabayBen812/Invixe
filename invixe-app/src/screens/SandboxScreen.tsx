@@ -29,6 +29,7 @@ import TradingSmaToggle from '../components/trading/TradingSmaToggle';
 import TradingTrendLineToggle from '../components/trading/TradingTrendLineToggle';
 import { buildTradingViewHtml } from '../components/trading/tradingChartHtml';
 import TradingTickerOverlay from '../components/trading/TradingTickerOverlay';
+import TradingSimulationDisclaimer from '../components/trading/TradingSimulationDisclaimer';
 import { WebView } from 'react-native-webview';
 
 const STOCKS = [
@@ -83,7 +84,7 @@ function mapRangeToTv(range: string) {
 
 export default function SandboxScreen({ navigation, route }: Props) {
   const { cash, setCash, currentUserEmail } = useUser();
-  const { getHolding, getQuote, getCurrentPrice, refreshPortfolio } = usePortfolio();
+  const { getHolding, refreshPortfolio } = usePortfolio();
   const initialSymbol = route.params?.symbol;
   const [selectedStock, setSelectedStock] = useState(() =>
     initialSymbol ? resolveStock(initialSymbol) : STOCKS[0],
@@ -107,6 +108,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const smaReveal = useRef(new Animated.Value(0)).current;
   const smaChipReveal = useRef(new Animated.Value(0)).current;
   const lastDrawingHintRef = useRef('');
+  const chartQuoteActiveRef = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -122,26 +124,19 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
   const loadQuote = useCallback(
     async (symbol: string) => {
+      if (chartQuoteActiveRef.current) return;
+
       const quote = await fetchLiveStockQuote(symbol);
-      if (quote) {
+      if (quote && quote.price > 0) {
         setLivePrice(quote.price);
         setLiveChangePercent(quote.changePercent);
-        return;
-      }
-
-      const cachedPrice = getCurrentPrice(symbol);
-      if (cachedPrice > 0) {
-        setLivePrice(cachedPrice);
-        const cachedQuote = getQuote(symbol);
-        if (cachedQuote?.changePercent != null) {
-          setLiveChangePercent(cachedQuote.changePercent);
-        }
       }
     },
-    [getCurrentPrice, getQuote],
+    [],
   );
 
   useEffect(() => {
+    chartQuoteActiveRef.current = false;
     setLivePrice(null);
     setLiveChangePercent(null);
     void loadQuote(selectedStock.symbol);
@@ -452,7 +447,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
           data.price &&
           String(data.symbol).toUpperCase() === selectedStock.symbol.toUpperCase()
         ) {
-          // First quote from the chart also means it's usable
+          chartQuoteActiveRef.current = true;
           setChartReady(true);
           setLivePrice(Number(data.price));
           if (data.changePercent != null) {
@@ -573,6 +568,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
         />
       </View>
 
+      <TradingSimulationDisclaimer />
+
       <TradingActionDock
         sellShares={maxSellShares}
         onBuy={() => openTradeModal('buy')}
@@ -671,6 +668,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
                 <Text style={styles.costValue}>{formatMoney(tradeTotal)}</Text>
               </View>
             )}
+
+            <TradingSimulationDisclaimer compact />
 
             <View style={styles.modalButtons}>
               <TouchableOpacity

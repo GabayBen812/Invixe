@@ -42,12 +42,6 @@
           "photosPermission": "Invixe צריכה גישה לתמונות כדי להגדיר תמונת פרופיל."
         }
       ]
-    ],
-
-    "extra": {
-      "eas": {
-        "projectId": "c380a02c-446d-4cfc-9f03-b468227a3406"
-      }
-    }
+    ]
   }
 }

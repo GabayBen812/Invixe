@@ -99,6 +99,11 @@ export const practiceTheme: LessonVisualTheme = {
   contentPanelBg: "#121A2C",
 };
 
+/** Drills that keep the light theme even when the title contains תרגול. */
+function usesLightThemeDespitePracticeTitle(title?: string | null): boolean {
+  return /ללמוד לקרוא נר/.test(String(title || "").trim());
+}
+
 export function normalizeLessonType(
   lessonType?: string | null,
   title?: string,
@@ -114,6 +119,7 @@ export function isPracticeLesson(
   lessonType?: string | null,
   title?: string,
 ): boolean {
+  if (usesLightThemeDespitePracticeTitle(title)) return false;
   return normalizeLessonType(lessonType, title) === "practice";
 }
 

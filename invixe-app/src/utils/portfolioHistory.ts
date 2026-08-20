@@ -1,8 +1,6 @@
+import { API_BASE_URL } from "../config/api";
 import { fetchWithTimeout } from "./fetchWithTimeout";
 import type { NormalizedHolding } from "./portfolioNormalize";
-
-const YAHOO_UA =
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
 
 export type PricePoint = {
   /** Unix seconds (UTC day). */
@@ -41,30 +39,39 @@ type LotState = {
   avgPrice: number;
 };
 
-async function fetchYahooDailyCloses(
+async function fetchApiDailyCloses(
   symbol: string,
   range = "1mo",
 ): Promise<PricePoint[]> {
   const upper = symbol.toUpperCase();
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upper)}?interval=1d&range=${range}`;
-  const response = await fetchWithTimeout(url, {
-    headers: { "User-Agent": YAHOO_UA },
-  });
+  const url = `${API_BASE_URL}/stocks/${encodeURIComponent(upper)}/history?range=${encodeURIComponent(range)}`;
+  const response = await fetchWithTimeout(url);
   if (!response.ok) return [];
 
   const json = await response.json();
-  const result = json?.chart?.result?.[0];
-  const timestamps: number[] = result?.timestamp ?? [];
-  const closes: (number | null)[] =
-    result?.indicators?.quote?.[0]?.close ?? [];
+  const rawPoints: { timestamp?: number; close?: number }[] =
+    json?.points ?? [];
 
   const points: PricePoint[] = [];
-  for (let i = 0; i < timestamps.length; i++) {
-    const close = closes[i];
-    if (close == null || !Number.isFinite(close) || close <= 0) continue;
-    points.push({ timestamp: timestamps[i], close });
+  for (const point of rawPoints) {
+    const close = Number(point.close);
+    const timestamp = Number(point.timestamp);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    points.push({ timestamp, close });
   }
   return points;
+}
+
+async function fetchDailyCloses(
+  symbol: string,
+  range = "1mo",
+): Promise<PricePoint[]> {
+  try {
+    return await fetchApiDailyCloses(symbol, range);
+  } catch {
+    return [];
+  }
 }
 
 function dayKey(unixSeconds: number): string {
@@ -246,7 +253,7 @@ export async function buildPortfolioHistorySeries(
   const histories = await Promise.all(
     symbols.map(async (symbol) => ({
       symbol,
-      points: await fetchYahooDailyCloses(symbol, range),
+      points: await fetchDailyCloses(symbol, range),
     })),
   );
 
@@ -269,7 +276,6 @@ export async function buildPortfolioHistorySeries(
   // Fallback: synthesize a tiny 2-point series from avg/live so UI isn't empty.
   if (allDays.size < 2) {
     const nowSec = Math.floor(Date.now() / 1000);
-    const dayAgo = nowSec - 24 * 60 * 60;
     const { initial, events } = buildLotTimeline(holdings, trades);
     const lotsNow = lotsAsOf(initial, events, Date.now());
     let marketValue = 0;
@@ -285,13 +291,14 @@ export async function buildPortfolioHistorySeries(
     if (!(marketValue > 0)) return [];
     const pnl = marketValue - costBasis;
     const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+    const monthAgo = nowSec - 30 * 24 * 60 * 60;
     return [
       {
-        timestamp: dayAgo,
-        marketValue,
+        timestamp: monthAgo,
+        marketValue: costBasis > 0 ? costBasis : marketValue,
         costBasis,
-        pnl,
-        pnlPercent,
+        pnl: 0,
+        pnlPercent: 0,
       },
       {
         timestamp: nowSec,

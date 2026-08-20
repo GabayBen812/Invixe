@@ -156,24 +156,31 @@ export function buildTradingViewHtml({
     "function clearDrawings(){if(!chartApi)return;" +
     "try{if(chartApi.removeAllShapes){chartApi.removeAllShapes();postToApp({type:'drawing',event:'cleared'});return;}}catch(e){}" +
     "try{if(chartApi.executeActionById){chartApi.executeActionById('removeAllDrawingTools');postToApp({type:'drawing',event:'cleared'});}}catch(e){}}" +
-    "async function publishQuote(sym){try{" +
-    "const res=await fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=1d');" +
-    "const json=await res.json();" +
-    "const meta=json&&json.chart&&json.chart.result&&json.chart.result[0]&&json.chart.result[0].meta;" +
-    "if(!meta||!meta.regularMarketPrice)return;" +
-    "const price=meta.regularMarketPrice;" +
-    "const prev=meta.chartPreviousClose||meta.previousClose||price;" +
-    "const changePercent=prev?((price-prev)/prev)*100:0;" +
-    "postToApp({type:'quote',symbol:sym,price:price,changePercent:changePercent});" +
+    "function publishChartQuote(sym){if(!chartApi)return;try{" +
+    "const series=chartApi.getSeries&&chartApi.getSeries();" +
+    "let price=null;" +
+    "if(series){if(typeof series.lastPrice==='function'){price=Number(series.lastPrice());}" +
+    "if((price==null||!isFinite(price)||price<=0)&&series.bars){const bars=series.bars();if(bars&&typeof bars.last==='function'){const lastBar=bars.last();if(lastBar&&lastBar.close!=null){price=Number(lastBar.close);}}}" +
+    "}" +
+    "if((price==null||!isFinite(price)||price<=0)&&typeof chartApi.exportData==='function'){" +
+    "chartApi.exportData().then(function(rows){try{if(!rows||!rows.length)return;var last=rows[rows.length-1];var close=Number(last.close!=null?last.close:last.value);if(!isFinite(close)||close<=0)return;var changePercent=0;if(rows.length>=2){var prev=Number(rows[rows.length-2].close!=null?rows[rows.length-2].close:rows[rows.length-2].value);if(prev>0){changePercent=((close-prev)/prev)*100;}}postToApp({type:'quote',symbol:String(sym||'').toUpperCase(),price:close,changePercent:changePercent});}catch(e){}}).catch(function(){});return;" +
+    "}" +
+    "if(price==null||!isFinite(price)||price<=0)return;" +
+    "let changePercent=0;" +
+    "if(series&&series.bars){const bars=series.bars();if(bars&&typeof bars.count==='function'&&bars.count()>=2){const lastBar=bars.last();const prevBar=bars.valueAt(bars.count()-2);if(lastBar&&prevBar&&prevBar.close>0){changePercent=((Number(lastBar.close)-Number(prevBar.close))/Number(prevBar.close))*100;}}}" +
+    "postToApp({type:'quote',symbol:String(sym||'').toUpperCase(),price:price,changePercent:changePercent});" +
     "}catch(e){}}" +
+    "function scheduleChartQuotes(sym){[400,1200,2500,5000,15000].forEach(function(ms){setTimeout(function(){publishChartQuote(sym);},ms);});}" +
     "function handleMessage(raw){try{" +
     "const data=JSON.parse(raw||'{}');" +
     "if(!chartApi){if(data.type==='setTrendLineMode'){trendLineModeEnabled=!!data.enabled;}" +
     "return;}" +
     "if(data.type==='setSymbol'&&data.symbol){chartApi.setSymbol(data.symbol,data.interval||'" +
     interval +
-    "');publishQuote(data.symbol);}" +
-    "else if(data.type==='setInterval'&&data.interval){chartApi.setResolution(String(data.interval));}" +
+    "');setTimeout(function(){publishChartQuote(data.symbol);},800);}" +
+    "else if(data.type==='setInterval'&&data.interval){chartApi.setResolution(String(data.interval));setTimeout(function(){publishChartQuote('" +
+    symbol +
+    "');},800);}" +
     "else if(data.type==='setTrendLineMode'){setTrendLineDrawMode(!!data.enabled);}" +
     "else if(data.type==='clearDrawings'){clearDrawings();}" +
     "}catch(e){}}" +
@@ -182,7 +189,8 @@ export function buildTradingViewHtml({
     "const sym='" +
     symbol +
     "';" +
-    "publishQuote(sym);setInterval(function(){publishQuote(sym);},15000);" +
+    "scheduleChartQuotes(sym);setInterval(function(){publishChartQuote(sym);},15000);" +
+    "try{if(chartApi&&chartApi.onDataLoaded){chartApi.onDataLoaded().subscribe(null,function(){publishChartQuote(sym);});}}catch(e){}" +
     "if(trendLineModeEnabled){setTrendLineDrawMode(true);}" +
     "notifyReady();setTimeout(notifyReady,400);});" +
     "document.addEventListener('message',function(event){handleMessage(event.data);});" +

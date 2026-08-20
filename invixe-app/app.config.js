@@ -18,6 +18,18 @@ if (googleIosClientId?.endsWith(".apps.googleusercontent.com")) {
 module.exports = {
   expo: {
     ...appJson.expo,
+    ios: {
+      ...(appJson.expo.ios || {}),
+      entitlements: {
+        "com.apple.developer.applesignin": ["Default"],
+      },
+    },
     plugins,
+    extra: {
+      ...(appJson.expo.extra || {}),
+      eas: {
+        projectId: "2aa27cf5-52f2-4bc4-8cf3-47e92effed95",
+      },
+    },
   },
 };

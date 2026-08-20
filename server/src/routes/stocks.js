@@ -1,70 +1,117 @@
 const express = require('express');
 const router = express.Router();
 
-const YAHOO_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
 const quoteCache = new Map();
+const historyCache = new Map();
 
-const mockStockData = {
-  // Last-resort only when Yahoo is unreachable. Keep near recent market levels.
-  AAPL: { price: 214.0, change: 0, changePercent: 0 },
-  GOOGL: { price: 363.0, change: 0, changePercent: 0 },
-  MSFT: { price: 460.0, change: 0, changePercent: 0 },
-  AMZN: { price: 225.0, change: 0, changePercent: 0 },
-  TSLA: { price: 320.0, change: 0, changePercent: 0 },
-  META: { price: 720.0, change: 0, changePercent: 0 },
-  NVDA: { price: 145.0, change: 0, changePercent: 0 },
-  NFLX: { price: 980.0, change: 0, changePercent: 0 },
-};
+if (!FINNHUB_API_KEY) {
+  console.warn(
+    'FINNHUB_API_KEY is not set — stock quotes and history will be unavailable.',
+  );
+}
 
-async function fetchYahooQuote(symbol) {
+function rangeToDays(range) {
+  switch (String(range || '1mo').toLowerCase()) {
+    case '1d':
+      return 1;
+    case '5d':
+      return 5;
+    case '1w':
+      return 7;
+    case '1mo':
+      return 30;
+    case '3mo':
+      return 90;
+    case '6mo':
+      return 180;
+    case '1y':
+      return 365;
+    default:
+      return 30;
+  }
+}
+
+async function fetchFinnhubQuote(symbol) {
+  if (!FINNHUB_API_KEY) {
+    throw new Error('Finnhub API key not configured');
+  }
+
+  const upper = String(symbol).toUpperCase();
+  const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(upper)}&token=${encodeURIComponent(FINNHUB_API_KEY)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Finnhub quote failed (${response.status})`);
+  }
+
+  const json = await response.json();
+  const price = Number(json?.c);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error('Finnhub quote missing price');
+  }
+
+  const change = Number(json?.d ?? 0);
+  const changePercent = Number(json?.dp ?? 0);
+  return { symbol: upper, price, change, changePercent };
+}
+
+async function fetchFinnhubDailyCloses(symbol, range = '1mo') {
+  if (!FINNHUB_API_KEY) {
+    throw new Error('Finnhub API key not configured');
+  }
+
+  const upper = String(symbol).toUpperCase();
+  const days = rangeToDays(range);
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - days * 24 * 60 * 60;
+  const url =
+    `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(upper)}` +
+    `&resolution=D&from=${from}&to=${to}&token=${encodeURIComponent(FINNHUB_API_KEY)}`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Finnhub candles failed (${response.status})`);
+  }
+
+  const json = await response.json();
+  if (json?.s !== 'ok' || !Array.isArray(json?.t) || !Array.isArray(json?.c)) {
+    throw new Error('Finnhub candles missing data');
+  }
+
+  const points = [];
+  for (let i = 0; i < json.t.length; i++) {
+    const close = Number(json.c[i]);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    points.push({ timestamp: json.t[i], close });
+  }
+  return points;
+}
+
+async function getLiveQuote(symbol) {
   const upper = String(symbol).toUpperCase();
   const cached = quoteCache.get(upper);
   if (cached && Date.now() - cached.ts < 60_000) {
     return cached.data;
   }
 
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(upper)}?interval=1d&range=1d`;
-  const response = await fetch(url, {
-    headers: { 'User-Agent': YAHOO_UA },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Yahoo quote failed (${response.status})`);
-  }
-
-  const json = await response.json();
-  const meta = json?.chart?.result?.[0]?.meta;
-  if (!meta?.regularMarketPrice) {
-    throw new Error('Yahoo quote missing price');
-  }
-
-  const price = meta.regularMarketPrice;
-  const prev = meta.chartPreviousClose ?? meta.previousClose ?? price;
-  const change = price - prev;
-  const changePercent = prev ? (change / prev) * 100 : 0;
-  const data = {
-    symbol: upper,
-    price,
-    change,
-    changePercent,
-  };
-
+  const data = await fetchFinnhubQuote(upper);
   quoteCache.set(upper, { data, ts: Date.now() });
   return data;
 }
 
-async function getLiveQuote(symbol) {
+async function getDailyCloses(symbol, range = '1mo') {
   const upper = String(symbol).toUpperCase();
-  try {
-    return await fetchYahooQuote(upper);
-  } catch (error) {
-    console.warn(`Live quote fallback for ${upper}:`, error.message);
-    const mock = mockStockData[upper];
-    if (!mock) return null;
-    return { symbol: upper, ...mock };
+  const cacheKey = `${upper}:${range}`;
+  const cached = historyCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < 15 * 60_000) {
+    return cached.data;
   }
+
+  const points = await fetchFinnhubDailyCloses(upper, range);
+  if (points.length) {
+    historyCache.set(cacheKey, { data: points, ts: Date.now() });
+  }
+  return points;
 }
 
 // GET multiple stock prices — must be before /:symbol
@@ -81,13 +128,43 @@ router.get('/prices', async (req, res) => {
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
 
-    const prices = (
-      await Promise.all(symbolList.map((symbol) => getLiveQuote(symbol)))
-    ).filter(Boolean);
+    const settled = await Promise.allSettled(
+      symbolList.map((symbol) => getLiveQuote(symbol)),
+    );
+    const prices = settled
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value);
+
+    if (!prices.length) {
+      return res.status(503).json({ error: 'Live quotes unavailable' });
+    }
 
     res.json({ prices });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch prices' });
+    console.warn('Batch quote error:', error.message);
+    res.status(503).json({ error: 'Failed to fetch prices' });
+  }
+});
+
+// GET daily closes for portfolio sparklines — must be before /:symbol
+router.get('/:symbol/history', async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const range = String(req.query.range || '1mo');
+    const points = await getDailyCloses(symbol, range);
+
+    if (!points.length) {
+      return res.status(404).json({ error: 'History not found' });
+    }
+
+    res.json({
+      symbol: String(symbol).toUpperCase(),
+      range,
+      points,
+    });
+  } catch (error) {
+    console.warn(`History error for ${req.params.symbol}:`, error.message);
+    res.status(503).json({ error: 'Failed to fetch history' });
   }
 });
 
@@ -103,7 +180,8 @@ router.get('/:symbol/price', async (req, res) => {
 
     res.json(quote);
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch price' });
+    console.warn(`Quote error for ${req.params.symbol}:`, error.message);
+    res.status(503).json({ error: 'Failed to fetch price' });
   }
 });
 
@@ -114,7 +192,7 @@ router.get('/:symbol', async (req, res) => {
     const { count = 50, interval = '1h' } = req.query;
 
     const quote = await getLiveQuote(symbol);
-    const basePrice = quote?.price ?? 100 + Math.random() * 200;
+    const basePrice = quote.price;
     const data = [];
     const now = Date.now();
 
@@ -147,7 +225,8 @@ router.get('/:symbol', async (req, res) => {
       interval,
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to fetch stock data' });
+    console.warn(`Synthetic series error for ${req.params.symbol}:`, error.message);
+    res.status(503).json({ error: 'Failed to fetch stock data' });
   }
 });
 
