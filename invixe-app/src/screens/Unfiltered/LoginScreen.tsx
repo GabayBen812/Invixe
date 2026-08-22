@@ -25,6 +25,7 @@ import Svg, { Path, Circle, Rect } from "react-native-svg";
 import { API_BASE_URL } from "../../config/api";
 import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 import { isGoogleAuthConfigured } from "../../config/auth";
+import { GUEST_DISCLAIMER } from "../../utils/guestMode";
 import {
   getSocialAuthErrorMessage,
   shouldShowAppleSignIn,
@@ -167,7 +168,7 @@ export default function LoginScreen({ navigation, route }: Props) {
     null,
   );
   const [error, setError] = useState("");
-  const { setCurrentUser } = useUser();
+  const { setCurrentUser, enterGuestMode } = useUser();
   const { setPhone, setPassword: setRegPassword, setFirstName, setLastName } =
     useRegistration();
 
@@ -269,6 +270,11 @@ export default function LoginScreen({ navigation, route }: Props) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGuestContinue = () => {
+    enterGuestMode();
+    navigation.reset({ index: 0, routes: [{ name: "Map", params: {} }] });
   };
 
   const handleSignUp = () => {
@@ -572,6 +578,17 @@ export default function LoginScreen({ navigation, route }: Props) {
             </Pressable>
           </View>
 
+          <Pressable
+            style={[styles.guestBtn, isBusy && styles.guestBtnDisabled]}
+            onPress={handleGuestContinue}
+            disabled={isBusy}
+            accessibilityRole="button"
+            accessibilityLabel="המשך כאורח"
+          >
+            <Text style={styles.guestBtnText}>המשך כאורח</Text>
+            <Text style={styles.guestDisclaimer}>{GUEST_DISCLAIMER}</Text>
+          </Pressable>
+
           <Text style={styles.legal}>
             בהמשך אתה מאשר את תנאי השימוש ומדיניות הפרטיות. התוכן לימודי בלבד
             ואינו ייעוץ פיננסי.
@@ -779,6 +796,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: theme.font.bold,
     color: "#EA4335",
+  },
+  guestBtn: {
+    marginTop: 14,
+    borderRadius: 14,
+    borderWidth: 1.4,
+    borderColor: "rgba(180, 83, 9, 0.35)",
+    backgroundColor: "rgba(255, 251, 235, 0.85)",
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+  },
+  guestBtnDisabled: {
+    opacity: 0.65,
+  },
+  guestBtnText: {
+    fontSize: 15,
+    fontFamily: theme.font.bold,
+    color: "#92400E",
+    textAlign: "center",
+  },
+  guestDisclaimer: {
+    marginTop: 4,
+    fontSize: 12,
+    lineHeight: 18,
+    fontFamily: theme.font.family,
+    color: "#B45309",
+    textAlign: "center",
   },
   legal: {
     marginTop: 18,

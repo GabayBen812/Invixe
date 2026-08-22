@@ -6,20 +6,23 @@ type Props = {
   sellShares: number;
   onBuy: () => void;
   onSell: () => void;
+  locked?: boolean;
 };
 
 export default function TradingActionDock({
   sellShares,
   onBuy,
   onSell,
+  locked = false,
 }: Props) {
-  const canSell = sellShares > 0;
+  const canSell = !locked && sellShares > 0;
 
   return (
     <View style={styles.dock}>
       <Pressable
-        style={[styles.button, styles.buyButton]}
+        style={[styles.button, styles.buyButton, locked && styles.buttonDisabled]}
         onPress={onBuy}
+        disabled={locked}
       >
         <Text style={styles.buttonText}>קנה</Text>
       </Pressable>

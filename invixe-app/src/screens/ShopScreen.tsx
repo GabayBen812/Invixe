@@ -23,7 +23,7 @@ type Props = NativeStackScreenProps<RootStackParamList, "Shop">;
 const HORIZONTAL_PADDING = 16;
 
 export default function ShopScreen({ navigation }: Props) {
-  const { addCash, currentUserEmail } = useUser();
+  const { addCash, currentUserEmail, isGuest } = useUser();
   const adRewards = getShopAdRewards();
   const adAmount = adRewards[0]?.amount ?? 0;
 
@@ -42,8 +42,11 @@ export default function ShopScreen({ navigation }: Props) {
   };
 
   const handleAdReward = async () => {
-    if (!currentUserEmail) {
-      Alert.alert("שגיאה", "יש להתחבר כדי לקבל מזומן");
+    if (!currentUserEmail || isGuest) {
+      Alert.alert(
+        "נדרש חשבון",
+        "יש להירשם או להתחבר כדי לקבל מזומן ולשמור התקדמות.",
+      );
       return;
     }
     try {

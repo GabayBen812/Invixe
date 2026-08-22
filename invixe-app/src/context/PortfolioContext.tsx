@@ -27,7 +27,17 @@ import {
   type TradeLike,
 } from "../utils/portfolioHistory";
 import { fetchLiveStockQuote } from "../utils/stockQuote";
-import { useUser } from "./UserContext";
+
+type LessonAttemptLike = {
+  lessonId: number;
+  lastAttempted: Date | string;
+};
+
+type PortfolioProviderProps = {
+  children: React.ReactNode;
+  currentUserEmail?: string | null;
+  lessonAttempts?: LessonAttemptLike[];
+};
 
 type PortfolioContextValue = {
   holdings: NormalizedHolding[];
@@ -81,8 +91,11 @@ async function fetchTradeHistory(email: string): Promise<TradeLike[]> {
   }
 }
 
-export function PortfolioProvider({ children }: { children: React.ReactNode }) {
-  const { currentUserEmail, lessonAttempts } = useUser();
+export function PortfolioProvider({
+  children,
+  currentUserEmail = null,
+  lessonAttempts = [],
+}: PortfolioProviderProps) {
   const [holdings, setHoldings] = useState<NormalizedHolding[]>([]);
   const [stockPrices, setStockPrices] = useState<NormalizedStockPrice[]>([]);
   const [portfolioHistorySeries, setPortfolioHistorySeries] = useState<

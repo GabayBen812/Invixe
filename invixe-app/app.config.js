@@ -30,10 +30,19 @@ module.exports = {
     ...appJson.expo,
     ios: {
       ...(appJson.expo.ios || {}),
+      supportsTablet: true,
+      requireFullScreen: true,
       entitlements: {
         "com.apple.developer.applesignin": ["Default"],
       },
       infoPlist: {
+        ...(appJson.expo.ios?.infoPlist || {}),
+        UIDeviceFamily: [1, 2],
+        UIRequiresFullScreen: true,
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown",
+        ],
         CFBundleURLTypes: urlTypes,
       },
     },

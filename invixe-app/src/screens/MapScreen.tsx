@@ -29,6 +29,7 @@ import {
 import { rememberMapUnitIndex } from "../navigation/mapNavigation";
 import { useLessons } from "../context/LessonsContext";
 import TopBar from "../components/ui/TopBar";
+import GuestModeBanner from "../components/auth/GuestModeBanner";
 import BottomNavbar from "../components/ui/BottomNavbar";
 import theme from "../theme";
 import Svg, { Path, G, Ellipse, Rect, Mask, Circle } from "react-native-svg";
@@ -532,6 +533,7 @@ export default function MapScreen({ navigation, route }: Props) {
     lessonAttempts,
     markLessonAttempted,
     refreshUserData,
+    isGuest,
   } = useUser();
   const [modalVisible, setModalVisible] = React.useState(false);
   const [comingSoonModalVisible, setComingSoonModalVisible] =
@@ -931,6 +933,7 @@ export default function MapScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <TopBar />
+      {isGuest ? <GuestModeBanner navigation={navigation} /> : null}
 
       {selectedUnitIdx !== null && (
         <Animated.View

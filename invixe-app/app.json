@@ -15,7 +15,16 @@
 
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gabayben812.invixeapp"
+      "requireFullScreen": true,
+      "bundleIdentifier": "com.gabayben812.invixeapp",
+      "infoPlist": {
+        "UIDeviceFamily": [1, 2],
+        "UIRequiresFullScreen": true,
+        "UISupportedInterfaceOrientations~ipad": [
+          "UIInterfaceOrientationPortrait",
+          "UIInterfaceOrientationPortraitUpsideDown"
+        ]
+      }
     },
 
     "android": {

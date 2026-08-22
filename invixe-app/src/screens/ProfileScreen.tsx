@@ -25,6 +25,7 @@ import TopBar from "../components/ui/TopBar";
 import BottomNavbar from "../components/ui/BottomNavbar";
 import PortfolioSparkline from "../components/profile/PortfolioSparkline";
 import ProfileStatTile from "../components/profile/ProfileStatTile";
+import GuestGateScreen from "../components/auth/GuestGateScreen";
 import ProfileStreakCard from "../components/profile/ProfileStreakCard";
 import TradingHistorySection from "../components/profile/TradingHistorySection";
 import theme from "../theme";
@@ -183,6 +184,7 @@ export default function ProfileScreen({ navigation }: Props) {
     logout,
     deleteAccount,
     currentUserEmail,
+    isGuest,
     firstName,
     lastName,
     updateProfileName,
@@ -585,6 +587,21 @@ export default function ProfileScreen({ navigation }: Props) {
       </Pressable>
     );
   };
+
+  const handleExitGuest = async () => {
+    await logout();
+    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+  };
+
+  if (isGuest) {
+    return (
+      <View style={styles.container}>
+        <TopBar />
+        <GuestGateScreen navigation={navigation} onExitGuest={handleExitGuest} />
+        <BottomNavbar activeTab="profile" onTabPress={handleTabPress} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>

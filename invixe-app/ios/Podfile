@@ -60,5 +60,19 @@ target 'invixeapp' do
         end
       end
     end
+
+    # Xcode 26+ / Apple Clang 21: fmt 11.0.2 consteval breaks React Native iOS builds.
+    fmt_base = File.join(installer.sandbox.root, 'fmt', 'include', 'fmt', 'base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      patched = content.gsub(
+        'defined(__apple_build_version__) && __apple_build_version__ < 14000029L',
+        'defined(__apple_build_version__)'
+      )
+      if patched != content
+        File.chmod(0644, fmt_base)
+        File.write(fmt_base, patched)
+      end
+    end
   end
 end

@@ -7,6 +7,7 @@ import {
   NativeScrollEvent,
   NativeSyntheticEvent,
   useWindowDimensions,
+  Pressable,
 } from "react-native";
 import RenderHtml, { defaultSystemFonts } from "react-native-render-html";
 import theme, { font } from "../../theme";
@@ -27,6 +28,7 @@ const SYSTEM_FONTS = [...defaultSystemFonts, font.family, font.bold];
 export default function TermsScrollGate({ onAcceptedChange }: Props) {
   const { width: screenWidth } = useWindowDimensions();
   const [scrolledToEnd, setScrolledToEnd] = useState(false);
+  const [checked, setChecked] = useState(false);
   const viewportHeightRef = useRef(0);
   const contentHeightRef = useRef(0);
   const scrollOffsetRef = useRef(0);
@@ -36,7 +38,7 @@ export default function TermsScrollGate({ onAcceptedChange }: Props) {
   const tagsStyles = useMemo(
     () => ({
       body: {
-        color: theme.colors.neutral[800],
+        color: theme.colors.neutral[700],
         fontSize: 14,
         lineHeight: 22,
         textAlign: "right" as const,
@@ -103,12 +105,18 @@ export default function TermsScrollGate({ onAcceptedChange }: Props) {
       return;
     }
 
-    setScrolledToEnd(offset + viewport >= content - SCROLL_THRESHOLD);
+    const atEnd = offset + viewport >= content - SCROLL_THRESHOLD;
+    setScrolledToEnd(atEnd);
+    if (!atEnd) {
+      setChecked(false);
+    }
   }, []);
 
+  const accepted = scrolledToEnd && checked;
+
   useEffect(() => {
-    onAcceptedChange(scrolledToEnd);
-  }, [onAcceptedChange, scrolledToEnd]);
+    onAcceptedChange(accepted);
+  }, [accepted, onAcceptedChange]);
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
@@ -124,6 +132,12 @@ export default function TermsScrollGate({ onAcceptedChange }: Props) {
     viewportHeightRef.current = height;
     evaluateScrollPosition();
   };
+
+  const hintText = accepted
+    ? "אפשר להמשיך"
+    : scrolledToEnd
+      ? "סמן/י את תיבת האישור כדי להמשיך"
+      : "גלול/י עד הסוף כדי לקרוא את התנאים";
 
   return (
     <View style={styles.card}>
@@ -155,11 +169,40 @@ export default function TermsScrollGate({ onAcceptedChange }: Props) {
         {!scrolledToEnd ? <View pointerEvents="none" style={styles.fadeHint} /> : null}
       </View>
 
-      <Text style={[styles.hint, scrolledToEnd && styles.hintDone]}>
-        {scrolledToEnd
-          ? "קראת/י את התנאים — אפשר להמשיך"
-          : "גלול/י עד הסוף כדי לאשר ולהמשיך"}
-      </Text>
+      <Pressable
+        onPress={() => {
+          if (scrolledToEnd) setChecked((value) => !value);
+        }}
+        disabled={!scrolledToEnd}
+        style={({ pressed }) => [
+          styles.checkRow,
+          !scrolledToEnd && styles.checkRowDisabled,
+          pressed && scrolledToEnd && styles.checkRowPressed,
+        ]}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked, disabled: !scrolledToEnd }}
+      >
+        <View
+          style={[
+            styles.checkbox,
+            checked && styles.checkboxChecked,
+            !scrolledToEnd && styles.checkboxDisabled,
+          ]}
+        >
+          {checked ? <Text style={styles.checkmark}>✓</Text> : null}
+        </View>
+        <Text
+          style={[
+            styles.checkLabel,
+            !scrolledToEnd && styles.checkLabelDisabled,
+            checked && styles.checkLabelChecked,
+          ]}
+        >
+          הבנתי ואישרתי את התנאים
+        </Text>
+      </Pressable>
+
+      <Text style={[styles.hint, accepted && styles.hintDone]}>{hintText}</Text>
     </View>
   );
 }
@@ -211,6 +254,59 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 36,
     backgroundColor: "rgba(248, 250, 253, 0.92)",
+  },
+  checkRow: {
+    flexDirection: "row-reverse",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    marginTop: 4,
+  },
+  checkRowDisabled: {
+    opacity: 0.55,
+  },
+  checkRowPressed: {
+    opacity: 0.85,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: theme.colors.primary[400],
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: theme.colors.primary[500],
+    borderColor: theme.colors.primary[500],
+  },
+  checkboxDisabled: {
+    borderColor: theme.colors.neutral[300],
+    backgroundColor: theme.colors.neutral[100],
+  },
+  checkmark: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontFamily: theme.font.bold,
+    lineHeight: 16,
+  },
+  checkLabel: {
+    flex: 1,
+    fontFamily: theme.font.family,
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.neutral[700],
+    textAlign: "right",
+  },
+  checkLabelDisabled: {
+    color: theme.colors.neutral[400],
+  },
+  checkLabelChecked: {
+    fontFamily: theme.font.bold,
+    color: theme.colors.neutral[900],
   },
   hint: {
     fontFamily: theme.font.family,

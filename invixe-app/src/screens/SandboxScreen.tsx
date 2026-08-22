@@ -27,9 +27,15 @@ import TradingControlsBar from '../components/trading/TradingControlsBar';
 import TradingActionDock from '../components/trading/TradingActionDock';
 import TradingSmaToggle from '../components/trading/TradingSmaToggle';
 import TradingTrendLineToggle from '../components/trading/TradingTrendLineToggle';
+import TradingTrendLineOverlay, {
+  type TrendPixelLine,
+  type TrendPixelPoint,
+} from '../components/trading/TradingTrendLineOverlay';
 import { buildTradingViewHtml } from '../components/trading/tradingChartHtml';
 import TradingTickerOverlay from '../components/trading/TradingTickerOverlay';
 import TradingSimulationDisclaimer from '../components/trading/TradingSimulationDisclaimer';
+import { alertGuestFeatureBlocked } from '../utils/guestMode';
+import GuestModeBanner from '../components/auth/GuestModeBanner';
 import { WebView } from 'react-native-webview';
 
 const STOCKS = [
@@ -83,7 +89,7 @@ function mapRangeToTv(range: string) {
 }
 
 export default function SandboxScreen({ navigation, route }: Props) {
-  const { cash, setCash, currentUserEmail } = useUser();
+  const { cash, setCash, currentUserEmail, isGuest } = useUser();
   const { getHolding, refreshPortfolio } = usePortfolio();
   const initialSymbol = route.params?.symbol;
   const [selectedStock, setSelectedStock] = useState(() =>
@@ -92,6 +98,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const [selectedRange, setSelectedRange] = useState('1d');
   const [sma150Enabled, setSma150Enabled] = useState(false);
   const [trendLineDrawEnabled, setTrendLineDrawEnabled] = useState(false);
+  const [trendPixelLines, setTrendPixelLines] = useState<TrendPixelLine[]>([]);
+  const [trendPendingDot, setTrendPendingDot] = useState<TrendPixelPoint | null>(null);
   const [chartReady, setChartReady] = useState(false);
   const webViewBaseRef = useRef<WebView>(null);
   const webViewSmaRef = useRef<WebView>(null);
@@ -147,14 +155,38 @@ export default function SandboxScreen({ navigation, route }: Props) {
   }, [selectedStock.symbol, loadQuote]);
 
   const postToChart = useCallback((payload: Record<string, unknown>) => {
-    const msg = JSON.stringify(payload);
+    const json = JSON.stringify(payload);
+    const script = `(function(){try{if(window.handleChartCommand){window.handleChartCommand(${json});}}catch(e){}})();true;`;
     try {
-      webViewBaseRef.current?.postMessage(msg);
-      webViewSmaRef.current?.postMessage(msg);
+      webViewBaseRef.current?.injectJavaScript(script);
+      webViewSmaRef.current?.injectJavaScript(script);
     } catch {
       // webview not ready
     }
   }, []);
+
+  const injectToActiveChart = useCallback(
+    (script: string) => {
+      try {
+        if (sma150Enabled) {
+          webViewSmaRef.current?.injectJavaScript(script);
+        } else {
+          webViewBaseRef.current?.injectJavaScript(script);
+        }
+      } catch {
+        // webview not ready
+      }
+    },
+    [sma150Enabled],
+  );
+
+  const handleTrendLineTap = useCallback(
+    (x: number, y: number) => {
+      const script = `(function(){try{if(window.handleExternalTrendTap){window.handleExternalTrendTap(${x},${y});}}catch(e){}})();true;`;
+      injectToActiveChart(script);
+    },
+    [injectToActiveChart],
+  );
 
   const toggleSma150 = useCallback(() => {
     setSma150Enabled((prev) => {
@@ -174,12 +206,21 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
   useEffect(() => {
     setTrendLineDrawEnabled(false);
+    setTrendPixelLines([]);
+    setTrendPendingDot(null);
     setChartReady(false);
     smaChipReveal.setValue(0);
     // TradingView free widget sometimes never posts `ready` — still reveal the chip
     const fallback = setTimeout(() => setChartReady(true), 1600);
     return () => clearTimeout(fallback);
   }, [selectedStock.symbol, selectedRange, smaChipReveal]);
+
+  useEffect(() => {
+    if (!trendLineDrawEnabled) {
+      setTrendPixelLines([]);
+      setTrendPendingDot(null);
+    }
+  }, [trendLineDrawEnabled]);
 
   useEffect(() => {
     if (!chartReady) return;
@@ -212,6 +253,13 @@ export default function SandboxScreen({ navigation, route }: Props) {
       type: 'setTrendLineMode',
       enabled: trendLineDrawEnabled,
     });
+    const retry = setTimeout(() => {
+      postToChart({
+        type: 'setTrendLineMode',
+        enabled: trendLineDrawEnabled,
+      });
+    }, 1200);
+    return () => clearTimeout(retry);
   }, [trendLineDrawEnabled, chartReady, postToChart]);
 
   const currentHolding = useMemo(
@@ -279,6 +327,10 @@ export default function SandboxScreen({ navigation, route }: Props) {
   };
 
   const openTradeModal = (type: 'buy' | 'sell') => {
+    if (isGuest) {
+      alertGuestFeatureBlocked('מסחר (קנייה ומכירה)', navigation);
+      return;
+    }
     if (!livePrice) {
       void loadQuote(selectedStock.symbol);
     }
@@ -413,6 +465,17 @@ export default function SandboxScreen({ navigation, route }: Props) {
           setChartReady(true);
           return;
         }
+        if (data.type === 'trendPixels') {
+          setTrendPixelLines(Array.isArray(data.lines) ? data.lines : []);
+          setTrendPendingDot(
+            data.pending &&
+              typeof data.pending.x === 'number' &&
+              typeof data.pending.y === 'number'
+              ? data.pending
+              : null,
+          );
+          return;
+        }
         if (data.type === 'drawing') {
           const hintKey = `${data.event}:${data.mode ?? ''}`;
           if (lastDrawingHintRef.current !== hintKey) {
@@ -437,6 +500,8 @@ export default function SandboxScreen({ navigation, route }: Props) {
               showToast('קו המגמה נוסף', 'success');
             } else if (data.event === 'lineFailed') {
               showToast('לא הצלחנו לצייר את הקו — נסה שוב', 'error');
+            } else if (data.event === 'tapMissed') {
+              showToast('לא הצלחנו לזהות את הנקודה — הקש שוב על הגרף', 'error');
             }
           }
           return;
@@ -464,6 +529,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <TopBar />
+      {isGuest ? <GuestModeBanner navigation={navigation} /> : null}
       <TradingHeader
         symbol={selectedStock.symbol}
         stockName={selectedStock.name}
@@ -491,6 +557,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
           overScrollMode="never"
           style={styles.chart}
           allowsInlineMediaPlayback
+          pointerEvents={trendLineDrawEnabled ? 'none' : 'auto'}
           onMessage={handleChartMessage}
         />
         <Animated.View
@@ -511,9 +578,16 @@ export default function SandboxScreen({ navigation, route }: Props) {
             overScrollMode="never"
             style={styles.chart}
             allowsInlineMediaPlayback
+            pointerEvents={trendLineDrawEnabled ? 'none' : 'auto'}
             onMessage={handleChartMessage}
           />
         </Animated.View>
+        <TradingTrendLineOverlay
+          enabled={trendLineDrawEnabled && chartReady}
+          lines={trendPixelLines}
+          pendingDot={trendPendingDot}
+          onTap={handleTrendLineTap}
+        />
         <Animated.View
           pointerEvents={chartReady ? 'box-none' : 'none'}
           style={[
@@ -572,6 +646,7 @@ export default function SandboxScreen({ navigation, route }: Props) {
 
       <TradingActionDock
         sellShares={maxSellShares}
+        locked={isGuest}
         onBuy={() => openTradeModal('buy')}
         onSell={() => openTradeModal('sell')}
       />

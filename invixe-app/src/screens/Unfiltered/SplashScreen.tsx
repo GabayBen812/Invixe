@@ -14,17 +14,17 @@ import { useUser } from "../../context/UserContext";
 type Props = NativeStackScreenProps<RootStackParamList, "Splash">;
 
 export default function SplashScreen({ navigation }: Props) {
-  const { isHydrating, currentUserEmail } = useUser();
+  const { isHydrating, currentUserEmail, isGuest } = useUser();
 
   useEffect(() => {
     if (isHydrating) return;
 
     const timer = setTimeout(() => {
-      navigation.replace(currentUserEmail ? "Map" : "Login");
+      navigation.replace(currentUserEmail || isGuest ? "Map" : "Login");
     }, 500);
 
     return () => clearTimeout(timer);
-  }, [isHydrating, currentUserEmail, navigation]);
+  }, [isHydrating, currentUserEmail, isGuest, navigation]);
 
   return (
     <ImageBackground

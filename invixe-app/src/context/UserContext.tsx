@@ -53,6 +53,8 @@ interface UserContextType {
   firstName: string | null;
   lastName: string | null;
   currentUserEmail: string | null;
+  /** Ephemeral App Store guest session — no server sync, cleared on app restart. */
+  isGuest: boolean;
   isHydrating: boolean;
   setCompletedLessons: (lessons: number[]) => Promise<void>;
   setLessonAttempts: (attempts: LessonAttempt[]) => Promise<void>;
@@ -66,6 +68,7 @@ interface UserContextType {
     email: string,
     profile?: { firstName?: string; lastName?: string },
   ) => Promise<void>;
+  enterGuestMode: () => void;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
   updateProfileName: (
@@ -96,9 +99,11 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(
     null,
   );
+  const [isGuest, setIsGuest] = useState(false);
   const [isHydrating, setIsHydrating] = useState(true);
 
   const currentUserEmailRef = useRef<string | null>(null);
+  const isGuestRef = useRef(false);
   const progressFetchGen = useRef(0);
   const progressSaveInFlight = useRef(0);
   const completedLessonsRef = useRef<number[]>([]);
@@ -110,6 +115,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     currentUserEmailRef.current = currentUserEmail;
   }, [currentUserEmail]);
+
+  useEffect(() => {
+    isGuestRef.current = isGuest;
+  }, [isGuest]);
 
   useEffect(() => {
     completedLessonsRef.current = completedLessons;
@@ -252,6 +261,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       profile?: { firstName?: string; lastName?: string },
     ) => {
       progressFetchGen.current += 1;
+      setIsGuest(false);
+      isGuestRef.current = false;
       resetUserState();
       setCurrentUserEmail(email);
       currentUserEmailRef.current = email;
@@ -269,8 +280,19 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     [fetchUserData, resetUserState],
   );
 
+  const enterGuestMode = useCallback(() => {
+    progressFetchGen.current += 1;
+    setIsGuest(true);
+    isGuestRef.current = true;
+    setCurrentUserEmail(null);
+    currentUserEmailRef.current = null;
+    resetUserState();
+  }, [resetUserState]);
+
   const logout = useCallback(async () => {
     progressFetchGen.current += 1;
+    setIsGuest(false);
+    isGuestRef.current = false;
     setCurrentUserEmail(null);
     currentUserEmailRef.current = null;
     resetUserState();
@@ -326,9 +348,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setCompletedLessons = useCallback(
     async (lessons: number[]) => {
       const userEmail = currentUserEmailRef.current;
+      if (isGuestRef.current || !userEmail) return;
+
       setCompletedLessonsState(lessons);
       completedLessonsRef.current = lessons;
-      if (!userEmail) return;
 
       progressSaveInFlight.current += 1;
       try {
@@ -346,9 +369,10 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setLessonAttempts = useCallback(
     async (attempts: LessonAttempt[]) => {
       const userEmail = currentUserEmailRef.current;
+      if (isGuestRef.current || !userEmail) return;
+
       setLessonAttemptsState(attempts);
       lessonAttemptsRef.current = attempts;
-      if (!userEmail) return;
 
       progressSaveInFlight.current += 1;
       try {
@@ -366,7 +390,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const markLessonCompleted = useCallback(
     async (lessonId: number) => {
       const userEmail = currentUserEmailRef.current;
-      if (!userEmail) return;
+      if (!userEmail || isGuestRef.current) return;
 
       const prevAttempts = lessonAttemptsRef.current;
       const prevCompleted = completedLessonsRef.current;
@@ -438,6 +462,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const markLessonAttempted = useCallback(
     (lessonId: number) => {
       const userEmail = currentUserEmailRef.current;
+      if (!userEmail || isGuestRef.current) return;
       const prevAttempts = lessonAttemptsRef.current;
       const existingAttempt = prevAttempts.find(
         (a) => a.lessonId === lessonId,
@@ -474,6 +499,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const setCash = useCallback(async (nextCash: number) => {
+    if (isGuestRef.current) return;
     cashRef.current = nextCash;
     cashHydratedRef.current = true;
     setCashState(nextCash);
@@ -494,6 +520,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const addCash = useCallback(async (amount: number) => {
     const safeAmount = Math.max(0, Math.round(amount));
     if (safeAmount <= 0) return cashRef.current;
+
+    if (isGuestRef.current) return cashRef.current;
 
     const userEmail = currentUserEmailRef.current;
     const optimistic = cashRef.current + safeAmount;
@@ -583,6 +611,8 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       }
 
       progressFetchGen.current += 1;
+      setIsGuest(false);
+      isGuestRef.current = false;
       setCurrentUserEmail(null);
       currentUserEmailRef.current = null;
       resetUserState();
@@ -603,6 +633,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       firstName,
       lastName,
       currentUserEmail,
+      isGuest,
       isHydrating,
       setCompletedLessons,
       setLessonAttempts,
@@ -612,6 +643,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       addCash,
       clearCashGain,
       setCurrentUser,
+      enterGuestMode,
       logout,
       refreshUserData,
       updateProfileName,
@@ -625,6 +657,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       firstName,
       lastName,
       currentUserEmail,
+      isGuest,
       isHydrating,
       setCompletedLessons,
       setLessonAttempts,
@@ -634,6 +667,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       addCash,
       clearCashGain,
       setCurrentUser,
+      enterGuestMode,
       logout,
       refreshUserData,
       updateProfileName,

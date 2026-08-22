@@ -8,13 +8,14 @@ import {
 import { Text, TextProps } from "react-native";
 import React, { useEffect, useState } from "react";
 import { UserProvider } from "./src/context/UserContext";
-import { PortfolioProvider } from "./src/context/PortfolioContext";
+import { PortfolioBridge } from "./src/context/PortfolioBridge";
 import { LessonsProvider } from "./src/context/LessonsContext";
 import { DictionaryProvider } from "./src/context/DictionaryContext";
 import DictionaryModal from "./src/components/dictionary/DictionaryModal";
 import * as SplashScreen from "expo-splash-screen";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import ErrorBoundary from "./src/components/ErrorBoundary";
+import TabletShell from "./src/components/ui/TabletShell";
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -60,20 +61,22 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <RegistrationProvider>
-        <UserProvider>
-          <PortfolioProvider>
-            <LessonsProvider>
-              <DictionaryProvider>
-                <ErrorBoundary>
-                  <AppNavigator />
-                  <DictionaryModal />
-                </ErrorBoundary>
-              </DictionaryProvider>
-            </LessonsProvider>
-          </PortfolioProvider>
-        </UserProvider>
-      </RegistrationProvider>
+      <TabletShell>
+        <RegistrationProvider>
+          <UserProvider>
+            <PortfolioBridge>
+              <LessonsProvider>
+                <DictionaryProvider>
+                  <ErrorBoundary>
+                    <AppNavigator />
+                    <DictionaryModal />
+                  </ErrorBoundary>
+                </DictionaryProvider>
+              </LessonsProvider>
+            </PortfolioBridge>
+          </UserProvider>
+        </RegistrationProvider>
+      </TabletShell>
     </SafeAreaProvider>
   );
 }

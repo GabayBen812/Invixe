@@ -66,6 +66,7 @@ export default function QuestionWithImage({
     () => choices.filter((c) => getDrillChoicePlainText(c).length > 0),
     [choices],
   );
+  const useGridLayout = (visibleChoices.length || choices.length) > 4;
 
   // Reset selection/submit when navigating between consecutive questionWithImage steps
   // (same component type — without a remount, state would otherwise leak).
@@ -91,6 +92,7 @@ export default function QuestionWithImage({
 
   const layout = useChoiceDrillLayout(visibleChoices.length || choices.length, {
     hasMedia: true,
+    gridCols: useGridLayout ? 2 : 1,
   });
 
   useEffect(() => {
@@ -177,6 +179,7 @@ export default function QuestionWithImage({
                   : "#374151";
           let buttonStyle: object[] = [
             styles.choiceButton,
+            useGridLayout && styles.choiceButtonGrid,
             isPractice && {
               backgroundColor: theme.choiceBg,
               borderColor: theme.choiceBorder,
@@ -306,13 +309,17 @@ export default function QuestionWithImage({
       </PracticeMediaSurface>
 
       {scrollChoices ? (
-        <DrillChoiceScrollArea gap={layout.choiceGap}>
+        <DrillChoiceScrollArea
+          gap={layout.choiceGap}
+          contentStyle={useGridLayout ? styles.choicesGrid : undefined}
+        >
           {choiceNodes}
         </DrillChoiceScrollArea>
       ) : (
         <View
           style={[
             styles.choicesContainer,
+            useGridLayout && styles.choicesGrid,
             { gap: layout.choiceGap, minHeight: layout.choicesMinHeight },
           ]}
         >
@@ -356,13 +363,23 @@ const styles = StyleSheet.create({
     width: '100%',
     flexShrink: 0,
   },
+  choicesGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    columnGap: 8,
+  },
   choiceButton: {
-    width: '100%',
+    width: '92%',
     maxWidth: 420,
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     alignItems: 'center',
     alignSelf: 'center',
+  },
+  choiceButtonGrid: {
+    width: '46%',
+    maxWidth: undefined,
   },
   choiceTextWrap: {
     width: '100%',
