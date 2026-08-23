@@ -26,11 +26,6 @@ import TradingHeader from '../components/trading/TradingHeader';
 import TradingControlsBar from '../components/trading/TradingControlsBar';
 import TradingActionDock from '../components/trading/TradingActionDock';
 import TradingSmaToggle from '../components/trading/TradingSmaToggle';
-import TradingTrendLineToggle from '../components/trading/TradingTrendLineToggle';
-import TradingTrendLineOverlay, {
-  type TrendPixelLine,
-  type TrendPixelPoint,
-} from '../components/trading/TradingTrendLineOverlay';
 import { buildTradingViewHtml } from '../components/trading/tradingChartHtml';
 import TradingTickerOverlay from '../components/trading/TradingTickerOverlay';
 import TradingSimulationDisclaimer from '../components/trading/TradingSimulationDisclaimer';
@@ -97,9 +92,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
   );
   const [selectedRange, setSelectedRange] = useState('1d');
   const [sma150Enabled, setSma150Enabled] = useState(false);
-  const [trendLineDrawEnabled, setTrendLineDrawEnabled] = useState(false);
-  const [trendPixelLines, setTrendPixelLines] = useState<TrendPixelLine[]>([]);
-  const [trendPendingDot, setTrendPendingDot] = useState<TrendPixelPoint | null>(null);
   const [chartReady, setChartReady] = useState(false);
   const webViewBaseRef = useRef<WebView>(null);
   const webViewSmaRef = useRef<WebView>(null);
@@ -115,7 +107,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const smaReveal = useRef(new Animated.Value(0)).current;
   const smaChipReveal = useRef(new Animated.Value(0)).current;
-  const lastDrawingHintRef = useRef('');
   const chartQuoteActiveRef = useRef(false);
 
   useFocusEffect(
@@ -165,29 +156,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
     }
   }, []);
 
-  const injectToActiveChart = useCallback(
-    (script: string) => {
-      try {
-        if (sma150Enabled) {
-          webViewSmaRef.current?.injectJavaScript(script);
-        } else {
-          webViewBaseRef.current?.injectJavaScript(script);
-        }
-      } catch {
-        // webview not ready
-      }
-    },
-    [sma150Enabled],
-  );
-
-  const handleTrendLineTap = useCallback(
-    (x: number, y: number) => {
-      const script = `(function(){try{if(window.handleExternalTrendTap){window.handleExternalTrendTap(${x},${y});}}catch(e){}})();true;`;
-      injectToActiveChart(script);
-    },
-    [injectToActiveChart],
-  );
-
   const toggleSma150 = useCallback(() => {
     setSma150Enabled((prev) => {
       const next = !prev;
@@ -200,27 +168,13 @@ export default function SandboxScreen({ navigation, route }: Props) {
     });
   }, [smaReveal]);
 
-  const toggleTrendLineDraw = useCallback(() => {
-    setTrendLineDrawEnabled((prev) => !prev);
-  }, []);
-
   useEffect(() => {
-    setTrendLineDrawEnabled(false);
-    setTrendPixelLines([]);
-    setTrendPendingDot(null);
     setChartReady(false);
     smaChipReveal.setValue(0);
     // TradingView free widget sometimes never posts `ready` — still reveal the chip
     const fallback = setTimeout(() => setChartReady(true), 1600);
     return () => clearTimeout(fallback);
   }, [selectedStock.symbol, selectedRange, smaChipReveal]);
-
-  useEffect(() => {
-    if (!trendLineDrawEnabled) {
-      setTrendPixelLines([]);
-      setTrendPendingDot(null);
-    }
-  }, [trendLineDrawEnabled]);
 
   useEffect(() => {
     if (!chartReady) return;
@@ -246,21 +200,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
       interval: mapRangeToTv(selectedRange),
     });
   }, [selectedRange, postToChart]);
-
-  useEffect(() => {
-    if (!chartReady) return;
-    postToChart({
-      type: 'setTrendLineMode',
-      enabled: trendLineDrawEnabled,
-    });
-    const retry = setTimeout(() => {
-      postToChart({
-        type: 'setTrendLineMode',
-        enabled: trendLineDrawEnabled,
-      });
-    }, 1200);
-    return () => clearTimeout(retry);
-  }, [trendLineDrawEnabled, chartReady, postToChart]);
 
   const currentHolding = useMemo(
     () => getHolding(selectedStock.symbol),
@@ -307,11 +246,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
     },
     [toastOpacity, toastTranslateY],
   );
-
-  const clearChartDrawings = useCallback(() => {
-    postToChart({ type: 'clearDrawings' });
-    showToast('קווי המגמה הוסרו מהגרף', 'success');
-  }, [postToChart, showToast]);
 
   const handleTabPress = (tab: 'map' | 'profile' | 'graph') => {
     switch (tab) {
@@ -465,47 +399,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
           setChartReady(true);
           return;
         }
-        if (data.type === 'trendPixels') {
-          setTrendPixelLines(Array.isArray(data.lines) ? data.lines : []);
-          setTrendPendingDot(
-            data.pending &&
-              typeof data.pending.x === 'number' &&
-              typeof data.pending.y === 'number'
-              ? data.pending
-              : null,
-          );
-          return;
-        }
-        if (data.type === 'drawing') {
-          const hintKey = `${data.event}:${data.mode ?? ''}`;
-          if (lastDrawingHintRef.current !== hintKey) {
-            lastDrawingHintRef.current = hintKey;
-            setTimeout(() => {
-              if (lastDrawingHintRef.current === hintKey) {
-                lastDrawingHintRef.current = '';
-              }
-            }, 900);
-
-            if (data.event === 'modeOn') {
-              if (data.mode === 'tap') {
-                showToast('הקש שתי נקודות על הגרף לציור קו מגמה', 'success');
-              } else if (data.mode === 'native') {
-                showToast('גרור על הגרף בין שתי נקודות לציור קו מגמה', 'success');
-              } else if (data.ready === false) {
-                showToast('לא הצלחנו להפעיל ציור על הגרף', 'error');
-              }
-            } else if (data.event === 'firstPoint') {
-              showToast('עכשיו הקש את נקודת הסיום', 'success');
-            } else if (data.event === 'lineCreated') {
-              showToast('קו המגמה נוסף', 'success');
-            } else if (data.event === 'lineFailed') {
-              showToast('לא הצלחנו לצייר את הקו — נסה שוב', 'error');
-            } else if (data.event === 'tapMissed') {
-              showToast('לא הצלחנו לזהות את הנקודה — הקש שוב על הגרף', 'error');
-            }
-          }
-          return;
-        }
         if (
           data.type === 'quote' &&
           data.symbol &&
@@ -557,7 +450,6 @@ export default function SandboxScreen({ navigation, route }: Props) {
           overScrollMode="never"
           style={styles.chart}
           allowsInlineMediaPlayback
-          pointerEvents={trendLineDrawEnabled ? 'none' : 'auto'}
           onMessage={handleChartMessage}
         />
         <Animated.View
@@ -578,16 +470,9 @@ export default function SandboxScreen({ navigation, route }: Props) {
             overScrollMode="never"
             style={styles.chart}
             allowsInlineMediaPlayback
-            pointerEvents={trendLineDrawEnabled ? 'none' : 'auto'}
             onMessage={handleChartMessage}
           />
         </Animated.View>
-        <TradingTrendLineOverlay
-          enabled={trendLineDrawEnabled && chartReady}
-          lines={trendPixelLines}
-          pendingDot={trendPendingDot}
-          onTap={handleTrendLineTap}
-        />
         <Animated.View
           pointerEvents={chartReady ? 'box-none' : 'none'}
           style={[
@@ -611,24 +496,10 @@ export default function SandboxScreen({ navigation, route }: Props) {
             },
           ]}
         >
-          <TradingTrendLineToggle
-            enabled={trendLineDrawEnabled}
-            onToggle={toggleTrendLineDraw}
-          />
           <TradingSmaToggle
             enabled={sma150Enabled}
             onToggle={toggleSma150}
           />
-          {trendLineDrawEnabled ? (
-            <TouchableOpacity
-              style={styles.clearDrawingsButton}
-              onPress={clearChartDrawings}
-              accessibilityRole="button"
-              accessibilityLabel="נקה קווי מגמה"
-            >
-              <Text style={styles.clearDrawingsText}>נקה</Text>
-            </TouchableOpacity>
-          ) : null}
         </Animated.View>
         <TradingTickerOverlay
           symbol={selectedStock.symbol}
@@ -826,21 +697,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row-reverse',
     alignItems: 'center',
     gap: 8,
-  },
-  clearDrawingsButton: {
-    minHeight: 34,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: 'rgba(248, 113, 113, 0.55)',
-    backgroundColor: 'rgba(69, 10, 10, 0.72)',
-  },
-  clearDrawingsText: {
-    fontSize: 12,
-    fontFamily: theme.font.bold,
-    color: '#FCA5A5',
-    writingDirection: 'rtl',
   },
   modalOverlay: {
     flex: 1,

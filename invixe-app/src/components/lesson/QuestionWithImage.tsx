@@ -159,119 +159,70 @@ export default function QuestionWithImage({
     layout.mediaHeight + layout.choicesMinHeight + stackGap + 16;
 
   const choiceNodes = visibleChoices.map((choice) => {
-          const isSelected = selectedChoice === choice.id;
-          const isCorrectChoice = choice.correct;
-          const showFeedbackHighlight =
-            submitted &&
-            ((isSelected && isCorrectChoice) ||
-              (isSelected && !isCorrectChoice) ||
-              (!isSelected && isCorrectChoice));
-          const labelColor = showFeedbackHighlight
-            ? "#FFFFFF"
-            : submitted
-              ? isPractice
-                ? theme.choiceDisabledText
-                : "#9CA3AF"
-              : isSelected
-                ? "#FFFFFF"
-                : isPractice
-                  ? theme.choiceText
-                  : "#374151";
-          let buttonStyle: object[] = [
-            styles.choiceButton,
-            useGridLayout && styles.choiceButtonGrid,
-            isPractice && {
-              backgroundColor: theme.choiceBg,
-              borderColor: theme.choiceBorder,
-            },
-          ];
-          let textStyle: object[] = [
-            styles.choiceText,
-            isPractice && { color: theme.choiceText },
-            {
-              fontSize: layout.choiceFontSize,
-              lineHeight: layout.choiceLineHeight,
-            },
-          ];
+    const isSelected = selectedChoice === choice.id;
+    const isCorrectChoice = choice.correct;
 
-          if (submitted) {
-            if (isSelected && isCorrectChoice) {
-              buttonStyle = isPractice
-                ? [
-                    styles.choiceButton,
-                    { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
-                  ]
-                : [styles.choiceButton, styles.choiceButtonCorrect];
-              textStyle = [styles.choiceText, styles.choiceTextCorrect, { fontSize: layout.choiceFontSize }];
-            } else if (isSelected && !isCorrectChoice) {
-              buttonStyle = isPractice
-                ? [
-                    styles.choiceButton,
-                    { backgroundColor: theme.choiceWrongBg, borderColor: "transparent" },
-                  ]
-                : [styles.choiceButton, styles.choiceButtonWrong];
-              textStyle = [styles.choiceText, styles.choiceTextWrong, { fontSize: layout.choiceFontSize }];
-            } else if (!isSelected && isCorrectChoice) {
-              buttonStyle = isPractice
-                ? [
-                    styles.choiceButton,
-                    { backgroundColor: theme.choiceCorrectBg, borderColor: "transparent" },
-                  ]
-                : [styles.choiceButton, styles.choiceButtonCorrect];
-              textStyle = [styles.choiceText, styles.choiceTextCorrect, { fontSize: layout.choiceFontSize }];
-            } else {
-              buttonStyle = isPractice
-                ? [
-                    styles.choiceButton,
-                    { backgroundColor: theme.choiceDisabledBg, borderColor: "transparent" },
-                  ]
-                : [styles.choiceButton, styles.choiceButtonDisabled];
-              textStyle = [
-                styles.choiceText,
-                isPractice ? { color: theme.choiceDisabledText } : styles.choiceTextDisabled,
-                { fontSize: layout.choiceFontSize },
-              ];
-            }
-          } else if (isSelected) {
-            buttonStyle = isPractice
-              ? [
-                  styles.choiceButton,
-                  { backgroundColor: theme.choiceSelectedBg, borderColor: "transparent" },
-                ]
-              : [styles.choiceButton, styles.choiceButtonSelected];
-            textStyle = [
-              styles.choiceText,
-              isPractice ? { color: theme.choiceSelectedText } : styles.choiceTextSelected,
-              { fontSize: layout.choiceFontSize },
-            ];
+    let backgroundColor = isPractice ? theme.choiceBg : "#FFFFFF";
+    let textColor = isPractice ? theme.choiceText : "#0D2033";
+
+    if (submitted) {
+      if (isSelected && isCorrectChoice) {
+        backgroundColor = isPractice ? theme.choiceCorrectBg : "#12B76A";
+        textColor = "#FFFFFF";
+      } else if (isSelected && !isCorrectChoice) {
+        backgroundColor = isPractice ? theme.choiceWrongBg : "#FF6B6B";
+        textColor = "#FFFFFF";
+      } else if (!isSelected && isCorrectChoice) {
+        backgroundColor = isPractice ? theme.choiceCorrectBg : "#12B76A";
+        textColor = "#FFFFFF";
+      } else {
+        backgroundColor = isPractice ? theme.choiceDisabledBg : "#F3F4F6";
+        textColor = isPractice ? theme.choiceDisabledText : "#9CA3AF";
+      }
+    } else if (isSelected) {
+      backgroundColor = isPractice ? theme.choiceSelectedBg : "#3372D8";
+      textColor = isPractice ? theme.choiceSelectedText : "#FFFFFF";
+    }
+
+    return (
+      <Pressable
+        key={choice.id}
+        style={({ pressed }) => [
+          styles.choiceButton,
+          useGridLayout && styles.choiceButtonGrid,
+          {
+            backgroundColor,
+            paddingVertical: layout.choicePaddingVertical,
+            paddingHorizontal: layout.choicePaddingHorizontal,
+            marginBottom: 0,
+          },
+          isSelected && !submitted && styles.choiceButtonSelectedShadow,
+          submitted && !isSelected && !isCorrectChoice && styles.choiceButtonDisabled,
+          pressed && !submitted && { transform: [{ scale: 0.985 }] },
+        ]}
+        onPress={() => {
+          if (!submitted) {
+            setSelectedChoice(choice.id);
           }
-
-          return (
-            <Pressable
-              key={choice.id}
-              style={[
-                ...buttonStyle,
-                {
-                  paddingVertical: layout.choicePaddingVertical,
-                  paddingHorizontal: layout.choicePaddingHorizontal,
-                },
-              ]}
-              onPress={() => {
-                if (!submitted) {
-                  setSelectedChoice(choice.id);
-                }
-              }}
-            >
-              <View style={styles.choiceTextWrap}>
-                <DrillChoiceLabel
-                  choice={choice}
-                  color={labelColor}
-                  style={textStyle}
-                />
-              </View>
-            </Pressable>
-          );
-        });
+        }}
+      >
+        <View style={styles.choiceTextWrap}>
+          <DrillChoiceLabel
+            choice={choice}
+            color={textColor}
+            style={[
+              styles.choiceText,
+              {
+                color: textColor,
+                fontSize: layout.choiceFontSize,
+                lineHeight: layout.choiceLineHeight,
+              },
+            ]}
+          />
+        </View>
+      </Pressable>
+    );
+  });
 
   return (
     <View
@@ -381,43 +332,23 @@ const styles = StyleSheet.create({
     width: '46%',
     maxWidth: undefined,
   },
+  choiceButtonSelectedShadow: {
+    shadowColor: '#3F9FFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
   choiceTextWrap: {
     width: '100%',
     alignItems: 'center',
   },
-  choiceButtonSelected: {
-    backgroundColor: '#3372D8',
-    shadowColor: '#3F9FFF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  choiceButtonCorrect: {
-    backgroundColor: '#12B76A',
-  },
-  choiceButtonWrong: {
-    backgroundColor: '#FF6B6B',
-  },
   choiceButtonDisabled: {
-    backgroundColor: '#F3F4F6',
     opacity: 0.6,
   },
   choiceText: {
     color: '#0D2033',
     fontWeight: '700',
     textAlign: 'center',
-  },
-  choiceTextSelected: {
-    color: '#FFFFFF',
-  },
-  choiceTextCorrect: {
-    color: '#FFFFFF',
-  },
-  choiceTextWrong: {
-    color: '#FFFFFF',
-  },
-  choiceTextDisabled: {
-    color: '#9CA3AF',
   },
 });
