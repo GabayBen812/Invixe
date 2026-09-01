@@ -257,7 +257,7 @@ export function getAccountStartMs(
   return Math.min(...candidates);
 }
 
-/** Pick the widest Finnhub range that covers account age (max 1y). */
+/** Pick the widest history range that covers account age (max 1y). */
 export function resolveHistoryRange(accountStartMs: number): string {
   const ageDays = (Date.now() - accountStartMs) / (24 * 60 * 60 * 1000);
   if (ageDays <= 7) return "1w";

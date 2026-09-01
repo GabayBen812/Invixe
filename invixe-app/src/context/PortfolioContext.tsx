@@ -26,7 +26,6 @@ import {
   type PortfolioPeriodReturns,
   type TradeLike,
 } from "../utils/portfolioHistory";
-import { fetchLiveStockQuote } from "../utils/stockQuote";
 
 type LessonAttemptLike = {
   lessonId: number;
@@ -132,12 +131,9 @@ export function PortfolioProvider({
       }
 
       const symbols = normalized.map((h) => h.symbol);
-      const [pricesRes, liveQuotes] = await Promise.all([
-        fetchWithTimeout(
-          `${API_BASE_URL}/stocks/prices?symbols=${symbols.join(",")}`,
-        ),
-        Promise.all(symbols.map((symbol) => fetchLiveStockQuote(symbol))),
-      ]);
+      const pricesRes = await fetchWithTimeout(
+        `${API_BASE_URL}/stocks/prices?symbols=${symbols.join(",")}`,
+      );
 
       const apiPrices = pricesRes.ok
         ? ((await pricesRes.json()).prices || [])
@@ -148,14 +144,6 @@ export function PortfolioProvider({
       const bySymbol = new Map<string, NormalizedStockPrice>();
       for (const p of apiPrices as NormalizedStockPrice[]) {
         bySymbol.set(p.symbol.toUpperCase(), p);
-      }
-      for (const quote of liveQuotes) {
-        if (!quote || !(quote.price > 0)) continue;
-        bySymbol.set(quote.symbol.toUpperCase(), {
-          symbol: quote.symbol.toUpperCase(),
-          price: quote.price,
-          changePercent: quote.changePercent,
-        });
       }
 
       const livePrices = new Map<string, number>();

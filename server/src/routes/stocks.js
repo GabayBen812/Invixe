@@ -1,17 +1,32 @@
 const express = require('express');
 const router = express.Router();
+const {
+  MarketstackQuotaError,
+  canUseMarketstack,
+  getMarketstackUsage,
+  recordMarketstackRequest,
+} = require('../utils/marketstackQuota');
 
-const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
+const MARKETSTACK_ACCESS_KEY = process.env.MARKETSTACK_ACCESS_KEY;
 const TIINGO_API_TOKEN = process.env.TIINGO_API_TOKEN;
+
+const MARKETSTACK_BASE = 'https://api.marketstack.com/v2';
+
+/** EOD quotes only change once per day — cache aggressively. */
+const QUOTE_CACHE_TTL_MS = 30 * 60 * 1000;
+/** Daily history is stable until the next market close. */
+const HISTORY_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 
 const quoteCache = new Map();
 const historyCache = new Map();
+const inflightQuotes = new Map();
+const inflightHistory = new Map();
 const CHART_UA =
   'Mozilla/5.0 (compatible; InvixeServer/1.0; +https://invixe.app)';
 
-if (!FINNHUB_API_KEY) {
+if (!MARKETSTACK_ACCESS_KEY) {
   console.warn(
-    'FINNHUB_API_KEY is not set — stock quotes and history will be unavailable.',
+    'MARKETSTACK_ACCESS_KEY is not set — stock quotes and history will be unavailable.',
   );
 }
 
@@ -36,60 +51,195 @@ function rangeToDays(range) {
   }
 }
 
-async function fetchFinnhubQuote(symbol) {
-  if (!FINNHUB_API_KEY) {
-    throw new Error('Finnhub API key not configured');
-  }
-
-  const upper = String(symbol).toUpperCase();
-  const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(upper)}&token=${encodeURIComponent(FINNHUB_API_KEY)}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Finnhub quote failed (${response.status})`);
-  }
-
-  const json = await response.json();
-  const price = Number(json?.c);
-  if (!Number.isFinite(price) || price <= 0) {
-    throw new Error('Finnhub quote missing price');
-  }
-
-  const change = Number(json?.d ?? 0);
-  const changePercent = Number(json?.dp ?? 0);
-  return { symbol: upper, price, change, changePercent };
+function historyLimitForRange(range) {
+  const calendarDays = rangeToDays(range);
+  const tradingDays = Math.ceil(calendarDays * (5 / 7)) + 5;
+  return Math.min(1000, Math.max(tradingDays, 10));
 }
 
-async function fetchFinnhubDailyCloses(symbol, range = '1mo', fromOverride = null) {
-  if (!FINNHUB_API_KEY) {
-    throw new Error('Finnhub API key not configured');
+function parseMarketstackDate(dateStr) {
+  const ms = Date.parse(String(dateStr || ''));
+  if (!Number.isFinite(ms)) return 0;
+  return Math.floor(ms / 1000);
+}
+
+function parseQuoteFromBars(symbol, bars) {
+  const sorted = [...bars].sort(
+    (a, b) => parseMarketstackDate(b.date) - parseMarketstackDate(a.date),
+  );
+  if (!sorted.length) {
+    throw new Error('Marketstack quote missing price');
   }
 
+  const latest = sorted[0];
+  const price = Number(latest?.close);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error('Marketstack quote missing price');
+  }
+
+  const previousClose =
+    sorted.length >= 2
+      ? Number(sorted[1]?.close)
+      : Number(latest?.open ?? price);
+  const change = price - previousClose;
+  const changePercent =
+    previousClose > 0 ? (change / previousClose) * 100 : 0;
+
+  return {
+    symbol: String(symbol).toUpperCase(),
+    price,
+    change,
+    changePercent,
+  };
+}
+
+function parseQuoteFromHistoryPoints(symbol, points) {
+  if (!Array.isArray(points) || points.length < 1) return null;
+
+  const sorted = [...points].sort((a, b) => a.timestamp - b.timestamp);
+  const latest = sorted[sorted.length - 1];
+  const previous = sorted.length >= 2 ? sorted[sorted.length - 2] : latest;
+  const price = Number(latest.close);
+  const previousClose = Number(previous.close);
+  if (!Number.isFinite(price) || price <= 0) return null;
+
+  const change = price - previousClose;
+  const changePercent =
+    previousClose > 0 ? (change / previousClose) * 100 : 0;
+
+  return {
+    symbol: String(symbol).toUpperCase(),
+    price,
+    change,
+    changePercent,
+  };
+}
+
+function deriveQuoteFromHistoryCache(symbol) {
   const upper = String(symbol).toUpperCase();
-  const days = rangeToDays(range);
-  const to = Math.floor(Date.now() / 1000);
-  const from =
-    fromOverride != null && Number.isFinite(Number(fromOverride))
-      ? Math.floor(Number(fromOverride))
-      : to - days * 24 * 60 * 60;
-  const url =
-    `https://finnhub.io/api/v1/stock/candle?symbol=${encodeURIComponent(upper)}` +
-    `&resolution=D&from=${from}&to=${to}&token=${encodeURIComponent(FINNHUB_API_KEY)}`;
-  const response = await fetch(url);
+  let bestPoints = null;
+  let bestTs = 0;
+
+  for (const [key, cached] of historyCache.entries()) {
+    if (!key.startsWith(`${upper}:`)) continue;
+    if (Date.now() - cached.ts > HISTORY_CACHE_TTL_MS) continue;
+    if (!Array.isArray(cached.data) || cached.data.length < 1) continue;
+    if (cached.ts > bestTs) {
+      bestTs = cached.ts;
+      bestPoints = cached.data;
+    }
+  }
+
+  return parseQuoteFromHistoryPoints(upper, bestPoints);
+}
+
+async function marketstackGet(endpoint, params = {}) {
+  if (!MARKETSTACK_ACCESS_KEY) {
+    throw new Error('Marketstack access key not configured');
+  }
+  if (!canUseMarketstack()) {
+    throw new MarketstackQuotaError();
+  }
+
+  const url = new URL(`${MARKETSTACK_BASE}${endpoint}`);
+  url.searchParams.set('access_key', MARKETSTACK_ACCESS_KEY);
+  for (const [key, value] of Object.entries(params)) {
+    if (value != null && value !== '') {
+      url.searchParams.set(key, String(value));
+    }
+  }
+
+  recordMarketstackRequest();
+
+  const response = await fetch(url.toString());
   if (!response.ok) {
-    throw new Error(`Finnhub candles failed (${response.status})`);
+    throw new Error(`Marketstack request failed (${response.status})`);
   }
 
   const json = await response.json();
-  if (json?.s !== 'ok' || !Array.isArray(json?.t) || !Array.isArray(json?.c)) {
-    throw new Error('Finnhub candles missing data');
+  if (json?.error) {
+    const message =
+      json.error?.message || json.error?.code || 'Marketstack API error';
+    throw new Error(message);
   }
 
-  const points = [];
-  for (let i = 0; i < json.t.length; i++) {
-    const close = Number(json.c[i]);
-    if (!Number.isFinite(close) || close <= 0) continue;
-    points.push({ timestamp: json.t[i], close });
+  return json;
+}
+
+function groupMarketstackBarsBySymbol(rows) {
+  const bySymbol = new Map();
+  for (const row of rows) {
+    const sym = String(row?.symbol || '').toUpperCase();
+    if (!sym) continue;
+    if (!bySymbol.has(sym)) bySymbol.set(sym, []);
+    bySymbol.get(sym).push(row);
   }
+  return bySymbol;
+}
+
+async function fetchMarketstackQuotes(symbols) {
+  const unique = [
+    ...new Set(symbols.map((symbol) => String(symbol).toUpperCase())),
+  ].filter(Boolean);
+  if (!unique.length) return new Map();
+
+  const to = new Date();
+  const from = new Date(to.getTime() - 12 * 24 * 60 * 60 * 1000);
+  const json = await marketstackGet('/eod', {
+    symbols: unique.join(','),
+    date_from: from.toISOString().slice(0, 10),
+    date_to: to.toISOString().slice(0, 10),
+    limit: Math.min(1000, unique.length * 4),
+    sort: 'DESC',
+  });
+
+  const bySymbol = groupMarketstackBarsBySymbol(
+    Array.isArray(json?.data) ? json.data : [],
+  );
+  const quotes = new Map();
+
+  for (const symbol of unique) {
+    const bars = bySymbol.get(symbol) || [];
+    if (!bars.length) continue;
+    quotes.set(symbol, parseQuoteFromBars(symbol, bars));
+  }
+
+  return quotes;
+}
+
+async function fetchMarketstackDailyCloses(
+  symbol,
+  range = '1mo',
+  fromOverride = null,
+) {
+  const upper = String(symbol).toUpperCase();
+  const to = new Date();
+  const from =
+    fromOverride != null && Number.isFinite(Number(fromOverride))
+      ? new Date(Number(fromOverride) * 1000)
+      : new Date(to.getTime() - rangeToDays(range) * 24 * 60 * 60 * 1000);
+
+  const dateFrom = from.toISOString().slice(0, 10);
+  const dateTo = to.toISOString().slice(0, 10);
+  const limit = historyLimitForRange(range);
+
+  const json = await marketstackGet('/eod', {
+    symbols: upper,
+    date_from: dateFrom,
+    date_to: dateTo,
+    limit,
+    sort: 'ASC',
+  });
+
+  const points = [];
+  for (const row of Array.isArray(json?.data) ? json.data : []) {
+    const close = Number(row?.adj_close ?? row?.close);
+    const timestamp = parseMarketstackDate(row?.date);
+    if (!Number.isFinite(close) || close <= 0) continue;
+    if (!Number.isFinite(timestamp) || timestamp <= 0) continue;
+    points.push({ timestamp, close });
+  }
+
   return points;
 }
 
@@ -131,7 +281,7 @@ function parseYahooChartPoints(json) {
   return points;
 }
 
-/** Finnhub free tier does not include US daily candles — use EOD fallback. */
+/** Yahoo chart fallback when Marketstack is unavailable or quota is exhausted. */
 async function fetchEodDailyCloses(symbol, range = '1mo', fromOverride = null) {
   const upper = String(symbol).toUpperCase();
   const to = Math.floor(Date.now() / 1000);
@@ -164,6 +314,15 @@ async function fetchEodDailyCloses(symbol, range = '1mo', fromOverride = null) {
     throw new Error('EOD history missing data');
   }
   return points;
+}
+
+async function fetchYahooQuote(symbol) {
+  const points = await fetchEodDailyCloses(symbol, '5d');
+  const quote = parseQuoteFromHistoryPoints(symbol, points);
+  if (!quote) {
+    throw new Error('Yahoo quote missing price');
+  }
+  return quote;
 }
 
 async function fetchTiingoDailyCloses(symbol, range = '1mo', fromOverride = null) {
@@ -208,16 +367,22 @@ async function fetchDailyClosesForSymbol(symbol, range = '1mo', fromOverride = n
   const upper = String(symbol).toUpperCase();
   const errors = [];
 
-  if (FINNHUB_API_KEY) {
+  if (MARKETSTACK_ACCESS_KEY && canUseMarketstack()) {
     try {
-      const points = await fetchFinnhubDailyCloses(upper, range, fromOverride);
-      if (points.length >= 2) return { points, source: 'finnhub' };
-      errors.push('Finnhub returned insufficient data');
+      const points = await fetchMarketstackDailyCloses(upper, range, fromOverride);
+      if (points.length >= 2) return { points, source: 'marketstack' };
+      errors.push('Marketstack returned insufficient data');
     } catch (error) {
-      errors.push(`Finnhub: ${error.message}`);
+      if (error instanceof MarketstackQuotaError) {
+        errors.push('Marketstack monthly quota exhausted');
+      } else {
+        errors.push(`Marketstack: ${error.message}`);
+      }
     }
+  } else if (!MARKETSTACK_ACCESS_KEY) {
+    errors.push('Marketstack access key not configured');
   } else {
-    errors.push('Finnhub API key not configured');
+    errors.push('Marketstack monthly quota exhausted');
   }
 
   if (TIINGO_API_TOKEN) {
@@ -233,9 +398,7 @@ async function fetchDailyClosesForSymbol(symbol, range = '1mo', fromOverride = n
   try {
     const points = await fetchEodDailyCloses(upper, range, fromOverride);
     if (points.length >= 2) {
-      console.warn(
-        `[stocks] Using EOD fallback for ${upper} history (Finnhub free tier lacks US daily candles).`,
-      );
+      console.warn(`[stocks] Using Yahoo EOD fallback for ${upper} history.`);
       return { points, source: 'eod' };
     }
     errors.push('EOD fallback returned insufficient data');
@@ -246,36 +409,143 @@ async function fetchDailyClosesForSymbol(symbol, range = '1mo', fromOverride = n
   throw new Error(errors.join('; '));
 }
 
-async function getLiveQuote(symbol) {
+async function fetchQuoteWithFallback(symbol, { allowMarketstack = true } = {}) {
   const upper = String(symbol).toUpperCase();
-  const cached = quoteCache.get(upper);
-  if (cached && Date.now() - cached.ts < 60_000) {
-    return cached.data;
+
+  if (allowMarketstack && MARKETSTACK_ACCESS_KEY && canUseMarketstack()) {
+    try {
+      const quotes = await fetchMarketstackQuotes([upper]);
+      const quote = quotes.get(upper);
+      if (quote) return quote;
+      throw new Error('Marketstack quote missing price');
+    } catch (error) {
+      if (!(error instanceof MarketstackQuotaError)) {
+        console.warn(`[stocks] Marketstack quote failed for ${upper}:`, error.message);
+      }
+    }
   }
 
-  const data = await fetchFinnhubQuote(upper);
-  quoteCache.set(upper, { data, ts: Date.now() });
-  return data;
+  return fetchYahooQuote(upper);
+}
+
+async function getLiveQuotes(symbols) {
+  const unique = [
+    ...new Set(symbols.map((symbol) => String(symbol).toUpperCase())),
+  ].filter(Boolean);
+  const results = new Map();
+  const missing = [];
+
+  for (const symbol of unique) {
+    const cached = quoteCache.get(symbol);
+    if (cached && Date.now() - cached.ts < QUOTE_CACHE_TTL_MS) {
+      results.set(symbol, cached.data);
+      continue;
+    }
+
+    const derived = deriveQuoteFromHistoryCache(symbol);
+    if (derived) {
+      quoteCache.set(symbol, { data: derived, ts: Date.now() });
+      results.set(symbol, derived);
+      continue;
+    }
+
+    missing.push(symbol);
+  }
+
+  if (!missing.length) {
+    return unique.map((symbol) => results.get(symbol)).filter(Boolean);
+  }
+
+  const inflightKey = `batch:${missing.sort().join(',')}`;
+  if (!inflightQuotes.has(inflightKey)) {
+    inflightQuotes.set(
+      inflightKey,
+      (async () => {
+        const fetched = new Map();
+
+        if (MARKETSTACK_ACCESS_KEY && canUseMarketstack()) {
+          try {
+            const batch = await fetchMarketstackQuotes(missing);
+            for (const [symbol, quote] of batch.entries()) {
+              fetched.set(symbol, quote);
+            }
+          } catch (error) {
+            if (!(error instanceof MarketstackQuotaError)) {
+              console.warn('[stocks] Marketstack batch quote failed:', error.message);
+            }
+          }
+        }
+
+        for (const symbol of missing) {
+          if (fetched.has(symbol)) continue;
+          try {
+            fetched.set(
+              symbol,
+              await fetchQuoteWithFallback(symbol, { allowMarketstack: false }),
+            );
+          } catch (error) {
+            console.warn(`[stocks] Quote fallback failed for ${symbol}:`, error.message);
+          }
+        }
+
+        return fetched;
+      })().finally(() => {
+        inflightQuotes.delete(inflightKey);
+      }),
+    );
+  }
+
+  const fetched = await inflightQuotes.get(inflightKey);
+  for (const [symbol, quote] of fetched.entries()) {
+    quoteCache.set(symbol, { data: quote, ts: Date.now() });
+    results.set(symbol, quote);
+  }
+
+  return unique.map((symbol) => results.get(symbol)).filter(Boolean);
+}
+
+async function getLiveQuote(symbol) {
+  const quotes = await getLiveQuotes([symbol]);
+  if (!quotes.length) {
+    throw new Error(`Quote unavailable for ${String(symbol).toUpperCase()}`);
+  }
+  return quotes[0];
 }
 
 async function getDailyCloses(symbol, range = '1mo', fromOverride = null) {
   const upper = String(symbol).toUpperCase();
   const cacheKey = `${upper}:${range}:${fromOverride ?? 'auto'}`;
   const cached = historyCache.get(cacheKey);
-  if (cached && Date.now() - cached.ts < 15 * 60_000) {
+  if (cached && Date.now() - cached.ts < HISTORY_CACHE_TTL_MS) {
     return cached.data;
   }
 
-  const { points, source } = await fetchDailyClosesForSymbol(
-    upper,
-    range,
-    fromOverride,
-  );
-  if (points.length) {
-    historyCache.set(cacheKey, { data: points, source, ts: Date.now() });
+  if (!inflightHistory.has(cacheKey)) {
+    inflightHistory.set(
+      cacheKey,
+      (async () => {
+        const { points, source } = await fetchDailyClosesForSymbol(
+          upper,
+          range,
+          fromOverride,
+        );
+        if (points.length) {
+          historyCache.set(cacheKey, { data: points, source, ts: Date.now() });
+        }
+        return points;
+      })().finally(() => {
+        inflightHistory.delete(cacheKey);
+      }),
+    );
   }
-  return points;
+
+  return inflightHistory.get(cacheKey);
 }
+
+// GET Marketstack monthly usage (for ops/debug)
+router.get('/usage', (_req, res) => {
+  res.json(getMarketstackUsage());
+});
 
 // GET multiple stock prices — must be before /:symbol
 router.get('/prices', async (req, res) => {
@@ -291,12 +561,7 @@ router.get('/prices', async (req, res) => {
       .map((s) => s.trim().toUpperCase())
       .filter(Boolean);
 
-    const settled = await Promise.allSettled(
-      symbolList.map((symbol) => getLiveQuote(symbol)),
-    );
-    const prices = settled
-      .filter((result) => result.status === 'fulfilled')
-      .map((result) => result.value);
+    const prices = await getLiveQuotes(symbolList);
 
     if (!prices.length) {
       return res.status(503).json({ error: 'Live quotes unavailable' });

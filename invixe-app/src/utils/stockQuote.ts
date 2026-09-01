@@ -24,7 +24,7 @@ async function fetchApiQuote(symbol: string): Promise<StockQuote | null> {
   };
 }
 
-/** Live quote from Invixe backend (Finnhub via server). */
+/** Live quote from Invixe backend (Marketstack via server). */
 export async function fetchLiveStockQuote(
   symbol: string,
 ): Promise<StockQuote | null> {
