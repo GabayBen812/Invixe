@@ -43,6 +43,10 @@
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>Invixe צריכה גישה למצלמה כדי לצלם תמונת פרופיל.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Invixe צריכה גישה לתמונות כדי להגדיר תמונת פרופיל.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
       <key>NSAllowsArbitraryLoads</key>

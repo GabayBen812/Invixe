@@ -48,7 +48,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Invixe צריכה גישה לתמונות כדי להגדיר תמונת פרופיל."
+          "photosPermission": "Invixe צריכה גישה לתמונות כדי להגדיר תמונת פרופיל.",
+          "cameraPermission": "Invixe צריכה גישה למצלמה כדי לצלם תמונת פרופיל.",
+          "microphonePermission": false
         }
       ]
     ]

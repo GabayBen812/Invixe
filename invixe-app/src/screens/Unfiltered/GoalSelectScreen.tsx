@@ -8,6 +8,7 @@ import OnboardingShell, {
 import Svg, { Circle, Path } from "react-native-svg";
 
 const TOTAL_STEPS = 3;
+const GOAL_SEPARATOR = ", ";
 
 const goals = [
   { label: "הבנת שוק ההון", icon: "book" },
@@ -77,7 +78,18 @@ function GoalIcon({ kind, color = "#3372D8" }: { kind: string; color?: string })
 
 export default function GoalSelectScreen({ navigation }: Props) {
   const { data, setGoal } = useRegistration();
-  const [selected, setSelected] = useState(data.goal || "");
+  const [selected, setSelected] = useState<string[]>(() =>
+    (data.goal || "")
+      .split(GOAL_SEPARATOR)
+      .map((g) => g.trim())
+      .filter((g) => goals.some((goal) => goal.label === g)),
+  );
+
+  const toggleGoal = (label: string) => {
+    setSelected((prev) =>
+      prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label],
+    );
+  };
 
   return (
     <OnboardingShell
@@ -85,29 +97,36 @@ export default function GoalSelectScreen({ navigation }: Props) {
       totalSteps={TOTAL_STEPS}
       eyebrow="המטרה שלך"
       title="מה בא לך להשיג?"
-      subtitle="כך נוכל להציע לך מסלול למידה שמתאים לסגנון שלך."
+      subtitle="אפשר לבחור יותר מאפשרות אחת — כך נוכל להציע לך מסלול למידה שמתאים לסגנון שלך."
       onBack={() => navigation.navigate("AgeSelect")}
-      ctaDisabled={!selected}
+      ctaDisabled={selected.length === 0}
       onCta={() => {
-        if (!selected) return;
-        setGoal(selected);
+        if (selected.length === 0) return;
+        const ordered = goals
+          .map((goal) => goal.label)
+          .filter((label) => selected.includes(label));
+        setGoal(ordered.join(GOAL_SEPARATOR));
         navigation.navigate("OnboardingFinish");
       }}
     >
-      {goals.map((goal) => (
-        <OnboardingOptionCard
-          key={goal.label}
-          label={goal.label}
-          selected={selected === goal.label}
-          onPress={() => setSelected(goal.label)}
-          icon={
-            <GoalIcon
-              kind={goal.icon}
-              color={selected === goal.label ? "#3372D8" : "#5B6B82"}
-            />
-          }
-        />
-      ))}
+      {goals.map((goal) => {
+        const isSelected = selected.includes(goal.label);
+        return (
+          <OnboardingOptionCard
+            key={goal.label}
+            label={goal.label}
+            multiple
+            selected={isSelected}
+            onPress={() => toggleGoal(goal.label)}
+            icon={
+              <GoalIcon
+                kind={goal.icon}
+                color={isSelected ? "#3372D8" : "#5B6B82"}
+              />
+            }
+          />
+        );
+      })}
     </OnboardingShell>
   );
 }

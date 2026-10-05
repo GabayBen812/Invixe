@@ -22,6 +22,25 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [submittedSummary, setSubmittedSummary] = useState<{
+    ageGroup: string;
+    goal: string;
+    firstName: string;
+    lastName: string;
+  } | null>(null);
+
+  const summary = submittedSummary ?? data;
+
+  const completeRegistration = (firstName?: string, lastName?: string) => {
+    setSubmittedSummary({
+      ageGroup: data.ageGroup,
+      goal: data.goal,
+      firstName: firstName || data.firstName,
+      lastName: lastName || data.lastName,
+    });
+    setSuccess(true);
+    reset();
+  };
 
   const handleRegister = async () => {
     setLoading(true);
@@ -48,8 +67,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
           firstName: resBody.firstName ?? data.firstName,
           lastName: resBody.lastName ?? data.lastName,
         });
-        setSuccess(true);
-        reset();
+        completeRegistration(resBody.firstName, resBody.lastName);
         return;
       }
 
@@ -66,8 +84,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
         lastName: resBody.lastName ?? data.lastName,
       });
 
-      setSuccess(true);
-      reset();
+      completeRegistration(resBody.firstName, resBody.lastName);
     } catch (e: any) {
       setError(e.message || "Error");
     } finally {
@@ -101,16 +118,16 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
         <Text style={styles.summaryTitle}>סיכום קצר</Text>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>גיל</Text>
-          <Text style={styles.rowValue}>{data.ageGroup || "—"}</Text>
+          <Text style={styles.rowValue}>{summary.ageGroup || "—"}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>מטרה</Text>
-          <Text style={styles.rowValue}>{data.goal || "—"}</Text>
+          <Text style={styles.rowValue}>{summary.goal || "—"}</Text>
         </View>
         <View style={styles.row}>
           <Text style={styles.rowLabel}>שם</Text>
           <Text style={styles.rowValue}>
-            {[data.firstName, data.lastName].filter(Boolean).join(" ") || "—"}
+            {[summary.firstName, summary.lastName].filter(Boolean).join(" ") || "—"}
           </Text>
         </View>
       </View>

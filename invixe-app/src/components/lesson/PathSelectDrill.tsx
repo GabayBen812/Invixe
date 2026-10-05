@@ -42,6 +42,13 @@ interface Props {
   completedOptions: Set<string>;
 }
 
+const LABEL_SIDE_PADDING = 18;
+/**
+ * LessonScreen `pathSelectDrillWrap` padding (12 × 2) + container padding (8 × 2)
+ * + label padding that keeps text clear of the ✓ (18 × 2).
+ */
+const PATH_SELECT_HORIZONTAL_INSET = 40 + LABEL_SIDE_PADDING * 2;
+
 export default function PathSelectDrill({
   options,
   onOptionSelect,
@@ -56,6 +63,8 @@ export default function PathSelectDrill({
   const uniformRowHeight = useUniformChoiceRowHeight(
     visibleOptions as Record<string, unknown>[],
     layout,
+    420,
+    PATH_SELECT_HORIZONTAL_INSET,
   );
 
   return (
@@ -83,7 +92,6 @@ export default function PathSelectDrill({
                   paddingVertical: layout.choicePaddingVertical,
                   paddingHorizontal: layout.choicePaddingHorizontal,
                   minHeight: uniformRowHeight,
-                  height: uniformRowHeight,
                 },
                 isPractice
                   ? {
@@ -179,9 +187,9 @@ const styles = StyleSheet.create({
   },
   labelWrap: {
     width: "100%",
-    flex: 1,
     alignItems: "center",
     justifyContent: "center",
+    paddingHorizontal: LABEL_SIDE_PADDING,
   },
   optionCardLight: {
     backgroundColor: "#FFFFFF",

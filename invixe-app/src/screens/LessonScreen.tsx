@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import {
   View,
   Image,
@@ -461,6 +467,11 @@ function SimpleQuestionChoiceList({
   );
 }
 
+const STEP_EXIT_MS = 170;
+const STEP_EXIT_LIFT = 8;
+const STEP_ENTER_OFFSET = 18;
+const STEP_ENTER_FADE_MS = 300;
+
 export default function LessonScreen({ navigation, route }: Props) {
   const [stepId, setStepId] = useState("intro");
   const [fadeAnim] = useState(new Animated.Value(1));
@@ -569,25 +580,36 @@ export default function LessonScreen({ navigation, route }: Props) {
     [progressAnim],
   );
 
+  const queuedStepChangeRef = useRef<(() => void) | null>(null);
+
   const runStepTransition = useCallback(
     (applyStepChange: () => void) => {
-      if (stepTransitionLockRef.current) return;
+      if (stepTransitionLockRef.current) {
+        queuedStepChangeRef.current = applyStepChange;
+        return;
+      }
       stepTransitionLockRef.current = true;
 
-      const outMs = 200;
-      const inMs = 280;
+      const finishTransition = () => {
+        stepTransitionLockRef.current = false;
+        const queued = queuedStepChangeRef.current;
+        if (queued) {
+          queuedStepChangeRef.current = null;
+          runStepTransition(queued);
+        }
+      };
 
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 0,
-          duration: outMs,
-          easing: Easing.in(Easing.quad),
+          duration: STEP_EXIT_MS,
+          easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
         Animated.timing(slideAnim, {
-          toValue: 10,
-          duration: outMs,
-          easing: Easing.in(Easing.quad),
+          toValue: -STEP_EXIT_LIFT,
+          duration: STEP_EXIT_MS,
+          easing: Easing.in(Easing.cubic),
           useNativeDriver: true,
         }),
       ]).start(({ finished }) => {
@@ -595,24 +617,30 @@ export default function LessonScreen({ navigation, route }: Props) {
           stepTransitionLockRef.current = false;
           return;
         }
-        applyStepChange();
-        slideAnim.setValue(-14);
         fadeAnim.setValue(0);
-        Animated.parallel([
-          Animated.timing(fadeAnim, {
-            toValue: 1,
-            duration: inMs,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-          Animated.timing(slideAnim, {
-            toValue: 0,
-            duration: inMs,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          stepTransitionLockRef.current = false;
+        slideAnim.setValue(STEP_ENTER_OFFSET);
+        applyStepChange();
+
+        // Let the new step mount and lay out (images, measured viewports) before revealing it.
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            Animated.parallel([
+              Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: STEP_ENTER_FADE_MS,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: true,
+              }),
+              Animated.spring(slideAnim, {
+                toValue: 0,
+                stiffness: 240,
+                damping: 30,
+                mass: 1,
+                overshootClamping: true,
+                useNativeDriver: true,
+              }),
+            ]).start(finishTransition);
+          });
         });
       });
     },
@@ -626,6 +654,10 @@ export default function LessonScreen({ navigation, route }: Props) {
       visitedStepsRef.current.add("intro");
       maxStepIndexRef.current = 0;
       progressAnimationRef.current?.stop();
+      fadeAnim.stopAnimation();
+      slideAnim.stopAnimation();
+      stepTransitionLockRef.current = false;
+      queuedStepChangeRef.current = null;
       fadeAnim.setValue(1);
       slideAnim.setValue(0);
       progressAnim.setValue(0);
@@ -726,17 +758,15 @@ export default function LessonScreen({ navigation, route }: Props) {
         IN_LESSON_PROGRESS_CAP,
       );
       animateLessonProgress(progress);
-
-      // Reset graphQuestion state when step changes
-      setGraphQuestionViewingExplanation(false);
-      setGraphQuestionSelectedChoiceId(null);
-      setGraphQuestionPNGViewingExplanation(false);
-      setGraphQuestionPNGSelectedChoiceId(null);
     }
   }, [stepId, currentLessonSteps, animateLessonProgress]);
 
-  // Reset drill state when step changes
-  useEffect(() => {
+  // Layout effect so the new step never paints with the previous step's drill state.
+  useLayoutEffect(() => {
+    setGraphQuestionViewingExplanation(false);
+    setGraphQuestionSelectedChoiceId(null);
+    setGraphQuestionPNGViewingExplanation(false);
+    setGraphQuestionPNGSelectedChoiceId(null);
     setSelectedChoiceIdx(null);
     setShowingDrillExplanation(false);
     setDrillExplanation(null);

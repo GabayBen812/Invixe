@@ -135,24 +135,34 @@ export function OnboardingOptionCard({
   selected,
   onPress,
   icon,
+  multiple = false,
 }: {
   label: string;
   selected: boolean;
   onPress: () => void;
   icon?: ReactNode;
+  multiple?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole={multiple ? "checkbox" : "radio"}
+      accessibilityState={multiple ? { checked: selected } : { selected }}
       style={({ pressed }) => [
         styles.optionCard,
         selected && styles.optionCardSelected,
         pressed && { transform: [{ scale: 0.99 }] },
       ]}
     >
-      <View style={[styles.radio, selected && styles.radioSelected]}>
-        {selected ? <View style={styles.radioDot} /> : null}
-      </View>
+      {multiple ? (
+        <View style={[styles.checkbox, selected && styles.checkboxSelected]}>
+          {selected ? <Text style={styles.checkboxMark}>✓</Text> : null}
+        </View>
+      ) : (
+        <View style={[styles.radio, selected && styles.radioSelected]}>
+          {selected ? <View style={styles.radioDot} /> : null}
+        </View>
+      )}
       <Text style={[styles.optionLabel, selected && styles.optionLabelSelected]}>
         {label}
       </Text>
@@ -300,6 +310,25 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: ONB.brand,
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#C9D4E4",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxSelected: {
+    borderColor: ONB.brand,
+    backgroundColor: ONB.brand,
+  },
+  checkboxMark: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    lineHeight: 15,
+    fontFamily: theme.font.bold,
   },
   optionLabel: {
     flex: 1,
