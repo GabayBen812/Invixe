@@ -44,8 +44,9 @@ purchases. Meta itself receives technical SDK/device data for attribution.
    then run CocoaPods install on macOS and commit the updated native project and
    Podfile.lock. Do not use `--clean` over hand-maintained native changes.
    The EAS post-install check rejects enabled builds with stale iOS Meta settings.
-4. Android has no committed native folder; EAS prebuild generates it from the
-   plugin. Configure its real store listing/package and signing hashes in Meta.
+4. Android also has a committed native folder. Run `npx expo prebuild
+   --platform android --no-install` with the same environment, review and commit
+   the changes before building. The build check validates its token and safety defaults. Configure its real store listing/package and signing hashes in Meta.
 5. Sync the revised disclosure with the separate **Invixe-Policy** repository
    and publish it at the privacy URL before enabling measurement. The bundled
    `registrationLegal.ts` has been updated here; its generation script reads that

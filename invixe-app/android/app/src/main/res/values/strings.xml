@@ -2,4 +2,6 @@
   <string name="app_name">Invixe</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="facebook_app_id" translatable="false">1766622331291748</string>
+  <string name="facebook_client_token" translatable="false">disabled-until-configured</string>
 </resources>
