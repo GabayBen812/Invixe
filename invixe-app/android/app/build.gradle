@@ -92,7 +92,7 @@ android {
         applicationId 'com.gabayben812.invixeapp'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
+        versionCode 11
         versionName "1.0.6"
     }
     signingConfigs {
