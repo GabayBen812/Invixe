@@ -3,6 +3,7 @@
   "build": {
     "production": {
       "env": {
+        "EXPO_PUBLIC_META_MEASUREMENT_ENABLED": "false",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "759410396991-m1hml4a6rvhr4vijbpdprtlt6jea1a8v.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "759410396991-isd85q017726sp6drgtdftdao23abvdd.apps.googleusercontent.com"
       },
@@ -17,6 +18,7 @@
     },
     "preview": {
       "env": {
+        "EXPO_PUBLIC_META_MEASUREMENT_ENABLED": "false",
         "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "759410396991-m1hml4a6rvhr4vijbpdprtlt6jea1a8v.apps.googleusercontent.com",
         "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "759410396991-isd85q017726sp6drgtdftdao23abvdd.apps.googleusercontent.com"
       },

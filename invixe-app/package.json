@@ -1,7 +1,7 @@
 {
   "name": "invixe-app",
   "license": "0BSD",
-  "version": "1.0.0",
+  "version": "1.0.6",
   "main": "index.ts",
   "scripts": {
     "start": "expo start --localhost",
@@ -10,7 +10,8 @@
     "web": "expo start --web",
     "generate-icons": "bash scripts/generate-icons.sh",
     "test:meta": "node --test scripts/test-meta-measurement.cjs",
-    "eas-build-post-install": "node scripts/check-meta-native.cjs"
+    "eas-build-post-install": "node scripts/check-release-version.cjs && node scripts/check-meta-native.cjs",
+    "check:release": "node scripts/check-release-version.cjs"
   },
   "dependencies": {
     "@expo-google-fonts/rubik": "^0.4.1",

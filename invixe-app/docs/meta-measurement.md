@@ -36,6 +36,8 @@ purchases. Meta itself receives technical SDK/device data for attribution.
    App Secret out of the app and this repository.
 2. Supply `EXPO_PUBLIC_META_MEASUREMENT_ENABLED=true` and `META_CLIENT_TOKEN`
    to both local Expo prebuild and the matching EAS build environment.
+   Update the chosen profile in `eas.json`, which explicitly sets the flag to
+   `false` while Meta identity review is pending.
    A missing token fails Expo config evaluation. Default builds use an inert
    placeholder and keep native auto initialization, logging and ID collection off.
 3. This repo commits `ios/`, so configuration plugins do not run automatically
@@ -56,6 +58,13 @@ purchases. Meta itself receives technical SDK/device data for attribution.
    inside Expo Go). Keep measurement disabled for production until checks pass.
 
 ## Verification
+
+- Release preparation: version **1.0.6**, local iOS build **12**, Android code
+  **9**. EAS production increments its remote build counters on every build;
+  retries may therefore have higher numbers. `npm run check:release` validates
+  the shared marketing version before EAS builds. This release includes the
+  SDK but measurement remains disabled until the Client Token and checks above
+  are complete; activating it requires another native build.
 
 - `npm run test:meta` checks consent, ATT denial/revocation, disabled builds and
   event payload boundaries with mocked native modules.
