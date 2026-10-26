@@ -60,7 +60,7 @@ purchases. Meta itself receives technical SDK/device data for attribution.
 ## Verification
 
 - Release preparation: version **1.0.6**, local iOS build **12**, Android code
-  **9**. EAS production increments its remote build counters on every build;
+  **10**. EAS production increments its remote build counters on every build;
   retries may therefore have higher numbers. `npm run check:release` validates
   the shared marketing version before EAS builds. This release includes the
   SDK but measurement remains disabled until the Client Token and checks above
