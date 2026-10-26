@@ -1,3 +1,4 @@
+import { trackRegistrationCompleted } from "../../services/analytics/meta";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
@@ -324,6 +325,7 @@ export default function LoginScreen({ navigation, route }: Props) {
         firstName: result.firstName ?? undefined,
         lastName: result.lastName ?? undefined,
       });
+      if (result.isNewUser) trackRegistrationCompleted();
       navigation.reset({ index: 0, routes: [{ name: "Map", params: {} }] });
     } catch (e: unknown) {
       const message = getSocialAuthErrorMessage(e);

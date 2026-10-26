@@ -1,3 +1,4 @@
+import MeasurementConsent from "./src/components/MeasurementConsent";
 import AppNavigator from "./src/navigation/AppNavigator";
 import { RegistrationProvider } from "./context/RegistrationContext";
 import {
@@ -69,6 +70,7 @@ export default function App() {
                 <DictionaryProvider>
                   <ErrorBoundary>
                     <AppNavigator />
+                    <MeasurementConsent />
                     <DictionaryModal />
                   </ErrorBoundary>
                 </DictionaryProvider>

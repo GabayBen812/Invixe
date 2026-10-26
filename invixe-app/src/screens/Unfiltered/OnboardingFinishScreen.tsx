@@ -1,3 +1,4 @@
+import { trackRegistrationCompleted } from "../../services/analytics/meta";
 import { useState } from "react";
 import { View, Text, StyleSheet, ActivityIndicator, Pressable } from "react-native";
 import type { NativeStackScreenProps } from "@react-navigation/native-stack";
@@ -38,6 +39,7 @@ export default function OnboardingFinishScreen({ navigation }: Props) {
       firstName: firstName || data.firstName,
       lastName: lastName || data.lastName,
     });
+    trackRegistrationCompleted();
     setSuccess(true);
     reset();
   };
