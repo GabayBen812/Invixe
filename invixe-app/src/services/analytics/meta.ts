@@ -9,7 +9,9 @@ let active = false;
 let queue: Promise<unknown> = Promise.resolve();
 
 export function isMetaMeasurementConfigured(): boolean {
-  return Constants.expoConfig?.extra?.metaMeasurementEnabled === true &&
+  // Expo embeds this value in the JS bundle. Native manifest availability must
+  // not decide whether the consent controls exist in a standalone build.
+  return process.env.EXPO_PUBLIC_META_MEASUREMENT_ENABLED === "true" &&
     Platform.OS !== "web" &&
     Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
 }

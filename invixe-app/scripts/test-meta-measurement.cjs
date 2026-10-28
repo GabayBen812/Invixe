@@ -6,19 +6,19 @@ const ts = require('typescript');
 const source = ts.transpileModule(fs.readFileSync('src/services/analytics/meta.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
-function fixture({ enabled = true, os = 'android', permission = 'granted', consent = null, expoGo = false } = {}) {
+function fixture({ enabled = true, os = 'android', permission = 'granted', consent = null, expoGo = false, manifestMissing = false } = {}) {
   const events = [], calls = [];
   let stored = consent;
   const sdk = { Settings: new Proxy({}, { get: (_, name) => (...args) => calls.push([name, ...args]) }),
     AppEventsLogger: { logEvent: (...args) => events.push(args) } };
   const mocks = {
     '@react-native-async-storage/async-storage': { default: { getItem: async () => stored, setItem: async (_, value) => { stored = value; } } },
-    'expo-constants': { default: { expoConfig: { extra: { metaMeasurementEnabled: enabled } }, executionEnvironment: expoGo ? 'storeClient' : 'standalone' }, ExecutionEnvironment: { StoreClient: 'storeClient' } },
+    'expo-constants': { default: { expoConfig: manifestMissing ? null : { extra: { metaMeasurementEnabled: enabled } }, executionEnvironment: expoGo ? 'storeClient' : 'standalone' }, ExecutionEnvironment: { StoreClient: 'storeClient' } },
     'react-native': { Platform: { OS: os } },
     'expo-tracking-transparency': { getTrackingPermissionsAsync: async () => ({ status: permission }), requestTrackingPermissionsAsync: async () => ({ status: permission }) },
     'react-native-fbsdk-next': sdk,
   };
-  const context = { exports: {}, __DEV__: false, require: name => { assert.ok(mocks[name], name); return mocks[name]; } };
+  const context = { exports: {}, __DEV__: false, process: { env: { EXPO_PUBLIC_META_MEASUREMENT_ENABLED: enabled ? "true" : "false" } }, require: name => { assert.ok(mocks[name], name); return mocks[name]; } };
   vm.runInNewContext(source, context);
   return { api: context.exports, events, calls, revokeATT: () => { permission = 'denied'; } };
 }
@@ -52,4 +52,15 @@ test('iOS ATT denied blocks initialization even with app consent', async () => {
 test('iOS ATT revoked outside the app blocks next event', async () => {
   const f = fixture({ os: 'ios' }); await f.api.setMeasurementConsent(true); f.revokeATT();
   f.api.trackLessonCompleted(); await drain(); assert.equal(f.events.length, 0);
+});
+
+test('enabled native builds keep consent available even without an Expo manifest', async () => {
+  const f = fixture({ manifestMissing: true });
+  assert.equal(f.api.isMetaMeasurementConfigured(), true);
+  await f.api.refreshMeasurementConsent();
+  assert.equal(f.events.length, 0);
+  assert.equal(f.calls.length, 0);
+  await f.api.setMeasurementConsent(true);
+  f.api.trackLessonCompleted(); await drain();
+  assert.equal(f.events.length, 1);
 });

@@ -29,7 +29,7 @@ values or journal data are sent. SDK auto events can include actual App Store
 purchases if real purchases are introduced later; do not log virtual trades as
 purchases. Meta itself receives technical SDK/device data for attribution.
 
-## Measurement test build (1.0.7)
+## Measurement test build (1.0.8)
 
 Meta identity verification completed on 2026-10-28; the API restriction banner
 cleared and Events Manager opened. It has not received an event yet.
@@ -61,8 +61,8 @@ For testing, review the bundled disclosure and consent prompt before opting in.
 
 ## Verification
 
-- Release preparation: version **1.0.7**, local iOS build **13**, Android code
-  **12**. EAS production increments its remote build counters on every build;
+- Release preparation: version **1.0.8**, local iOS build **14**, Android code
+  **13**. EAS production increments its remote build counters on every build;
   retries may therefore have higher numbers. `npm run check:release` validates
   the shared marketing version before EAS builds. The measurement-test profile enables the SDK after consent; production remains
   disabled pending physical-device verification and disclosure updates.
@@ -81,3 +81,8 @@ For testing, review the bundled disclosure and consent prompt before opting in.
   a controlled app-install campaign. Events arriving alone do not prove ad
   attribution or correct cost-per-install reporting. Consent opt-outs reduce
   measurable installs; no promise of identifying every downloader.
+
+The 1.0.8 consent gate reads Expo’s compile-time public flag rather than relying
+on runtime Constants.expoConfig availability. The 1.0.7 IPA contains the flag
+and token, but the tester reported missing consent controls. This change needs
+physical-device confirmation; a successful build alone does not verify the fix.
