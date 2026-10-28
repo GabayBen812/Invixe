@@ -111,3 +111,16 @@ reports errors only. No error does NOT prove delivery. Counters reset on restart
 Screenshots of the diagnostic state after a real new lesson can separate local
 gating problems from native/configuration/network failures without Facebook login.
 The diagnostic UI is absent unless EXPO_PUBLIC_META_DIAGNOSTICS=true.
+
+### Build and configuration status (2026-10-28)
+
+- Native InvixeMeta target compiles successfully with CocoaPods' default output
+  paths on the local Xcode toolchain (arm64 simulator SDK; no simulator run).
+- iOS 1.0.9 (16): EAS build `585d3c94-c31b-4d21-94d2-09cc313569d9`;
+  automatic TestFlight submission `ae78d48c-1cfe-4ceb-8776-2ebe077a9a0b` is scheduled.
+- Android 1.0.9 (14): EAS build `90c1b196-1ce4-498e-b833-190c022bd9e3`.
+- iOS build 15 was canceled in the queue to include the native queue barrier.
+- The existing public privacy URL was saved in Meta Basic settings and the UI
+  confirmed Changes saved. The URL returns HTTP 200 but still has the old copy.
+  Draft policy update: https://github.com/GabayBen812/Invixe-Policy/pull/1.
+  Neither the Meta app nor a public store release has been published.
