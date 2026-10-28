@@ -29,7 +29,7 @@ values or journal data are sent. SDK auto events can include actual App Store
 purchases if real purchases are introduced later; do not log virtual trades as
 purchases. Meta itself receives technical SDK/device data for attribution.
 
-## Measurement test build (1.0.8)
+## Measurement test build (1.0.9)
 
 Meta identity verification completed on 2026-10-28; the API restriction banner
 cleared and Events Manager opened. It has not received an event yet.
@@ -61,8 +61,8 @@ For testing, review the bundled disclosure and consent prompt before opting in.
 
 ## Verification
 
-- Release preparation: version **1.0.8**, local iOS build **14**, Android code
-  **13**. EAS production increments its remote build counters on every build;
+- Release preparation: version **1.0.9**, local iOS build **16**, Android code
+  **14**. EAS production increments its remote build counters on every build;
   retries may therefore have higher numbers. `npm run check:release` validates
   the shared marketing version before EAS builds. The measurement-test profile enables the SDK after consent; production remains
   disabled pending physical-device verification and disclosure updates.
@@ -73,7 +73,9 @@ For testing, review the bundled disclosure and consent prompt before opting in.
   type errors. Do not treat mocked tests as proof of native SDK networking.
 - Test fresh installs on physical iOS and Android: deny consent and verify no
   events; allow consent (and ATT on iOS), then verify activation, one registration
-  and a first lesson completion in Meta Test Events. Reopen, sign in again and
+  and a first lesson completion in Events Manager overview (all events, correct date range).
+  Test Events is account-filtered and is not proof that other users did not send events;
+  end users never need Facebook login. Reopen, sign in again and
   repeat a lesson to check duplicates. Revoke in Profile and OS settings and
   verify no further events, including after force quit and relaunch.
 - Test Google and Apple sign-in after native plugin changes.
@@ -84,5 +86,28 @@ For testing, review the bundled disclosure and consent prompt before opting in.
 
 The 1.0.8 consent gate reads Expo’s compile-time public flag rather than relying
 on runtime Constants.expoConfig availability. The 1.0.7 IPA contains the flag
-and token, but the tester reported missing consent controls. This change needs
-physical-device confirmation; a successful build alone does not verify the fix.
+and token, but the tester reported missing consent controls. The tester confirmed the consent UI appeared in 1.0.8.
+Event receipt is still unverified.
+
+## 1.0.9 delivery diagnosis
+
+A read-only Meta SDK configuration request with the existing client token returned
+HTTP 200 and enabled event/advertiser-ID collection on 2026-10-28. This confirms
+configuration access, not receipt of app events.
+
+Expo's Facebook subscriber initializes the SDK at launch while auto logging is
+disabled. Calling initializeSDK again after consent is idempotent; it does not
+activate that session again. The local iOS InvixeMeta module now explicitly calls
+activateApp after consent and ATT, with native flags checked on the main queue.
+The SDK deduplicates activations. This addresses a missing first-session activation;
+it is not yet established as the cause of missing lesson events.
+
+Registration and first lesson events request an immediate SDK flush. The test
+profile exposes a local diagnostic button under Profile: consent, ATT, event gate,
+last event handed to the SDK, native config presence and SDK flush error code.
+No tokens, device/user IDs, raw error text or lesson contents are exposed.
+The error observer uses Meta's public AppEventsLoggingResult notification, which
+reports errors only. No error does NOT prove delivery. Counters reset on restart.
+Screenshots of the diagnostic state after a real new lesson can separate local
+gating problems from native/configuration/network failures without Facebook login.
+The diagnostic UI is absent unless EXPO_PUBLIC_META_DIAGNOSTICS=true.

@@ -6,17 +6,21 @@ const ts = require('typescript');
 const source = ts.transpileModule(fs.readFileSync('src/services/analytics/meta.ts', 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 },
 }).outputText;
-function fixture({ enabled = true, os = 'android', permission = 'granted', consent = null, expoGo = false, manifestMissing = false } = {}) {
+function fixture({ enabled = true, os = 'android', permission = 'granted', consent = null, expoGo = false, manifestMissing = false, activationFails = false } = {}) {
   const events = [], calls = [];
   let stored = consent;
   const sdk = { Settings: new Proxy({}, { get: (_, name) => (...args) => calls.push([name, ...args]) }),
-    AppEventsLogger: { logEvent: (...args) => events.push(args) } };
+    AppEventsLogger: { logEvent: (...args) => events.push(args), flush: () => calls.push(['flush']) } };
   const mocks = {
     '@react-native-async-storage/async-storage': { default: { getItem: async () => stored, setItem: async (_, value) => { stored = value; } } },
     'expo-constants': { default: { expoConfig: manifestMissing ? null : { extra: { metaMeasurementEnabled: enabled } }, executionEnvironment: expoGo ? 'storeClient' : 'standalone' }, ExecutionEnvironment: { StoreClient: 'storeClient' } },
     'react-native': { Platform: { OS: os } },
     'expo-tracking-transparency': { getTrackingPermissionsAsync: async () => ({ status: permission }), requestTrackingPermissionsAsync: async () => ({ status: permission }) },
     'react-native-fbsdk-next': sdk,
+    'expo-modules-core': { requireNativeModule: () => ({
+      activateAfterConsent: async () => { calls.push(['activateAfterConsent']); return !activationFails; },
+      getStatus: async () => ({ appIDMatches: true, clientTokenPresent: true, lastErrorCode: 'none' }),
+    }) },
   };
   const context = { exports: {}, __DEV__: false, process: { env: { EXPO_PUBLIC_META_MEASUREMENT_ENABLED: enabled ? "true" : "false" } }, require: name => { assert.ok(mocks[name], name); return mocks[name]; } };
   vm.runInNewContext(source, context);
@@ -63,4 +67,29 @@ test('enabled native builds keep consent available even without an Expo manifest
   await f.api.setMeasurementConsent(true);
   f.api.trackLessonCompleted(); await drain();
   assert.equal(f.events.length, 1);
+});
+
+test('iOS consent activates the current session even when the SDK was initialized at launch', async () => {
+  const f = fixture({ os: 'ios' });
+  await f.api.setMeasurementConsent(true);
+  assert.ok(f.calls.findIndex(([n]) => n === 'initializeSDK') < f.calls.findIndex(([n]) => n === 'activateAfterConsent'));
+  assert.ok(f.calls.findIndex(([n]) => n === 'initializeSDK') < f.calls.findIndex(([n]) => n === 'getAdvertiserTrackingEnabled'));
+  assert.ok(f.calls.findIndex(([n]) => n === 'getAdvertiserTrackingEnabled') < f.calls.findIndex(([n]) => n === 'activateAfterConsent'));
+  f.api.trackLessonCompleted(); await drain();
+  assert.equal(f.events.length, 1);
+  assert.equal(f.calls.filter(([n]) => n === 'flush').length, 1);
+  const status = await f.api.getMeasurementDiagnostics();
+  assert.equal(status.lastEventState, 'handed-to-sdk');
+  assert.equal(status.active, true);
+});
+
+test('native consent rejection leaves the event gate closed and is diagnosable', async () => {
+  const f = fixture({ os: 'ios', activationFails: true });
+  await f.api.setMeasurementConsent(true);
+  f.api.trackLessonCompleted(); await drain();
+  assert.equal(f.events.length, 0);
+  assert.equal(f.calls.some(([n]) => n === 'flush'), false);
+  const status = await f.api.getMeasurementDiagnostics();
+  assert.equal(status.failureStage, 'native-consent-gate');
+  assert.equal(status.lastEventState, 'blocked');
 });

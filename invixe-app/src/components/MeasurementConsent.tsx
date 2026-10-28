@@ -3,12 +3,22 @@ import { Alert, AppState, Linking } from "react-native";
 import { TERMS_POLICY_URL } from "../config/externalLinks";
 import {
   getMeasurementConsent,
+  getMeasurementDiagnostics,
   isMetaMeasurementConfigured,
   refreshMeasurementConsent,
   setMeasurementConsent,
 } from "../services/analytics/meta";
 
 let showing = false;
+export async function showMeasurementDiagnostics() {
+  try {
+    const status = await getMeasurementDiagnostics();
+    Alert.alert("אבחון מדידה — גרסת בדיקה", JSON.stringify(status, null, 2), [{ text: "סגירה" }]);
+  } catch {
+    Alert.alert("אבחון מדידה", "לא ניתן לקרוא את מצב המדידה.");
+  }
+}
+
 export function showMeasurementChoices() {
   if (showing || !isMetaMeasurementConfigured()) return;
   showing = true;

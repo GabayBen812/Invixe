@@ -32,7 +32,8 @@
       "extends": "production",
       "environment": "preview",
       "env": {
-        "EXPO_PUBLIC_META_MEASUREMENT_ENABLED": "true"
+        "EXPO_PUBLIC_META_MEASUREMENT_ENABLED": "true",
+        "EXPO_PUBLIC_META_DIAGNOSTICS": "true"
       },
       "android": {
         "buildType": "apk",

@@ -1,4 +1,4 @@
-import { showMeasurementChoices } from "../components/MeasurementConsent";
+import { showMeasurementChoices, showMeasurementDiagnostics } from "../components/MeasurementConsent";
 import { isMetaMeasurementConfigured } from "../services/analytics/meta";
 import { useMemo, useCallback, useRef, useState, useEffect } from "react";
 import { useFocusEffect } from "@react-navigation/native";
@@ -867,6 +867,12 @@ export default function ProfileScreen({ navigation }: Props) {
             <Pressable onPress={showMeasurementChoices} style={styles.termsLinkWrap}
               accessibilityRole="button" accessibilityLabel="העדפות מדידת פרסום">
               <Text style={styles.termsLinkText}>העדפות מדידת פרסום</Text>
+            </Pressable>
+          )}
+          {isMetaMeasurementConfigured() && process.env.EXPO_PUBLIC_META_DIAGNOSTICS === "true" && (
+            <Pressable onPress={showMeasurementDiagnostics} style={styles.termsLinkWrap}
+              accessibilityRole="button" accessibilityLabel="אבחון מדידה — גרסת בדיקה">
+              <Text style={styles.termsLinkText}>אבחון מדידה — גרסת בדיקה</Text>
             </Pressable>
           )}
           <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
