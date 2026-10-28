@@ -39,5 +39,12 @@
         "autoIncrement": true
       }
     }
+  },
+  "submit": {
+    "measurement-test": {
+      "ios": {
+        "ascAppId": "6759206244"
+      }
+    }
   }
 }

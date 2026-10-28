@@ -48,7 +48,12 @@ native token to the inert placeholder. Do not commit generated token values.
 Local opt-in configuration is in gitignored `.env.meta.local`; it is not loaded
 by default. Export its variables explicitly when testing the injection script.
 
-Build with `eas build --profile measurement-test --platform all`.
+Load the gitignored `.env.meta.local` variables into the local process, then
+build with `eas build --profile measurement-test --platform all`. EAS needs the
+token during local config evaluation before fetching its preview variables.
+For iOS, submit the exact successful build ID with
+`eas submit --platform ios --profile measurement-test --id <build-id>`.
+This uploads to App Store Connect/TestFlight, not a public App Store release.
 Run the physical-device checks below before enabling a production release.
 Sync the bundled revised privacy disclosure to the separate Invixe-Policy site
 and update store privacy declarations before releasing measurement to users.
