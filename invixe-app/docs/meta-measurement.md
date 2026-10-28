@@ -29,42 +29,38 @@ values or journal data are sent. SDK auto events can include actual App Store
 purchases if real purchases are introduced later; do not log virtual trades as
 purchases. Meta itself receives technical SDK/device data for attribution.
 
-## Activate in a test build
+## Measurement test build (1.0.7)
 
-1. Get **Client Token**, not App Secret, from Meta > App settings > Advanced.
-   The Client Token is embedded in the binary; it is not a server secret. Keep
-   App Secret out of the app and this repository.
-2. Supply `EXPO_PUBLIC_META_MEASUREMENT_ENABLED=true` and `META_CLIENT_TOKEN`
-   to both local Expo prebuild and the matching EAS build environment.
-   Update the chosen profile in `eas.json`, which explicitly sets the flag to
-   `false` while Meta identity review is pending.
-   A missing token fails Expo config evaluation. Default builds use an inert
-   placeholder and keep native auto initialization, logging and ID collection off.
-3. This repo commits `ios/`, so configuration plugins do not run automatically
-   during an EAS build. Run `npx expo prebuild --platform ios --no-install` with
-   those variables and the existing Google client IDs. Review the native diff,
-   then run CocoaPods install on macOS and commit the updated native project and
-   Podfile.lock. Do not use `--clean` over hand-maintained native changes.
-   The EAS post-install check rejects enabled builds with stale iOS Meta settings.
-4. Android also has a committed native folder. Run `npx expo prebuild
-   --platform android --no-install` with the same environment, review and commit
-   the changes before building. The build check validates its token and safety defaults. Configure its real store listing/package and signing hashes in Meta.
-5. Sync the revised disclosure with the separate **Invixe-Policy** repository
-   and publish it at the privacy URL before enabling measurement. The bundled
-   `registrationLegal.ts` has been updated here; its generation script reads that
-   separate repo, so update that source before regenerating. Update store privacy
-   declarations to match the tested SDK behavior.
-6. Build a new native version (this cannot be shipped as a JS-only update or run
-   inside Expo Go). Keep measurement disabled for production until checks pass.
+Meta identity verification completed on 2026-10-28; the API restriction banner
+cleared and Events Manager opened. It has not received an event yet.
+
+The `measurement-test` EAS profile extends production signing, uses the preview
+EAS environment and enables measurement after consent. Android produces an APK
+for direct installation; iOS produces a store-signed IPA for TestFlight.
+The Client Token is stored as a Sensitive project variable `META_CLIENT_TOKEN`
+in Expo preview with the owner's explicit approval. It is not the App Secret.
+It is embedded in the binary, so it must not be treated as a server secret.
+
+`eas-build-post-install` runs the release guard, injects the token into the
+committed native templates, then validates both the token and disabled native
+collection defaults. Production/preview profiles remain disabled and reset the
+native token to the inert placeholder. Do not commit generated token values.
+Local opt-in configuration is in gitignored `.env.meta.local`; it is not loaded
+by default. Export its variables explicitly when testing the injection script.
+
+Build with `eas build --profile measurement-test --platform all`.
+Run the physical-device checks below before enabling a production release.
+Sync the bundled revised privacy disclosure to the separate Invixe-Policy site
+and update store privacy declarations before releasing measurement to users.
+For testing, review the bundled disclosure and consent prompt before opting in.
 
 ## Verification
 
-- Release preparation: version **1.0.6**, local iOS build **12**, Android code
-  **11**. EAS production increments its remote build counters on every build;
+- Release preparation: version **1.0.7**, local iOS build **13**, Android code
+  **12**. EAS production increments its remote build counters on every build;
   retries may therefore have higher numbers. `npm run check:release` validates
-  the shared marketing version before EAS builds. This release includes the
-  SDK but measurement remains disabled until the Client Token and checks above
-  are complete; activating it requires another native build.
+  the shared marketing version before EAS builds. The measurement-test profile enables the SDK after consent; production remains
+  disabled pending physical-device verification and disclosure updates.
 
 - `npm run test:meta` checks consent, ATT denial/revocation, disabled builds and
   event payload boundaries with mocked native modules.

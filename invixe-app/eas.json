@@ -1,5 +1,7 @@
 {
-  "cli": { "appVersionSource": "remote" },
+  "cli": {
+    "appVersionSource": "remote"
+  },
   "build": {
     "production": {
       "env": {
@@ -24,6 +26,17 @@
       },
       "android": {
         "buildType": "apk"
+      }
+    },
+    "measurement-test": {
+      "extends": "production",
+      "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_META_MEASUREMENT_ENABLED": "true"
+      },
+      "android": {
+        "buildType": "apk",
+        "autoIncrement": true
       }
     }
   }
