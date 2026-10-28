@@ -2,7 +2,7 @@
   "expo": {
     "name": "Invixe",
     "slug": "invixe-app",
-    "version": "1.0.9",
+    "version": "1.0.10",
     "orientation": "portrait",
     "icon": "./assets/InvixeLogo.png",
     "userInterfaceStyle": "light",
@@ -14,6 +14,7 @@
     },
 
     "ios": {
+      "icon": "./assets/InvixeIOSIcon.png",
       "supportsTablet": true,
       "requireFullScreen": true,
       "bundleIdentifier": "com.gabayben812.invixeapp",

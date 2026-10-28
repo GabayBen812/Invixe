@@ -6,9 +6,12 @@ Bundle/package: `com.gabayben812.invixeapp`. Apple store ID: `6759206244`.
 
 ## Status
 
-Disabled by default. No Meta events should be sent by the default build.
-This is preparation, not a verified install-attribution integration. Android store configuration, production privacy disclosures, and physical-device
-Events Manager/attribution checks still need to be completed.
+The production EAS profile enables consent-gated measurement for release 1.0.10.
+The ordinary preview profile remains disabled. On 2026-10-28, Meta Events Manager
+Overview (All events) showed active app installs, app activation and
+`invixe_lesson_completed` received through Facebook SDK. This verifies event
+receipt, not paid-campaign attribution. Android configuration, store disclosures
+and a controlled campaign check remain release/validation tasks.
 
 The JS layer requests explicit optional consent. iOS also requires ATT grant.
 Unknown/denied consent, denied ATT, web and Expo Go drop events. Events before
@@ -32,7 +35,7 @@ purchases. Meta itself receives technical SDK/device data for attribution.
 ## Measurement test build (1.0.9)
 
 Meta identity verification completed on 2026-10-28; the API restriction banner
-cleared and Events Manager opened. It has not received an event yet.
+cleared and Events Manager opened. Event receipt was subsequently verified in Overview.
 
 The `measurement-test` EAS profile extends production signing, uses the preview
 EAS environment and enables measurement after consent. Android produces an APK
@@ -43,8 +46,9 @@ It is embedded in the binary, so it must not be treated as a server secret.
 
 `eas-build-post-install` runs the release guard, injects the token into the
 committed native templates, then validates both the token and disabled native
-collection defaults. Production/preview profiles remain disabled and reset the
-native token to the inert placeholder. Do not commit generated token values.
+collection defaults. The production profile uses the existing approved preview
+environment, enables measurement, and hides diagnostics. The ordinary preview
+profile remains disabled and uses an inert placeholder. Do not commit generated token values.
 Local opt-in configuration is in gitignored `.env.meta.local`; it is not loaded
 by default. Export its variables explicitly when testing the injection script.
 
@@ -61,11 +65,11 @@ For testing, review the bundled disclosure and consent prompt before opting in.
 
 ## Verification
 
-- Release preparation: version **1.0.9**, local iOS build **16**, Android code
-  **14**. EAS production increments its remote build counters on every build;
+- Release preparation: version **1.0.10**, local iOS build **17**, Android code
+  **15**. EAS production increments its remote build counters on every build;
   retries may therefore have higher numbers. `npm run check:release` validates
-  the shared marketing version before EAS builds. The measurement-test profile enables the SDK after consent; production remains
-  disabled pending physical-device verification and disclosure updates.
+  the shared marketing version before EAS builds. The production and measurement-test profiles enable the SDK only after consent.
+  Store disclosures and policy deployment must be completed before public release.
 
 - `npm run test:meta` checks consent, ATT denial/revocation, disabled builds and
   event payload boundaries with mocked native modules.
@@ -87,7 +91,7 @@ For testing, review the bundled disclosure and consent prompt before opting in.
 The 1.0.8 consent gate reads Expo’s compile-time public flag rather than relying
 on runtime Constants.expoConfig availability. The 1.0.7 IPA contains the flag
 and token, but the tester reported missing consent controls. The tester confirmed the consent UI appeared in 1.0.8.
-Event receipt is still unverified.
+Event receipt was subsequently verified in Meta Overview on 2026-10-28.
 
 ## 1.0.9 delivery diagnosis
 
@@ -122,5 +126,16 @@ The diagnostic UI is absent unless EXPO_PUBLIC_META_DIAGNOSTICS=true.
 - iOS build 15 was canceled in the queue to include the native queue barrier.
 - The existing public privacy URL was saved in Meta Basic settings and the UI
   confirmed Changes saved. The URL returns HTTP 200 but still has the old copy.
-  Draft policy update: https://github.com/GabayBen812/Invixe-Policy/pull/1.
+  Policy update merged with explicit deployment approval: https://github.com/GabayBen812/Invixe-Policy/pull/1.
+  Live deployment is still being verified; GitHub merge alone is not deployment proof.
   Neither the Meta app nor a public store release has been published.
+
+## 1.0.10 store preparation
+
+- iOS production build: `c58c827b-2c51-4fa1-83dc-094a1d5dc18b` (17);
+  upload submission: `545a0da8-fa9c-4d8f-a5ef-38591991eaa7`.
+- New iOS-only icon: `assets/InvixeIOSIcon.png`; native 1024px icon has no alpha.
+  Android launcher assets are unchanged.
+- App Store Connect version 1.0.10 created with release notes and review guidance.
+- Google Play existing package confirmed; published version is 1.0.5 (8).
+- Neither store release has yet been submitted for review.
