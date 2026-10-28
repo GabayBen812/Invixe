@@ -1,3 +1,4 @@
+import { trackLessonCompleted } from "../services/analytics/meta";
 import React, {
   createContext,
   useCallback,
@@ -449,6 +450,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
             ? persistCompletedLessons(userEmail, newlyCompleted)
             : Promise.resolve(),
         ]);
+        if (!prevCompleted.includes(lessonId)) trackLessonCompleted();
       } catch (error) {
         console.error("Error persisting lesson completion:", error);
         throw error;

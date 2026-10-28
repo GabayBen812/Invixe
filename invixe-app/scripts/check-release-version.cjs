@@ -1,0 +1,12 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const plist = require('@expo/plist').default;
+const version = require('../app.json').expo.version;
+const ios = plist.parse(fs.readFileSync('ios/invixeapp/Info.plist', 'utf8'));
+const xcode = fs.readFileSync('ios/invixeapp.xcodeproj/project.pbxproj', 'utf8');
+const android = fs.readFileSync('android/app/build.gradle', 'utf8');
+assert.equal(ios.CFBundleShortVersionString, version, 'iOS release version differs from Expo');
+for (const match of xcode.matchAll(/MARKETING_VERSION = ([^;]+);/g)) assert.equal(match[1], version);
+assert.equal(android.match(/versionName "([^"]+)"/)[1], version, 'Android release version differs from Expo');
+assert.equal(require('../package.json').version, version);
+console.log(`Release version ${version} matches Expo, package, iOS and Android. EAS increments native build counters remotely.`);
